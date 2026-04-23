@@ -13,7 +13,12 @@ import {
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
 import { initNotificationsBell } from "../../../shared/js/notifications-bell.js";
-import { getMe, setMe } from "../../../shared/js/storage.js";
+import {
+    getMe,
+    setMe,
+    getStudentMe,
+    setStudentMe
+} from "../../../shared/js/storage.js";
 
 let companySlug = null;
 let company = null;
@@ -1067,7 +1072,16 @@ initNotificationsBell({
 }
 
 async function loadStudentProfile() {
-    return await get(`/api/admin/${companySlug}/students/me`);
+    let cached = getStudentMe();
+
+    if (cached) {
+        return cached;
+    }
+
+    const result = await get(`/api/student/${companySlug}/me`);
+    setStudentMe(result);
+
+    return result;
 }
 
 async function loadPayments() {
@@ -1219,25 +1233,28 @@ if (!me) {
     me = await get("/api/admin/me");
     setMe(me);
 }
-        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
-        if (!company) {
-            throw new Error("No se encontró la empresa activa del alumno.");
-        }
+company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
-        student = await loadStudentProfile();
+if (!company) {
+    throw new Error("No se encontró la empresa activa del alumno.");
+}
 
-        if (!student) {
-            throw new Error("No se pudo obtener el perfil del alumno.");
-        }
-
-const [paymentsResult, transferInfoResult] = await Promise.all([
+const [profile, paymentsResult, transferInfoResult] = await Promise.all([
+    loadStudentProfile(),
     loadPayments(),
     loadTransferInfo()
 ]);
 
+student = profile;
+
+if (!student) {
+    throw new Error("No se pudo obtener el perfil del alumno.");
+}
+
 payments = paymentsResult;
 transferInfo = transferInfoResult;
+
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información de pagos.";
     } finally {

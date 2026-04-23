@@ -12,7 +12,12 @@ import {
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
 import { initNotificationsBell } from "../../../shared/js/notifications-bell.js";
-import { getMe, setMe } from "../../../shared/js/storage.js";
+import {
+    getMe,
+    setMe,
+    getStudentMe,
+    setStudentMe
+} from "../../../shared/js/storage.js";
 
 let companySlug = null;
 let company = null;
@@ -528,7 +533,16 @@ document.querySelectorAll("#logoutBtn").forEach(btn => {
 }
 
 async function loadStudentProfile() {
-    return await get(`/api/admin/${companySlug}/students/me`);
+    let cachedStudent = getStudentMe();
+
+    if (cachedStudent) {
+        return cachedStudent;
+    }
+
+    const result = await get(`/api/student/${companySlug}/me`);
+    setStudentMe(result);
+
+    return result;
 }
 
 async function loadCourses() {

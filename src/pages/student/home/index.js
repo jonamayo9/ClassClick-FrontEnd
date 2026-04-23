@@ -14,7 +14,12 @@ import {
 } from "../../../shared/js/student-carnet.js";
 import { initNotificationsBell } from "../../../shared/js/notifications-bell.js";
 import { initPwaInstall } from "../../../shared/js/pwa-install.js";
-import { getMe, setMe } from "../../../shared/js/storage.js";
+import {
+    getMe,
+    setMe,
+    getStudentMe,
+    setStudentMe
+} from "../../../shared/js/storage.js";
 
 let companySlug = null;
 let company = null;
@@ -1103,7 +1108,16 @@ initNotificationsBell({
 }
 
 async function loadStudentProfile() {
-    return await get(`/api/admin/${companySlug}/students/me`);
+    let cached = getStudentMe();
+
+    if (cached) {
+        return cached;
+    }
+
+    const result = await get(`/api/student/${companySlug}/me`);
+    setStudentMe(result);
+
+    return result;
 }
 
 async function loadMatches() {
@@ -1133,14 +1147,19 @@ async function init() {
             throw new Error("No se encontró la empresa activa del alumno.");
         }
 
-        student = await loadStudentProfile();
+        const [profile] = await Promise.all([
+            loadStudentProfile(),
+            loadMatches()
+        ]);
+
+        student = profile;
 
         if (!student) {
             throw new Error("No se pudo obtener el perfil del alumno.");
         }
 
         await refreshStudentPhotoUrl({ render: false });
-        await loadMatches();
+
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información del alumno.";
     } finally {

@@ -104,6 +104,7 @@ export function clearSession() {
   removeActiveCompany();
   removeMe();
   removeStudentProfile();
+  removeStudentMe();
 }
 
 export function setMe(me) {
@@ -130,4 +131,17 @@ export function getStudentProfile() {
 
 export function removeStudentProfile() {
   localStorage.removeItem("classclick_profile");
+}
+
+export function setStudentMe(student) {
+  localStorage.setItem("classclick_student_me", JSON.stringify(student));
+}
+
+export function getStudentMe() {
+  const raw = localStorage.getItem("classclick_student_me");
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function removeStudentMe() {
+  localStorage.removeItem("classclick_student_me");
 }

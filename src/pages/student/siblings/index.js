@@ -11,7 +11,13 @@ import {
     buildStudentCarnetModal,
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
-import { getMe, setMe } from "../../../shared/js/storage.js";
+import {
+    getMe,
+    setMe,
+    getStudentMe,
+    setStudentMe
+} from "../../../shared/js/storage.js";
+
 
 let session = null;
 let companySlug = null;
@@ -750,7 +756,16 @@ function clearRequestError() {
 }
 
 async function loadMe() {
-    student = await get(`/api/student/${companySlug}/me`);
+    let cached = getStudentMe();
+
+    if (cached) {
+        student = cached;
+        return;
+    }
+
+    const result = await get(`/api/student/${companySlug}/me`);
+    setStudentMe(result);
+    student = result;
 }
 
 async function loadSiblings() {

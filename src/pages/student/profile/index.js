@@ -17,7 +17,9 @@ import {
     getMe,
     setMe,
     getStudentProfile,
-    setStudentProfile
+    setStudentProfile,
+    getStudentMe,
+    setStudentMe
 } from "../../../shared/js/storage.js";
 
 let session = null;
@@ -855,9 +857,11 @@ async function saveProfile(event) {
         render();
 
 profile = await put("/api/profile/me", payload);
-setStudentProfile(profile);
-await refreshProfilePhotoUrl({ render: false });
 
+setStudentProfile(profile);
+setStudentMe(profile); // 👈 ESTE ES EL CAMBIO
+
+await refreshProfilePhotoUrl({ render: false });
         showMessage("Tu perfil se actualizó correctamente.");
     } catch (error) {
         showFieldError("profileError", error?.message || "No se pudo guardar el perfil.");
