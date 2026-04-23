@@ -11,3 +11,23 @@
     <link rel="stylesheet" href="/public/assets/app.css" />
 </head>
 <body>
+
+    <div id="app"></div>
+
+    <script type="module">
+        // Carga el login dentro del index
+        fetch('/src/pages/auth/login.html')
+            .then(res => res.text())
+            .then(html => {
+                document.getElementById('app').innerHTML = html;
+
+                // cargar el JS después de inyectar el HTML
+                const script = document.createElement('script');
+                script.type = 'module';
+                script.src = '/src/pages/auth/login.js';
+                document.body.appendChild(script);
+            });
+    </script>
+
+</body>
+</html>
