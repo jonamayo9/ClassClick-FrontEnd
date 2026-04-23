@@ -1,0 +1,12 @@
+{
+  "apiBaseUrl": "https://classclick-backend.onrender.com",
+  "storageKeys": {
+    "token": "classclick_token",
+    "refreshToken": "classclick_refresh_token",
+    "accessTokenExpiresAtUtc": "classclick_access_token_expires_at_utc",
+    "user": "classclick_user",
+    "activeCompanySlug": "classclick_active_company_slug",
+    "activeRole": "classclick_active_role"
+  },
+  "vapidPublicKey": "BAv2aj3EGwE3vGwmhR7krlAy6abZXzD2pXlNZXPCqcBGBoP9IAvtAZt4jaqCqVq5hf1gAJ6CbZB9HVf9E9sOMz0"
+}

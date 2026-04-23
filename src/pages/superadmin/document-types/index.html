@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tipos documentales | ClassClick</title>
+  <link rel="stylesheet" href="/public/assets/app.css" />
+</head>
+
+<body class="min-h-screen bg-slate-100">
+
+<div class="min-h-screen">
+
+<header class="border-b border-slate-200 bg-white">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+
+    <div>
+      <h1 class="text-xl font-bold text-slate-900">ClassClick</h1>
+      <p class="text-sm text-slate-500">
+        SuperAdmin / Tipos documentales
+      </p>
+    </div>
+
+    <div class="flex gap-2">
+      <a
+        href="/src/pages/superadmin/dashboard/index.html"
+        class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Volver
+      </a>
+
+      <button
+        id="logoutButton"
+        class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Cerrar sesión
+      </button>
+    </div>
+
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-4 py-6">
+
+  <div class="mb-6 flex justify-between">
+    <div>
+      <h2 class="text-2xl font-bold text-slate-900">
+        Tipos documentales
+      </h2>
+
+      <p class="text-sm text-slate-500">
+        Configuración global de documentos solicitados a alumnos
+      </p>
+    </div>
+
+    <button
+      id="createButton"
+      class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+      Nuevo tipo
+    </button>
+  </div>
+
+  <div class="card p-5">
+    <div class="mb-5">
+      <label class="label">
+        Buscar
+      </label>
+
+      <input
+        id="searchInput"
+        class="input"
+        placeholder="Buscar por nombre"
+      />
+    </div>
+
+    <div
+      id="loadingState"
+      class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+      Cargando...
+    </div>
+
+    <div
+      id="emptyState"
+      class="hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+      <h3 class="text-lg font-semibold text-slate-900">
+        No hay tipos documentales
+      </h3>
+
+      <p class="mt-2 text-sm text-slate-600">
+        Creá el primero desde el botón superior
+      </p>
+    </div>
+
+    <div
+      id="tableWrapper"
+      class="hidden overflow-hidden rounded-2xl border border-slate-200">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                Nombre
+              </th>
+
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                Requerido
+              </th>
+
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                Vence
+              </th>
+
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                Múltiples
+              </th>
+
+              <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                Estado
+              </th>
+
+              <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">
+                Acciones
+              </th>
+            </tr>
+          </thead>
+
+          <tbody
+            id="tableBody"
+            class="divide-y divide-slate-200 bg-white">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+</div>
+
+<div
+  id="modal"
+  class="hidden fixed inset-0 z-50">
+
+  <div class="absolute inset-0 bg-black/40"></div>
+
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div
+      class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+
+      <div class="border-b border-slate-200 px-5 py-4">
+        <h3 class="text-lg font-semibold">
+          Tipo documental
+        </h3>
+      </div>
+
+      <form
+        id="form"
+        class="space-y-4 px-5 py-5">
+
+        <input
+          id="id"
+          type="hidden"
+        />
+
+        <div>
+          <label class="label">
+            Nombre
+          </label>
+
+          <input
+            id="name"
+            class="input"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            Descripción
+          </label>
+
+          <textarea
+            id="description"
+            class="input"
+            rows="3"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isRequired"
+            />
+            Requerido
+          </label>
+
+          <label class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isActive"
+            />
+            Activo
+          </label>
+
+          <label class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="hasExpiration"
+            />
+            Tiene vencimiento
+          </label>
+
+          <label class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="allowMultipleFiles"
+            />
+            Múltiples archivos
+          </label>
+        </div>
+
+        <div
+          id="expirationWarningDaysWrapper"
+          class="hidden">
+          <label class="label">
+            Días aviso vencimiento
+          </label>
+
+          <input
+            id="expirationWarningDays"
+            type="number"
+            min="0"
+            class="input"
+          />
+        </div>
+
+        <div
+          id="maxFilesWrapper"
+          class="hidden">
+          <label class="label">
+            Cantidad máxima de archivos
+          </label>
+
+          <input
+            id="maxFiles"
+            type="number"
+            min="2"
+            class="input"
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            Tamaño máximo por archivo (MB)
+          </label>
+
+          <input
+            id="maxFileSizeMb"
+            type="number"
+            min="1"
+            class="input"
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            Extensiones permitidas
+          </label>
+
+          <input
+            id="allowedExtensions"
+            class="input"
+            placeholder=".pdf,.jpg,.jpeg,.png"
+          />
+
+          <p class="mt-1 text-xs text-slate-500">
+            Separalas por coma. Ejemplo: .pdf,.jpg,.jpeg,.png
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-3">
+          <button
+            type="button"
+            id="cancelButton"
+            class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Cancelar
+          </button>
+
+          <button
+            type="submit"
+            class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+            Guardar
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+<script
+  type="module"
+  src="/src/pages/superadmin/document-types/index.js">
+</script>
+
+</body>
+</html>

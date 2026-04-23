@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Empresas | ClassClick</title>
+  <link rel="stylesheet" href="/public/assets/app.css" />
+</head>
+<body class="min-h-screen bg-slate-100">
+  <div class="min-h-screen">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div>
+          <h1 class="text-xl font-bold text-slate-900">ClassClick</h1>
+          <p class="text-sm text-slate-500">SuperAdmin / Empresas</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <a
+            href="/src/pages/superadmin/dashboard/index.html"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Volver
+          </a>
+
+          <button
+            id="logoutButton"
+            type="button"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">Empresas</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            Gestión base de empresas del sistema.
+          </p>
+        </div>
+
+        <button
+          id="newCompanyButton"
+          type="button"
+          class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
+          Nueva empresa
+        </button>
+      </div>
+
+      <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div class="card p-5">
+          <p class="text-sm text-slate-500">Total empresas</p>
+          <p id="totalCompaniesCount" class="mt-2 text-3xl font-bold text-slate-900">0</p>
+        </div>
+
+        <div class="card p-5">
+          <p class="text-sm text-slate-500">Empresas activas</p>
+          <p id="activeCompaniesCount" class="mt-2 text-3xl font-bold text-emerald-600">0</p>
+        </div>
+
+        <div class="card p-5">
+          <p class="text-sm text-slate-500">Empresas inactivas</p>
+          <p id="inactiveCompaniesCount" class="mt-2 text-3xl font-bold text-slate-700">0</p>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <div class="mb-5">
+          <label for="searchInput" class="label">Buscar</label>
+          <input
+            id="searchInput"
+            type="text"
+            class="input"
+            placeholder="Buscar por nombre, slug, email o teléfono" />
+        </div>
+
+        <div id="loadingState" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+          Cargando empresas...
+        </div>
+
+        <div
+          id="errorState"
+          class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        </div>
+
+        <div
+          id="emptyState"
+          class="hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+          <h3 class="text-lg font-semibold text-slate-900">No hay empresas para mostrar</h3>
+          <p class="mt-2 text-sm text-slate-600">
+            Cuando conectemos o cargues empresas, van a aparecer acá.
+          </p>
+        </div>
+
+        <div id="tableWrapper" class="hidden overflow-hidden rounded-2xl border border-slate-200">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Empresa</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Slug</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Email</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Teléfono</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Admins</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Alta</th>
+                  <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="companiesTableBody" class="divide-y divide-slate-200 bg-white"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="companyModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/60"></div>
+
+    <div class="absolute inset-0 overflow-y-auto p-4">
+      <div class="mx-auto flex min-h-full max-w-4xl items-center justify-center">
+        <div class="w-full rounded-2xl bg-white shadow-2xl">
+          <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h3 id="companyModalTitle" class="text-lg font-bold text-slate-900">Nueva empresa</h3>
+              <p class="mt-1 text-sm text-slate-500">Completá los datos de la empresa.</p>
+            </div>
+
+            <button
+              id="closeCompanyModalButton"
+              type="button"
+              class="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+              ✕
+            </button>
+          </div>
+
+          <form id="companyForm" class="p-5">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div class="md:col-span-2">
+                <label class="label" for="nameInput">Nombre *</label>
+                <input id="nameInput" name="name" type="text" class="input" required />
+              </div>
+
+              <div>
+                <label class="label" for="slugInput">Slug *</label>
+                <input id="slugInput" name="slug" type="text" class="input" required />
+              </div>
+
+              <div>
+                <label class="label" for="logoFileInput">Logo</label>
+                <input
+                  id="logoFileInput"
+                  name="logoFile"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.svg"
+                  class="input" />
+                <p class="mt-1 text-xs text-slate-500">
+                  Formatos permitidos: jpg, jpeg, png, webp, svg.
+                </p>
+              </div>
+
+              <div id="logoPreviewWrapper" class="hidden md:col-span-2">
+                <label class="label">Vista previa</label>
+                <div class="flex min-h-[110px] items-center rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <img
+                    id="logoPreviewImage"
+                    src=""
+                    alt="Logo empresa"
+                    class="max-h-24 max-w-full object-contain" />
+                </div>
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="label" for="descriptionInput">Descripción</label>
+                <textarea id="descriptionInput" name="description" rows="3" class="input"></textarea>
+              </div>
+
+              <div>
+                <label class="label" for="emailInput">Email</label>
+                <input id="emailInput" name="email" type="email" class="input" />
+              </div>
+
+              <div>
+                <label class="label" for="phoneInput">Teléfono</label>
+                <input id="phoneInput" name="phone" type="text" class="input" />
+              </div>
+
+              <div>
+                <label class="label" for="whatsappInput">WhatsApp</label>
+                <input id="whatsappInput" name="whatsapp" type="text" class="input" />
+              </div>
+
+              <div>
+                <label class="label" for="countryInput">País</label>
+                <input id="countryInput" name="country" type="text" class="input" />
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="label" for="addressLine1Input">Dirección</label>
+                <input id="addressLine1Input" name="addressLine1" type="text" class="input" />
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="label" for="addressLine2Input">Dirección 2</label>
+                <input id="addressLine2Input" name="addressLine2" type="text" class="input" />
+              </div>
+
+              <div>
+                <label class="label" for="cityInput">Ciudad</label>
+                <input id="cityInput" name="city" type="text" class="input" />
+              </div>
+
+              <div>
+                <label class="label" for="stateOrProvinceInput">Provincia / Estado</label>
+                <input id="stateOrProvinceInput" name="stateOrProvince" type="text" class="input" />
+              </div>
+
+              <div>
+                <label class="label" for="postalCodeInput">Código postal</label>
+                <input id="postalCodeInput" name="postalCode" type="text" class="input" />
+              </div>
+
+              <div id="isActiveWrapper" class="hidden">
+                <label class="label" for="isActiveInput">Estado</label>
+                <select id="isActiveInput" name="isActive" class="input">
+                  <option value="true">Activa</option>
+                  <option value="false">Inactiva</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="companyFormError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+            <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                id="cancelCompanyModalButton"
+                type="button"
+                class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                Cancelar
+              </button>
+
+              <button
+                id="saveCompanyButton"
+                type="submit"
+                class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                Guardar empresa
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/60"></div>
+
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        <div class="border-b border-slate-200 px-5 py-4">
+          <h3 id="statusModalTitle" class="text-lg font-bold text-slate-900">Confirmar acción</h3>
+          <p id="statusModalText" class="mt-1 text-sm text-slate-500"></p>
+        </div>
+
+        <div id="statusModalError" class="mx-5 mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+        <div class="flex flex-col-reverse gap-3 px-5 py-4 sm:flex-row sm:justify-end">
+          <button
+            id="cancelStatusModalButton"
+            type="button"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Cancelar
+          </button>
+
+          <button
+            id="confirmStatusModalButton"
+            type="button"
+            class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dropdown global de acciones -->
+  <div
+    id="actionsDropdown"
+    class="fixed z-50 hidden min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+    
+    <button
+      type="button"
+      id="actionsEditButton"
+      class="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50">
+      Editar
+    </button>
+
+    <a
+      id="actionsDocumentsLink"
+      href="#"
+      class="flex w-full items-center px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-50">
+      Documentos
+    </a>
+
+    <button
+      type="button"
+      id="actionsToggleStatusButton"
+      class="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50">
+      Estado
+    </button>
+  </div>
+
+  <script type="module" src="/src/pages/superadmin/companies/index.js"></script>
+</body>
+</html>
