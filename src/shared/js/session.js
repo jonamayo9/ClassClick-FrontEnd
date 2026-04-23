@@ -32,5 +32,5 @@ export function requireAuth() {
 
 export function logoutAndRedirect() {
   clearSession();
-  window.location.href = "/src/pages/auth/login.html";
+  window.location.href = "/";
 }

@@ -1,15 +1,30 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ClassClick</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClassClick</title>
 
-    <link rel="manifest" href="/public/manifest.json" />
-    <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="/public/manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
 
-    <link rel="stylesheet" href="/public/assets/app.css" />
+  <link rel="stylesheet" href="/public/assets/app.css" />
 </head>
 <body>
+  <div id="app"></div>
 
-    
+  <script type="module">
+    const response = await fetch("/src/pages/auth/login/index.html", {
+      cache: "no-store"
+    });
+
+    const html = await response.text();
+    document.getElementById("app").innerHTML = html;
+
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = "/src/pages/auth/login/index.js";
+    document.body.appendChild(script);
+  </script>
+</body>
+</html>

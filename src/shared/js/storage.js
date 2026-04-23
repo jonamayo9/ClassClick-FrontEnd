@@ -102,4 +102,32 @@ export function clearSession() {
   removeActiveCompanySlug();
   removeActiveRole();
   removeActiveCompany();
+  removeMe();
+  removeStudentProfile();
+}
+
+export function setMe(me) {
+  localStorage.setItem("classclick_me", JSON.stringify(me));
+}
+
+export function getMe() {
+  const raw = localStorage.getItem("classclick_me");
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function removeMe() {
+  localStorage.removeItem("classclick_me");
+}
+
+export function setStudentProfile(profile) {
+  localStorage.setItem("classclick_profile", JSON.stringify(profile));
+}
+
+export function getStudentProfile() {
+  const raw = localStorage.getItem("classclick_profile");
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function removeStudentProfile() {
+  localStorage.removeItem("classclick_profile");
 }

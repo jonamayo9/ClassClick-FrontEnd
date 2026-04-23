@@ -13,6 +13,12 @@ import {
     buildStudentCarnetModal,
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
+import {
+    getMe,
+    setMe,
+    getStudentProfile,
+    setStudentProfile
+} from "../../../shared/js/storage.js";
 
 let session = null;
 let companySlug = null;
@@ -848,8 +854,9 @@ async function saveProfile(event) {
         isSavingProfile = true;
         render();
 
-        profile = await put("/api/profile/me", payload);
-        await refreshProfilePhotoUrl({ render: false });
+profile = await put("/api/profile/me", payload);
+setStudentProfile(profile);
+await refreshProfilePhotoUrl({ render: false });
 
         showMessage("Tu perfil se actualizó correctamente.");
     } catch (error) {
@@ -1001,15 +1008,27 @@ async function init() {
         if (!session) return;
 
         companySlug = session.activeCompanySlug;
+let me = getMe();
 
-        const me = await get("/api/admin/me");
-        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+if (!me) {
+    me = await get("/api/admin/me");
+    setMe(me);
+}
+
+company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
         if (!company) {
             throw new Error("No se encontró la empresa activa del alumno.");
         }
 
-        profile = await get("/api/profile/me");
+        let cachedProfile = getStudentProfile();
+
+if (cachedProfile) {
+    profile = cachedProfile;
+} else {
+    profile = await get("/api/profile/me");
+    setStudentProfile(profile);
+}
 
         if (!profile) {
             throw new Error("No se pudo obtener el perfil del alumno.");

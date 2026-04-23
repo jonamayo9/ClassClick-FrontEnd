@@ -13,6 +13,7 @@ import {
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
 import { initNotificationsBell } from "../../../shared/js/notifications-bell.js";
+import { getMe, setMe } from "../../../shared/js/storage.js";
 
 let companySlug = null;
 let company = null;
@@ -1212,7 +1213,12 @@ async function init() {
 
         companySlug = session.activeCompanySlug;
 
-        const me = await get("/api/admin/me");
+        let me = getMe();
+
+if (!me) {
+    me = await get("/api/admin/me");
+    setMe(me);
+}
         company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
         if (!company) {
@@ -1225,8 +1231,13 @@ async function init() {
             throw new Error("No se pudo obtener el perfil del alumno.");
         }
 
-        payments = await loadPayments();
-        transferInfo = await loadTransferInfo();
+const [paymentsResult, transferInfoResult] = await Promise.all([
+    loadPayments(),
+    loadTransferInfo()
+]);
+
+payments = paymentsResult;
+transferInfo = transferInfoResult;
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información de pagos.";
     } finally {

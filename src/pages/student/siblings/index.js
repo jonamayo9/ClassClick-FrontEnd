@@ -11,6 +11,7 @@ import {
     buildStudentCarnetModal,
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
+import { getMe, setMe } from "../../../shared/js/storage.js";
 
 let session = null;
 let companySlug = null;
@@ -938,14 +939,20 @@ async function init() {
         session = requireAuth();
         if (!session) return;
 
-        companySlug = session.activeCompanySlug;
+companySlug = session.activeCompanySlug;
 
-        const me = await get("/api/admin/me");
-        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+let me = getMe();
 
-        if (!company) {
-            throw new Error("No se encontró la empresa activa del alumno.");
-        }
+if (!me) {
+    me = await get("/api/admin/me");
+    setMe(me);
+}
+
+company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+
+if (!company) {
+    throw new Error("No se encontró la empresa activa del alumno.");
+}
 
         await Promise.all([
             loadMe(),

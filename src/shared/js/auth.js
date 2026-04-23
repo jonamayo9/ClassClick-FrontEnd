@@ -8,6 +8,17 @@ import {
   setActiveRole,
   clearSession
 } from "./storage.js";
+import { post, get } from "./api.js";
+import {
+  setToken,
+  setRefreshToken,
+  setAccessTokenExpiresAtUtc,
+  setUser,
+  setActiveCompanySlug,
+  setActiveRole,
+  setMe,
+  clearSession
+} from "./storage.js";
 
 function normalizeLoginResponse(data) {
   const token =
@@ -90,6 +101,12 @@ export async function login(email, password) {
   setRefreshToken(normalized.refreshToken);
   setAccessTokenExpiresAtUtc(normalized.accessTokenExpiresAtUtc);
   setUser(normalized.user);
+  try {
+  const me = await get("/api/admin/me");
+  setMe(me);
+} catch (error) {
+  console.warn("No se pudo guardar me en cache:", error);
+}
 
   const firstCompany = resolveFirstCompany(normalized.companies);
   const companySlug = resolveCompanySlug(firstCompany);

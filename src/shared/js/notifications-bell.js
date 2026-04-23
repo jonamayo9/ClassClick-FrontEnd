@@ -28,6 +28,12 @@ export async function initNotificationsBell(options = {}) {
   const root = document.getElementById(rootId);
   if (!root) return null;
 
+  if (root.dataset.notificationsBellInitialized === "true") {
+  return null;
+}
+
+root.dataset.notificationsBellInitialized = "true";
+
   root.className = "relative shrink-0";
 
   root.innerHTML = `
@@ -199,10 +205,14 @@ export async function initNotificationsBell(options = {}) {
     renderList();
     await refreshUnreadCount();
 
-    if (item.url) {
-      togglePanel(false);
-      window.location.href = item.url;
-    }
+const url = item.url;
+
+if (!url || url === "/src/pages/student/files/index.html") {
+  window.location.href = "/src/pages/student/files/index.html";
+  return;
+}
+
+window.location.href = url;
   }
 
   async function removeNotification(itemId) {
@@ -245,7 +255,6 @@ export async function initNotificationsBell(options = {}) {
     if (isHidden) {
       try {
         await refreshNotifications();
-        await refreshUnreadCount();
       } catch (error) {
         console.error("Error cargando notificaciones:", error);
         if (typeof onError === "function") onError(error);
@@ -306,9 +315,9 @@ export async function initNotificationsBell(options = {}) {
     }
   });
 
-  refreshIntervalId = window.setInterval(() => {
-    safeRefreshUnreadCount();
-  }, 30000);
+  // refreshIntervalId = window.setInterval(() => {
+  //   safeRefreshUnreadCount();
+  // }, 60000);
 
   try {
     await refreshUnreadCount();

@@ -12,6 +12,7 @@ import {
     bindStudentCarnetEvents
 } from "../../../shared/js/student-carnet.js";
 import { initNotificationsBell } from "../../../shared/js/notifications-bell.js";
+import { getMe, setMe } from "../../../shared/js/storage.js";
 
 let session = null;
 let companySlug = null;
@@ -855,7 +856,13 @@ async function init() {
 
         companySlug = session.activeCompanySlug;
 
-        const me = await get("/api/admin/me");
+        let me = getMe();
+
+        if (!me) {
+            me = await get("/api/admin/me");
+            setMe(me);
+        }
+
         company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
         if (!company) {
