@@ -132,28 +132,39 @@ export async function apiFetch(endpoint, options = {}) {
     return data;
   }
 
+  // if (response.status === 401) {
+  //   try {
+  //     const newToken = await refreshAccessToken();
+
+  //     response = await doFetch(endpoint, options, newToken);
+  //     data = await parseResponse(response);
+
+  //     if (response.ok) {
+  //       return data;
+  //     }
+  //   } catch {
+  //     clearSession();
+  //     window.location.href = "/src/pages/auth/login.html";
+  //     throw new Error("Tu sesión expiró.");
+  //   }
+
+  //   if (response.status === 401) {
+  //     clearSession();
+  //     window.location.href = "/src/pages/auth/login.html";
+  //     throw new Error("Tu sesión expiró.");
+  //   }
+  // }
+
   if (response.status === 401) {
-    try {
-      const newToken = await refreshAccessToken();
+  const text = await response.text();
 
-      response = await doFetch(endpoint, options, newToken);
-      data = await parseResponse(response);
+  console.error("401 DETECTADO", {
+    url: response.url,
+    body: text
+  });
 
-      if (response.ok) {
-        return data;
-      }
-    } catch {
-      clearSession();
-      window.location.href = "/src/pages/auth/login.html";
-      throw new Error("Tu sesión expiró.");
-    }
-
-    if (response.status === 401) {
-      clearSession();
-      window.location.href = "/src/pages/auth/login.html";
-      throw new Error("Tu sesión expiró.");
-    }
-  }
+  throw new Error(text || "No autorizado");
+}
 
   const message =
     typeof data === "string"
