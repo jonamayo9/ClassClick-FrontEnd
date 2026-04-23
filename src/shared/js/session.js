@@ -22,8 +22,8 @@ export function getSession() {
 export function requireAuth() {
   const session = getSession();
 
-  if (!session.token) {
-    console.warn("SIN TOKEN - NO REDIRIJO PARA DEBUG");
+  if (!session.token || !session.user) {
+    window.location.href = "/src/pages/auth/login.html";
     return null;
   }
 
@@ -32,5 +32,5 @@ export function requireAuth() {
 
 export function logoutAndRedirect() {
   clearSession();
-  console.warn("LOGOUT - NO REDIRIJO PARA DEBUG");
+  window.location.href = "/src/pages/auth/login.html";
 }
