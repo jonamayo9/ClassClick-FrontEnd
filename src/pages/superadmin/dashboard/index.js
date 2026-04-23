@@ -37,6 +37,5 @@ async function init() {
 }
 
 init().catch(() => {
-  //window.location.href = "/src/pages/auth/login.html";
-  throw new Error("se encontraron errores en dashboard");
+  window.location.href = "/src/pages/auth/login.html";
 });
