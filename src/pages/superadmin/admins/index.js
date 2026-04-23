@@ -922,5 +922,6 @@ assignSelectedCompanies.addEventListener("click", (event) => {
 }
 
 init().catch(() => {
-  window.location.href = "/src/pages/auth/login.html";
+  //window.location.href = "/src/pages/auth/login.html";
+  throw new Error("Se encontraron errores en superadmin");
 });
