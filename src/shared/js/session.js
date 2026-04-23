@@ -22,7 +22,9 @@ export function getSession() {
 export function requireAuth() {
   const session = getSession();
 
-  if (!session.token || !session.user) {
+  console.log("requireAuth session", session);
+
+  if (!session.token) {
     window.location.href = "/src/pages/auth/login.html";
     return null;
   }

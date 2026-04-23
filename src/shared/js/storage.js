@@ -1,93 +1,97 @@
-import { getConfig } from "./config.js";
-
-function getKeys() {
-  return getConfig().storageKeys;
-}
+const STORAGE_KEYS = {
+  token: "classclick_token",
+  refreshToken: "classclick_refresh_token",
+  accessTokenExpiresAtUtc: "classclick_access_token_expires_at_utc",
+  user: "classclick_user",
+  activeCompanySlug: "classclick_active_company_slug",
+  activeRole: "classclick_active_role",
+  activeCompany: "classclick_active_company"
+};
 
 export function setToken(token) {
-  localStorage.setItem(getKeys().token, token);
+  localStorage.setItem(STORAGE_KEYS.token, token);
 }
 
 export function getToken() {
-  return localStorage.getItem(getKeys().token);
+  return localStorage.getItem(STORAGE_KEYS.token);
 }
 
 export function removeToken() {
-  localStorage.removeItem(getKeys().token);
+  localStorage.removeItem(STORAGE_KEYS.token);
 }
 
 export function setRefreshToken(refreshToken) {
-  localStorage.setItem(getKeys().refreshToken, refreshToken);
+  localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(getKeys().refreshToken);
+  return localStorage.getItem(STORAGE_KEYS.refreshToken);
 }
 
 export function removeRefreshToken() {
-  localStorage.removeItem(getKeys().refreshToken);
+  localStorage.removeItem(STORAGE_KEYS.refreshToken);
 }
 
 export function setAccessTokenExpiresAtUtc(value) {
-  localStorage.setItem(getKeys().accessTokenExpiresAtUtc, value);
+  localStorage.setItem(STORAGE_KEYS.accessTokenExpiresAtUtc, value);
 }
 
 export function getAccessTokenExpiresAtUtc() {
-  return localStorage.getItem(getKeys().accessTokenExpiresAtUtc);
+  return localStorage.getItem(STORAGE_KEYS.accessTokenExpiresAtUtc);
 }
 
 export function removeAccessTokenExpiresAtUtc() {
-  localStorage.removeItem(getKeys().accessTokenExpiresAtUtc);
+  localStorage.removeItem(STORAGE_KEYS.accessTokenExpiresAtUtc);
 }
 
 export function setUser(user) {
-  localStorage.setItem(getKeys().user, JSON.stringify(user));
+  localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
 }
 
 export function getUser() {
-  const raw = localStorage.getItem(getKeys().user);
+  const raw = localStorage.getItem(STORAGE_KEYS.user);
   return raw ? JSON.parse(raw) : null;
 }
 
 export function removeUser() {
-  localStorage.removeItem(getKeys().user);
+  localStorage.removeItem(STORAGE_KEYS.user);
 }
 
 export function setActiveCompanySlug(companySlug) {
-  localStorage.setItem(getKeys().activeCompanySlug, companySlug);
+  localStorage.setItem(STORAGE_KEYS.activeCompanySlug, companySlug);
 }
 
 export function getActiveCompanySlug() {
-  return localStorage.getItem(getKeys().activeCompanySlug);
+  return localStorage.getItem(STORAGE_KEYS.activeCompanySlug);
 }
 
 export function removeActiveCompanySlug() {
-  localStorage.removeItem(getKeys().activeCompanySlug);
+  localStorage.removeItem(STORAGE_KEYS.activeCompanySlug);
 }
 
 export function setActiveRole(role) {
-  localStorage.setItem(getKeys().activeRole, role);
+  localStorage.setItem(STORAGE_KEYS.activeRole, role);
 }
 
 export function getActiveRole() {
-  return localStorage.getItem(getKeys().activeRole);
+  return localStorage.getItem(STORAGE_KEYS.activeRole);
 }
 
 export function removeActiveRole() {
-  localStorage.removeItem(getKeys().activeRole);
+  localStorage.removeItem(STORAGE_KEYS.activeRole);
 }
 
 export function setActiveCompany(company) {
-  localStorage.setItem("classclick_active_company", JSON.stringify(company));
+  localStorage.setItem(STORAGE_KEYS.activeCompany, JSON.stringify(company));
 }
 
 export function getActiveCompany() {
-  const raw = localStorage.getItem("classclick_active_company");
+  const raw = localStorage.getItem(STORAGE_KEYS.activeCompany);
   return raw ? JSON.parse(raw) : null;
 }
 
 export function removeActiveCompany() {
-  localStorage.removeItem("classclick_active_company");
+  localStorage.removeItem(STORAGE_KEYS.activeCompany);
 }
 
 export function clearSession() {
