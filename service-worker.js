@@ -50,9 +50,9 @@ self.addEventListener("notificationclick", (event) => {
           }
         }
 
-        if (clients.openWindow) {
-          return clients.openWindow(targetUrl);
-        }
+        // if (clients.openWindow) {
+        //   return clients.openWindow(targetUrl);
+        // }
       })
   );
 });
