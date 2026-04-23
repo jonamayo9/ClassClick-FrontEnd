@@ -102,7 +102,7 @@ async function init() {
       const result = await login(email, password);
       const session = getSession();
 
-      await ensurePushEnabled(session.token);
+      //await ensurePushEnabled(session.token);
 
       window.location.href = await resolveRedirect(result);
     } catch (error) {
