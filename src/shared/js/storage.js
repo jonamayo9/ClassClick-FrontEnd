@@ -82,6 +82,7 @@ export function removeActiveRole() {
 }
 
 export function clearSession() {
+  clearUserCache();
   removeToken();
   removeRefreshToken();
   removeAccessTokenExpiresAtUtc();
@@ -197,4 +198,30 @@ export function setPayments(companySlug, data) {
     `classclick_payments:${companySlug}`,
     JSON.stringify(data)
   );
+}
+
+export function clearUserCache() {
+  const keysToRemove = [];
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+
+    if (!key) continue;
+
+    if (
+      key.startsWith("classclick_me") ||
+      key.startsWith("classclick_student_me") ||
+      key.startsWith("classclick_active_company") ||
+      key.startsWith("classclick_company") ||
+      key.startsWith("classclick_profile") ||
+      key.startsWith("classclick_courses") ||
+      key.startsWith("classclick_payments") ||
+      key.startsWith("classclick_documents") ||
+      key.startsWith("classclick_notifications")
+    ) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach(key => localStorage.removeItem(key));
 }
