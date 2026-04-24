@@ -1,3 +1,4 @@
+import { getUser } from "./storage.js";
 import {
   getNotifications,
   getUnreadCount,
@@ -9,6 +10,41 @@ import {
 } from "./notifications.js";
 
 let globalUnreadCountPromise = null;
+let globalVisibilityListenerAdded = false;
+const UNREAD_COUNT_CACHE_MS = 60000;
+
+function getUnreadCacheKey() {
+  const user = getUser();
+  const userId = user?.id || user?.userId || "anonymous";
+  return `classclick_unread_count:${userId}`;
+}
+
+function getUnreadCountFromCache() {
+  const raw = sessionStorage.getItem(getUnreadCacheKey());
+  if (!raw) return null;
+
+  try {
+    const data = JSON.parse(raw);
+
+    if (Date.now() - data.at > UNREAD_COUNT_CACHE_MS) {
+      return null;
+    }
+
+    return data.count;
+  } catch {
+    return null;
+  }
+}
+
+function setUnreadCountCache(count) {
+  sessionStorage.setItem(
+    getUnreadCacheKey(),
+    JSON.stringify({
+      count,
+      at: Date.now()
+    })
+  );
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -181,27 +217,19 @@ root.dataset.notificationsBellInitialized = "true";
       .join("");
   }
 
-let globalUnreadCountPromise = null;
-let lastUnreadCount = null;
-let lastUnreadCountAt = 0;
-
-const UNREAD_COUNT_CACHE_MS = 30000; // 30 segundos
 
 async function refreshUnreadCount() {
-  const now = Date.now();
+  const cached = getUnreadCountFromCache();
 
-  // ✅ cache
-  if (lastUnreadCount !== null && now - lastUnreadCountAt < UNREAD_COUNT_CACHE_MS) {
-    setBadge(lastUnreadCount);
-    return lastUnreadCount;
+  if (cached !== null) {
+    setBadge(cached);
+    return cached;
   }
 
-  // ✅ evitar duplicadas
   if (!globalUnreadCountPromise) {
     globalUnreadCountPromise = getUnreadCount()
       .then(count => {
-        lastUnreadCount = count;
-        lastUnreadCountAt = Date.now();
+        setUnreadCountCache(count);
         return count;
       })
       .finally(() => {
@@ -227,6 +255,7 @@ async function refreshUnreadCount() {
       try {
         await markAsRead(item.id);
         item.isRead = true;
+        setUnreadCountCache(Math.max(0, (getUnreadCountFromCache() ?? 1) - 1));
       } catch {
       }
     }
@@ -244,17 +273,20 @@ if (!url || url === "/src/pages/student/files/index.html") {
 window.location.href = url;
   }
 
-  async function removeNotification(itemId) {
-    try {
-      await deleteNotification(itemId);
-      notifications = notifications.filter(x => String(x.id) !== String(itemId));
-      renderList();
-      await refreshUnreadCount();
-    } catch (error) {
-      console.error("Error eliminando notificación:", error);
-      if (typeof onError === "function") onError(error);
-    }
+async function removeNotification(itemId) {
+  try {
+    await deleteNotification(itemId);
+    notifications = notifications.filter(x => String(x.id) !== String(itemId));
+
+    setUnreadCountCache(Math.max(0, (getUnreadCountFromCache() ?? 1) - 1));
+
+    renderList();
+    await refreshUnreadCount();
+  } catch (error) {
+    console.error("Error eliminando notificación:", error);
+    if (typeof onError === "function") onError(error);
   }
+}
 
   function togglePanel(forceOpen = null) {
     const willOpen = forceOpen ?? panel.classList.contains("hidden");
@@ -296,6 +328,7 @@ window.location.href = url;
       await markAllAsRead();
       notifications = notifications.map(x => ({ ...x, isRead: true }));
       renderList();
+      setUnreadCountCache(0);
       setBadge(0);
     } catch (error) {
       console.error("Error marcando notificaciones:", error);
@@ -308,6 +341,7 @@ window.location.href = url;
       await deleteAllNotifications();
       notifications = [];
       renderList();
+      setUnreadCountCache(0);
       setBadge(0);
     } catch (error) {
       console.error("Error eliminando notificaciones:", error);
@@ -332,17 +366,19 @@ window.location.href = url;
     }
   });
 
-  document.addEventListener("click", (e) => {
-    if (!root.contains(e.target)) {
-      togglePanel(false);
-    }
-  });
+root.addEventListener("click", (e) => {
+  e.stopPropagation();
+});
+
+if (!globalVisibilityListenerAdded) {
+  globalVisibilityListenerAdded = true;
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      safeRefreshUnreadCount();
+      refreshUnreadCount().catch(() => {});
     }
   });
+}
 
   // refreshIntervalId = window.setInterval(() => {
   //   safeRefreshUnreadCount();
