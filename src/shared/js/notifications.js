@@ -63,19 +63,64 @@ export async function getNotifications() {
   return data.map(normalizeNotificationItem);
 }
 
-export async function getUnreadCount() {
-  const data = await get("/api/notifications/unread-count");
+const UNREAD_COUNT_CACHE_MS = 60000;
+let unreadCountPromise = null;
 
-  if (typeof data === "number") {
-    return Number(data);
+function getUnreadCountCacheKey() {
+  const rawUser = localStorage.getItem("classclick_user");
+
+  let userId = "anonymous";
+
+  try {
+    const user = rawUser ? JSON.parse(rawUser) : null;
+    userId = user?.id || user?.userId || "anonymous";
+  } catch {
   }
 
-  return Number(
-    data?.count ??
-    data?.unreadCount ??
-    data?.unread ??
-    0
-  );
+  return `classclick_unread_count:${userId}`;
+}
+
+export async function getUnreadCount(force = false) {
+  const cacheKey = getUnreadCountCacheKey();
+
+  if (!force) {
+    const raw = sessionStorage.getItem(cacheKey);
+
+    if (raw) {
+      try {
+        const cached = JSON.parse(raw);
+
+        if (Date.now() - cached.at < UNREAD_COUNT_CACHE_MS) {
+          return Number(cached.count || 0);
+        }
+      } catch {
+      }
+    }
+  }
+
+  if (!unreadCountPromise) {
+    unreadCountPromise = get("/api/notifications/unread-count")
+      .then((data) => {
+        const count = typeof data === "number"
+          ? Number(data)
+          : Number(data?.count ?? data?.unreadCount ?? data?.unread ?? 0);
+
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            count,
+            at: Date.now()
+          })
+        );
+
+        return count;
+      })
+      .finally(() => {
+        unreadCountPromise = null;
+      });
+  }
+
+  return unreadCountPromise;
 }
 
 export async function markAsRead(id) {
