@@ -445,7 +445,7 @@ function buildDocumentCard(doc) {
     const hasFile = !!doc.currentFileId;
 
     return `
-        <article class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+        <article class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:transition md:hover:-translate-y-0.5 md:hover:shadow-md">
             <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                     <h3 class="text-lg font-bold text-slate-900">
@@ -687,7 +687,7 @@ function render() {
                 ${buildSidebar()}
 
                 <main class="min-w-0 flex-1">
-                    <div class="px-4 py-6 pb-[170px] sm:px-6 lg:px-8 md:pb-6">
+                    <div class="px-4 py-6 pb-[260px] sm:px-6 lg:px-8 md:pb-6">
                         ${buildContent()}
                     </div>
                 </main>
@@ -853,31 +853,20 @@ async function downloadFile(fileId) {
             throw new Error("No se pudo obtener el archivo.");
         }
 
-        const response = await fetch(result.url, {
-            mode: "cors",
-            cache: "no-store"
-        });
-
-        if (!response.ok) {
-            throw new Error("No se pudo descargar el archivo.");
-        }
-
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-
         const fileName =
             result.fileName ||
             documents.find(x => x.currentFileId === fileId)?.currentFileName ||
             "documento";
 
         const link = document.createElement("a");
-        link.href = objectUrl;
+        link.href = result.url;
         link.download = fileName;
+        link.target = "_self";
+        link.rel = "noopener noreferrer";
+
         document.body.appendChild(link);
         link.click();
         link.remove();
-
-        URL.revokeObjectURL(objectUrl);
     } catch (error) {
         pageError = error?.message || "No se pudo descargar el archivo.";
         rerender();
