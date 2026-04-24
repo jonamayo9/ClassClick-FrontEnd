@@ -853,20 +853,30 @@ async function downloadFile(fileId) {
             throw new Error("No se pudo obtener el archivo.");
         }
 
+        const response = await fetch(result.url);
+
+        if (!response.ok) {
+            throw new Error("No se pudo descargar el archivo.");
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
         const fileName =
             result.fileName ||
             documents.find(x => x.currentFileId === fileId)?.currentFileName ||
             "documento";
 
         const link = document.createElement("a");
-        link.href = result.url;
+        link.href = objectUrl;
         link.download = fileName;
-        link.target = "_self";
-        link.rel = "noopener noreferrer";
 
         document.body.appendChild(link);
         link.click();
         link.remove();
+
+        URL.revokeObjectURL(objectUrl);
+
     } catch (error) {
         pageError = error?.message || "No se pudo descargar el archivo.";
         rerender();
