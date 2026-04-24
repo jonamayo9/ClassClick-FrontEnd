@@ -83,16 +83,6 @@ export function removeActiveRole() {
 
 export function clearSession() {
   clearUserCache();
-  removeToken();
-  removeRefreshToken();
-  removeAccessTokenExpiresAtUtc();
-  removeUser();
-  removeActiveCompanySlug();
-  removeActiveRole();
-  removeActiveCompany();
-  removeMe();
-  removeStudentProfile();
-  removeStudentMe();
 }
 
 export function setMe(me) {
@@ -201,27 +191,11 @@ export function setPayments(companySlug, data) {
 }
 
 export function clearUserCache() {
-  const keysToRemove = [];
-
-  for (let i = 0; i < localStorage.length; i++) {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
     const key = localStorage.key(i);
 
-    if (!key) continue;
-
-    if (
-      key.startsWith("classclick_me") ||
-      key.startsWith("classclick_student_me") ||
-      key.startsWith("classclick_active_company") ||
-      key.startsWith("classclick_company") ||
-      key.startsWith("classclick_profile") ||
-      key.startsWith("classclick_courses") ||
-      key.startsWith("classclick_payments") ||
-      key.startsWith("classclick_documents") ||
-      key.startsWith("classclick_notifications")
-    ) {
-      keysToRemove.push(key);
+    if (key && key.startsWith("classclick_")) {
+      localStorage.removeItem(key);
     }
   }
-
-  keysToRemove.forEach(key => localStorage.removeItem(key));
 }
