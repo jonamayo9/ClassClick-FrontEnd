@@ -26,7 +26,7 @@ let session = null;
 let companySlug = null;
 let company = null;
 let student = null;
-
+let searchTerm = "";
 let loading = true;
 let pageError = "";
 let mobileMenuOpen = false;
@@ -499,12 +499,13 @@ function buildCreateRequestSection() {
                         Buscar alumno
                     </label>
 
-                    <input
-                        id="searchStudentInput"
-                        type="text"
-                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                        placeholder="Ej: Juan Pérez o 40111222"
-                    />
+<input
+    id="searchStudentInput"
+    type="text"
+    value="${escapeHtml(searchTerm)}"
+    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+    placeholder="Ej: Juan Pérez o 40111222"
+/>
                 </div>
 
                 ${buildSearchResults()}
@@ -912,10 +913,10 @@ bindStudentCarnetEvents({
         clearTimeout(searchTimeout);
         clearRequestError();
 
-        const value = event.target.value;
+        searchTerm = event.target.value;
 
         searchTimeout = setTimeout(() => {
-            searchStudents(value);
+            searchStudents(searchTerm);
         }, 300);
     });
 
