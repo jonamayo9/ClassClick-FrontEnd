@@ -181,14 +181,31 @@ root.dataset.notificationsBellInitialized = "true";
       .join("");
   }
 
+let globalUnreadCountPromise = null;
+let lastUnreadCount = null;
+let lastUnreadCountAt = 0;
+
+const UNREAD_COUNT_CACHE_MS = 30000; // 30 segundos
+
 async function refreshUnreadCount() {
+  const now = Date.now();
+
+  // ✅ cache
+  if (lastUnreadCount !== null && now - lastUnreadCountAt < UNREAD_COUNT_CACHE_MS) {
+    setBadge(lastUnreadCount);
+    return lastUnreadCount;
+  }
+
+  // ✅ evitar duplicadas
   if (!globalUnreadCountPromise) {
     globalUnreadCountPromise = getUnreadCount()
+      .then(count => {
+        lastUnreadCount = count;
+        lastUnreadCountAt = Date.now();
+        return count;
+      })
       .finally(() => {
-        // se resetea para próximas llamadas (no queda lockeado)
-        setTimeout(() => {
-          globalUnreadCountPromise = null;
-        }, 500);
+        globalUnreadCountPromise = null;
       });
   }
 

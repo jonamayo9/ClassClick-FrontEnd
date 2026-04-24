@@ -1,37 +1,34 @@
-const CACHE_VERSION = "v3";
-const STATIC_CACHE = `static-${CACHE_VERSION}`;
+const CACHE_VERSION = "v4";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
-// INSTALL
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-// ACTIVATE
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((key) => {
-          if (!key.includes(CACHE_VERSION)) {
-            return caches.delete(key);
-          }
-        })
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => !key.includes(CACHE_VERSION))
+            .map((key) => caches.delete(key))
+        )
       )
-    )
+      .then(() => self.clients.claim())
   );
-
-  self.clients.claim();
 });
 
-// FETCH
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // ❌ API → nunca cachear
+  // API: nunca cachear
   if (url.pathname.startsWith("/api")) return;
 
-  // 🔄 navegación → network first
+  // Azure / externos: nunca interceptar
+  if (url.origin !== self.location.origin) return;
+
+  // HTML: network first
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request).catch(() => caches.match("/index.html"))
@@ -39,50 +36,36 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 🖼️ IMÁGENES
+  // Imágenes locales: cache first
   if (event.request.destination === "image") {
-
-    // 🚨 SI ES EXTERNA (Azure) → NO INTERCEPTAR
-    if (url.origin !== self.location.origin) {
-      return;
-    }
-
-    // ✅ SOLO imágenes propias
     event.respondWith(
       caches.open(IMAGE_CACHE).then(async (cache) => {
         const cached = await cache.match(event.request);
+        if (cached) return cached;
 
-        try {
-          const response = await fetch(event.request);
+        const response = await fetch(event.request);
 
-          if (!response || !response.ok) {
-            return cached || Response.error();
-          }
-
+        if (response && response.ok) {
           cache.put(event.request, response.clone());
-          return response;
-
-        } catch {
-          return cached || Response.error();
         }
+
+        return response;
       })
     );
-
     return;
   }
 
-  // 📦 JS / CSS → cache first
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request);
-    })
-  );
+  // JS/CSS: network first
+  if (
+    event.request.destination === "script" ||
+    event.request.destination === "style"
+  ) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+    return;
+  }
 });
-
-
-// =======================
-// 🔔 PUSH
-// =======================
 
 self.addEventListener("push", (event) => {
   if (!event.data) return;
@@ -98,23 +81,18 @@ self.addEventListener("push", (event) => {
     };
   }
 
-  const title = payload.title || "ClassClick";
-
-  const options = {
-    body: payload.body || "",
-    icon: "/public/icons/icon-192.png",
-    badge: "/public/icons/icon-192.png",
-    data: {
-      url: payload?.data?.url || payload?.url || "/index.html"
-    }
-  };
-
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.registration.showNotification(payload.title || "ClassClick", {
+      body: payload.body || "",
+      icon: "/public/icons/icon-192.png",
+      badge: "/public/icons/icon-192.png",
+      data: {
+        url: payload?.data?.url || payload?.url || "/index.html"
+      }
+    })
   );
 });
 
-// CLICK
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
@@ -130,9 +108,7 @@ self.addEventListener("notificationclick", (event) => {
           }
         }
 
-        if (clients.openWindow) {
-          return clients.openWindow(targetUrl);
-        }
+        return clients.openWindow?.(targetUrl);
       })
   );
 });
