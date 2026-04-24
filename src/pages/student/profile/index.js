@@ -6,7 +6,8 @@ import {
     buildStudentMobileMenu,
     buildStudentMobileBottomNav,
     bindStudentMobileShellEvents,
-    syncStudentMobileShellScrollLock
+    syncStudentMobileShellScrollLock,
+    enableStudentSoftNavigation
 } from "../../../shared/js/student-mobile-shell.js";
 import { initNotificationsBell } from "../../../shared/js/notifications-bell.js";
 import {
@@ -19,7 +20,9 @@ import {
     getStudentProfile,
     setStudentProfile,
     getStudentMe,
-    setStudentMe
+    setStudentMe,
+    getActiveCompany,
+    setActiveCompany
 } from "../../../shared/js/storage.js";
 
 let session = null;
@@ -51,6 +54,23 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function isSasUrlExpired(url) {
+    if (!url) return false;
+
+    try {
+        const parsedUrl = new URL(url);
+        const expires = parsedUrl.searchParams.get("se");
+
+        if (!expires) return false;
+
+        const expiresAt = new Date(expires).getTime();
+
+        return Date.now() > expiresAt - 5 * 60 * 1000;
+    } catch {
+        return true;
+    }
 }
 
 function formatDateInput(value) {
@@ -153,7 +173,7 @@ async function refreshProfilePhotoUrl(options = {}) {
 
         if (photoView?.url) {
             profile.profileImageUrl = photoView.url;
-
+            setStudentMe(companySlug, profile);
             if (options.render !== false) {
                 render();
             }
@@ -859,7 +879,7 @@ async function saveProfile(event) {
 profile = await put("/api/profile/me", payload);
 
 setStudentProfile(profile);
-setStudentMe(profile); // 👈 ESTE ES EL CAMBIO
+setStudentMe(companySlug, profile);
 
 await refreshProfilePhotoUrl({ render: false });
         showMessage("Tu perfil se actualizó correctamente.");
@@ -1007,31 +1027,41 @@ initNotificationsBell({
 async function init() {
     try {
         await loadConfig();
-
+        enableStudentSoftNavigation();
         session = requireAuth();
         if (!session) return;
 
         companySlug = session.activeCompanySlug;
-let me = getMe();
+const cachedCompany = getActiveCompany(companySlug);
 
-if (!me) {
-    me = await get("/api/admin/me");
-    setMe(me);
+if (cachedCompany && !isSasUrlExpired(cachedCompany.logoUrl)) {
+    company = cachedCompany;
+} else {
+    let me = getMe();
+
+    if (!me) {
+        me = await get("/api/admin/me");
+        setMe(me);
+    }
+
+    company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+
+    if (company) {
+        setActiveCompany(companySlug, company);
+    }
 }
-
-company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
         if (!company) {
             throw new Error("No se encontró la empresa activa del alumno.");
         }
 
-        let cachedProfile = getStudentProfile();
+const cachedProfile = getStudentMe(companySlug);
 
-if (cachedProfile) {
+if (cachedProfile && !isSasUrlExpired(cachedProfile.profileImageUrl)) {
     profile = cachedProfile;
 } else {
     profile = await get("/api/profile/me");
-    setStudentProfile(profile);
+    setStudentMe(companySlug, profile);
 }
 
         if (!profile) {

@@ -1,16 +1,25 @@
 import { get, postForm } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
-import { requireAuth } from "../../../../shared/js/session.js";
+import { requireAuth, logoutAndRedirect } from "../../../../shared/js/session.js";
 import {
     buildStudentMobileMenu,
     buildStudentMobileBottomNav,
     bindStudentMobileShellEvents,
-    syncStudentMobileShellScrollLock
+    syncStudentMobileShellScrollLock,
+    enableStudentSoftNavigation
 } from "../../../../shared/js/student-mobile-shell.js";
 import {
     buildStudentCarnetModal,
     bindStudentCarnetEvents
 } from "../../../../shared/js/student-carnet.js";
+import {
+    getMe,
+    setMe,
+    getStudentMe,
+    setStudentMe,
+    getActiveCompany,
+    setActiveCompany
+} from "../../../../shared/js/storage.js";
 
 let session = null;
 let companySlug = null;
@@ -45,6 +54,23 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function isSasUrlExpired(url) {
+    if (!url) return false;
+
+    try {
+        const parsedUrl = new URL(url);
+        const expires = parsedUrl.searchParams.get("se");
+
+        if (!expires) return false;
+
+        const expiresAt = new Date(expires).getTime();
+
+        return Date.now() > expiresAt - 5 * 60 * 1000;
+    } catch {
+        return true;
+    }
 }
 
 function formatDate(value) {
@@ -932,7 +958,12 @@ function getRequestIdFromUrl() {
 }
 
 async function loadMe() {
-    student = await get(`/api/student/${companySlug}/me`);
+    const cached = getStudentMe(companySlug);
+
+    if (cached && !isSasUrlExpired(cached.profileImageUrl)) {
+        student = cached;
+        return;
+    }
 }
 
 async function loadRequestDetail() {
@@ -1039,8 +1070,7 @@ async function viewDocument(documentId) {
 }
 
 async function deleteDocument(documentId) {
-    const confirmed = window.confirm("¿Querés eliminar este documento?");
-    if (!confirmed) return;
+if (!confirm("¿Querés eliminar este documento?")) return;
 
     try {
         const token =
@@ -1075,7 +1105,7 @@ async function deleteDocument(documentId) {
         await refreshAll();
         render();
     } catch (error) {
-        alert(error?.message || "No se pudo eliminar el documento.");
+        showDocumentError(error?.message || "No se pudo eliminar el documento.");
     }
 }
 
@@ -1137,7 +1167,7 @@ bindStudentCarnetEvents({
 async function init() {
     try {
         await loadConfig();
-
+        enableStudentSoftNavigation();
         session = requireAuth();
         if (!session) return;
 
@@ -1148,8 +1178,24 @@ async function init() {
             throw new Error("No se indicó la solicitud.");
         }
 
-        const me = await get("/api/admin/me");
-        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+let cachedCompany = getActiveCompany(companySlug);
+
+if (cachedCompany && !isSasUrlExpired(cachedCompany.logoUrl)) {
+    company = cachedCompany;
+} else {
+    let me = getMe();
+
+    if (!me) {
+        me = await get("/api/admin/me");
+        setMe(me);
+    }
+
+    company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+
+    if (company) {
+        setActiveCompany(companySlug, company);
+    }
+}
 
         if (!company) {
             throw new Error("No se encontró la empresa activa del alumno.");

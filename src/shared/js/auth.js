@@ -1,14 +1,5 @@
-import { post } from "./api.js";
-import {
-  setToken,
-  setRefreshToken,
-  setAccessTokenExpiresAtUtc,
-  setUser,
-  setActiveCompanySlug,
-  setActiveRole,
-  clearSession
-} from "./storage.js";
 import { post, get } from "./api.js";
+
 import {
   setToken,
   setRefreshToken,

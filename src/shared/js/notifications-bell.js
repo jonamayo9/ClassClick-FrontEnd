@@ -8,6 +8,8 @@ import {
   formatNotificationDate
 } from "./notifications.js";
 
+let globalUnreadCountPromise = null;
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -179,11 +181,21 @@ root.dataset.notificationsBellInitialized = "true";
       .join("");
   }
 
-  async function refreshUnreadCount() {
-    const count = await getUnreadCount();
-    setBadge(count);
-    return count;
+async function refreshUnreadCount() {
+  if (!globalUnreadCountPromise) {
+    globalUnreadCountPromise = getUnreadCount()
+      .finally(() => {
+        // se resetea para próximas llamadas (no queda lockeado)
+        setTimeout(() => {
+          globalUnreadCountPromise = null;
+        }, 500);
+      });
   }
+
+  const count = await globalUnreadCountPromise;
+  setBadge(count);
+  return count;
+}
 
   async function refreshNotifications() {
     notifications = await getNotifications();

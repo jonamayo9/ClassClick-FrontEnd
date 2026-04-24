@@ -8,6 +8,9 @@ import {
   clearSession
 } from "./storage.js";
 
+// 👇 ahora el login vive en la raíz
+const LOGIN_URL = "/index.html";
+
 export function getSession() {
   return {
     token: getToken(),
@@ -23,7 +26,8 @@ export function requireAuth() {
   const session = getSession();
 
   if (!session.token || !session.user) {
-    window.location.href = "/src/pages/auth/login.html";
+    clearSession();
+    window.location.replace(LOGIN_URL);
     return null;
   }
 
@@ -32,5 +36,5 @@ export function requireAuth() {
 
 export function logoutAndRedirect() {
   clearSession();
-  window.location.href = "/";
+  window.location.replace(LOGIN_URL);
 }

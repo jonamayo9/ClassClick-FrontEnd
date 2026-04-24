@@ -9,7 +9,14 @@ import {
   clearSession
 } from "./storage.js";
 
+const LOGIN_URL = "/src/pages/auth/login.html";
+
 let refreshPromise = null;
+
+function redirectToLogin() {
+  clearSession();
+  window.location.replace(LOGIN_URL);
+}
 
 async function parseResponse(response) {
   const contentType = response.headers.get("content-type") || "";
@@ -44,11 +51,12 @@ async function doFetch(endpoint, options = {}, tokenOverride = null) {
   return await fetch(`${config.apiBaseUrl}${endpoint}`, {
     method: options.method || "GET",
     headers,
-    body: options.body instanceof FormData
-      ? options.body
-      : options.body != null
-        ? JSON.stringify(options.body)
-        : undefined
+    body:
+      options.body instanceof FormData
+        ? options.body
+        : options.body != null
+          ? JSON.stringify(options.body)
+          : undefined
   });
 }
 
@@ -70,9 +78,7 @@ async function refreshAccessToken() {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        refreshToken
-      })
+      body: JSON.stringify({ refreshToken })
     });
 
     const data = await parseResponse(response);
@@ -94,8 +100,7 @@ async function refreshAccessToken() {
 
     const newRefreshToken =
       data?.refreshToken ||
-      data?.refresh_token ||
-      "";
+      data?.refresh_token;
 
     const accessTokenExpiresAtUtc =
       data?.accessTokenExpiresAtUtc ||
@@ -142,15 +147,13 @@ export async function apiFetch(endpoint, options = {}) {
       if (response.ok) {
         return data;
       }
-    } catch {
-      clearSession();
-      window.location.href = "/src/pages/auth/login.html";
-      throw new Error("Tu sesión expiró.");
-    }
 
-    if (response.status === 401) {
-      clearSession();
-      window.location.href = "/src/pages/auth/login.html";
+      if (response.status === 401) {
+        redirectToLogin();
+        throw new Error("Tu sesión expiró.");
+      }
+    } catch {
+      redirectToLogin();
       throw new Error("Tu sesión expiró.");
     }
   }

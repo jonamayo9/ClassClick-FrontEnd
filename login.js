@@ -1,8 +1,8 @@
-import { loadConfig } from "../../shared/js/config.js";
-import { login } from "../../shared/js/auth.js";
-import { subscribeToPush } from "../../shared/js/push.js";
-import { getSession } from "../../shared/js/session.js";
-import { get } from "../../shared/js/api.js";
+import { loadConfig } from "./src/shared/js/config.js"
+import { login } from "./src/shared/js/auth.js";
+import { subscribeToPush } from "./src/shared/js/push.js";
+import { getSession } from "./src/shared/js/session.js";
+import { get } from "./src/shared/js/api.js";
 
 const form = document.getElementById("loginForm");
 const errorBox = document.getElementById("errorBox");
@@ -88,20 +88,28 @@ async function init() {
   const session = getSession();
 
   if (session.token && session.user) {
-    if (session.user.isSuperAdmin) {
-      window.location.replace("/src/pages/superadmin/dashboard/index.html");
-      return;
+    try {
+      if (session.user.isSuperAdmin) {
+        window.location.replace("/src/pages/superadmin/dashboard/index.html");
+        return;
+      }
+
+      if (session.activeRole === "Admin") {
+        window.location.replace("/src/pages/admin/dashboard/index.html");
+        return;
+      }
+
+      if (session.activeRole === "Student") {
+        window.location.replace("/src/pages/student/home/index.html");
+        return;
+      }
+
+      showError("No se pudo identificar el rol del usuario. Cerrá sesión e ingresá nuevamente.");
+    } catch (error) {
+      showError(error.message || "No se pudo validar la sesión actual.");
     }
 
-    if (session.activeRole === "Admin") {
-      window.location.replace("/src/pages/admin/dashboard/index.html");
-      return;
-    }
-
-    if (session.activeRole === "Student") {
-      window.location.replace("/src/pages/student/home/index.html");
-      return;
-    }
+    return;
   }
 
   form.addEventListener("submit", async (event) => {
@@ -121,9 +129,19 @@ async function init() {
       const result = await login(email, password);
       const session = getSession();
 
+      if (!session.token) {
+        throw new Error("El login fue correcto, pero no se recibió token de sesión.");
+      }
+
       await ensurePushEnabled(session.token);
 
-      window.location.href = await resolveRedirect(result);
+      const redirectUrl = await resolveRedirect(result);
+
+      if (!redirectUrl) {
+        throw new Error("No se pudo resolver la pantalla inicial del usuario.");
+      }
+
+      window.location.href = redirectUrl;
     } catch (error) {
       showError(error.message || "No se pudo iniciar sesión.");
     } finally {
@@ -131,7 +149,6 @@ async function init() {
     }
   });
 }
-
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
@@ -144,5 +161,5 @@ if ("serviceWorker" in navigator) {
 }
 
 init().catch((error) => {
-  showError(error.message || "No se pudo inicializar la pantalla.");
+  showError(error.message || "No se pudo inicializar la pantalla de login.");
 });

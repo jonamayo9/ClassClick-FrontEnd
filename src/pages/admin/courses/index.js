@@ -1,4 +1,4 @@
-import { get, post, put, del } from "../../../shared/js/api.js";
+import { get, post, put, del, postForm } from "../../../shared/js/api.js";
 import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
@@ -16,6 +16,7 @@ let isSavingCourse = false;
 let isSavingStudents = false;
 let activeToggleCourseId = null;
 let deletingCourseId = null;
+let isImportingStudentsExcel = false;
 
 let isAssignmentEditMode = false;
 let assignmentTargetCourseId = null;
@@ -165,6 +166,35 @@ function buildContent() {
                             <p class="mt-1 text-sm text-slate-500">
                                 Por defecto se muestran alumnos sin curso. Seleccioná un curso para ver sus alumnos y luego tocá editar para modificar asignaciones.
                             </p>
+                            <div class="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-900">
+                Importar alumnos a cursos por Excel
+            </h3>
+            <p class="mt-1 text-sm text-slate-600">
+                Columnas requeridas: Correo, Curso y DiasPorSemana.
+            </p>
+        </div>
+
+        <button
+            id="btnImportCourseStudentsExcel"
+            type="button"
+            class="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+            Importar Excel
+        </button>
+
+        <input
+            id="inputCourseStudentsExcel"
+            type="file"
+            accept=".xlsx"
+            class="hidden"
+        />
+    </div>
+
+    <div id="importCourseStudentsExcelResult" class="mt-3 hidden rounded-xl border px-4 py-3 text-sm"></div>
+</div>
                         </div>
 
                         <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -685,6 +715,68 @@ function closeModal() {
     setModal("");
 }
 
+function showGlobalLoading(message = "Procesando...") {
+    hideGlobalLoading();
+
+    const overlay = document.createElement("div");
+    overlay.id = "globalLoadingOverlay";
+
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.zIndex = "2147483647";
+    overlay.style.background = "rgba(15, 23, 42, 0.75)";
+    overlay.style.backdropFilter = "blur(4px)";
+
+    overlay.innerHTML = `
+        <div class="flex min-h-screen items-center justify-center px-4">
+            <div class="rounded-3xl bg-white px-6 py-5 text-center shadow-2xl">
+                <div class="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900"></div>
+                <div class="mb-2 text-sm text-slate-500">Por favor esperá</div>
+                <div class="text-lg font-semibold text-slate-900">${escapeHtml(message)}</div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+}
+
+function hideGlobalLoading() {
+    const overlay = document.getElementById("globalLoadingOverlay");
+    if (overlay) overlay.remove();
+}
+
+function blockPageExit() {
+    window.onbeforeunload = () => "Se está procesando un archivo.";
+}
+
+function unblockPageExit() {
+    window.onbeforeunload = null;
+}
+
+function showImportCourseStudentsResult(message, type = "success") {
+    const box = qs("importCourseStudentsExcelResult");
+    if (!box) return;
+
+    box.className = "mt-3 rounded-xl border px-4 py-3 text-sm";
+
+    if (type === "error") {
+        box.classList.add("border-rose-200", "bg-rose-50", "text-rose-700");
+    } else {
+        box.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-700");
+    }
+
+    box.innerHTML = message;
+    box.classList.remove("hidden");
+}
+
+function hideImportCourseStudentsResult() {
+    const box = qs("importCourseStudentsExcelResult");
+    if (!box) return;
+
+    box.className = "mt-3 hidden rounded-xl border px-4 py-3 text-sm";
+    box.innerHTML = "";
+}
+
 function buildConfirmModal({ title, description, confirmText, confirmClass, onConfirm }) {
     setModal(`
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
@@ -892,6 +984,89 @@ async function deleteCourse(courseId) {
     }
 }
 
+async function importCourseStudentsExcel(file) {
+    if (isImportingStudentsExcel) return;
+
+    hideImportCourseStudentsResult();
+
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+        showImportCourseStudentsResult("El archivo debe ser .xlsx.", "error");
+        return;
+    }
+
+    const btn = qs("btnImportCourseStudentsExcel");
+    const input = qs("inputCourseStudentsExcel");
+
+    try {
+        isImportingStudentsExcel = true;
+        showGlobalLoading("Importando alumnos...");
+        blockPageExit();
+
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Importando...";
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const result = await postForm(
+            `/api/admin/${company.slug}/courses/import-students-excel`,
+            formData
+        );
+
+        const errorsHtml = Array.isArray(result.errors) && result.errors.length
+            ? `
+                <div class="mt-3">
+                    <div class="font-semibold">Observaciones:</div>
+                    <ul class="mt-1 list-disc space-y-1 pl-5">
+                        ${result.errors.slice(0, 12).map(x => `<li>${escapeHtml(x)}</li>`).join("")}
+                    </ul>
+                    ${
+                        result.errors.length > 12
+                            ? `<div class="mt-2 text-xs">Se muestran 12 de ${result.errors.length} observaciones.</div>`
+                            : ""
+                    }
+                </div>
+            `
+            : "";
+
+        showImportCourseStudentsResult(`
+            <div class="font-semibold">Importación finalizada</div>
+            <div class="mt-1">
+                Total: ${result.totalRows} · Creados: ${result.created} · Omitidos: ${result.skipped}
+            </div>
+            ${errorsHtml}
+        `);
+
+        selectedCourseIdForStudents = null;
+        studentsMode = "unassigned";
+        isUnassignedAssignMode = false;
+        assignmentTargetCourseId = null;
+        resetStudentEditingState();
+
+        await loadCourses();
+    } catch (error) {
+        showImportCourseStudentsResult(error?.message || "No se pudo importar el Excel.", "error");
+    } finally {
+        isImportingStudentsExcel = false;
+
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Importar Excel";
+        }
+
+        if (input) {
+            input.value = "";
+        }
+
+        hideGlobalLoading();
+        unblockPageExit();
+    }
+}
+
 async function saveStudents() {
     if (isSavingStudents) return;
     if (!isAssignmentEditMode) return;
@@ -1037,6 +1212,14 @@ qs("assignStudentsCourseSelect").addEventListener("change", handleAssignCourseCh
     qs("studentsPrevBtn").addEventListener("click", goToPreviousStudentsPage);
     qs("studentsNextBtn").addEventListener("click", goToNextStudentsPage);
 
+    qs("btnImportCourseStudentsExcel")?.addEventListener("click", () => {
+    qs("inputCourseStudentsExcel")?.click();
+    });
+
+    qs("inputCourseStudentsExcel")?.addEventListener("change", async () => {
+        const file = qs("inputCourseStudentsExcel")?.files?.[0] || null;
+        await importCourseStudentsExcel(file);
+    });
     await loadTeachers();
     await loadCourses();
     updateStudentsActionButtons();

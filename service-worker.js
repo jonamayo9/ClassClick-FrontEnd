@@ -1,10 +1,88 @@
+const CACHE_VERSION = "v3";
+const STATIC_CACHE = `static-${CACHE_VERSION}`;
+const IMAGE_CACHE = `images-${CACHE_VERSION}`;
+
+// INSTALL
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
+// ACTIVATE
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (!key.includes(CACHE_VERSION)) {
+            return caches.delete(key);
+          }
+        })
+      )
+    )
+  );
+
+  self.clients.claim();
 });
+
+// FETCH
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+
+  // ❌ API → nunca cachear
+  if (url.pathname.startsWith("/api")) return;
+
+  // 🔄 navegación → network first
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
+
+  // 🖼️ IMÁGENES
+  if (event.request.destination === "image") {
+
+    // 🚨 SI ES EXTERNA (Azure) → NO INTERCEPTAR
+    if (url.origin !== self.location.origin) {
+      return;
+    }
+
+    // ✅ SOLO imágenes propias
+    event.respondWith(
+      caches.open(IMAGE_CACHE).then(async (cache) => {
+        const cached = await cache.match(event.request);
+
+        try {
+          const response = await fetch(event.request);
+
+          if (!response || !response.ok) {
+            return cached || Response.error();
+          }
+
+          cache.put(event.request, response.clone());
+          return response;
+
+        } catch {
+          return cached || Response.error();
+        }
+      })
+    );
+
+    return;
+  }
+
+  // 📦 JS / CSS → cache first
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request);
+    })
+  );
+});
+
+
+// =======================
+// 🔔 PUSH
+// =======================
 
 self.addEventListener("push", (event) => {
   if (!event.data) return;
@@ -21,12 +99,13 @@ self.addEventListener("push", (event) => {
   }
 
   const title = payload.title || "ClassClick";
+
   const options = {
     body: payload.body || "",
     icon: "/public/icons/icon-192.png",
     badge: "/public/icons/icon-192.png",
     data: {
-      url: payload?.data?.url || payload?.url || "/src/pages/auth/login.html"
+      url: payload?.data?.url || payload?.url || "/index.html"
     }
   };
 
@@ -35,10 +114,11 @@ self.addEventListener("push", (event) => {
   );
 });
 
+// CLICK
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const targetUrl = event.notification.data?.url || "/src/pages/auth/login.html";
+  const targetUrl = event.notification.data?.url || "/index.html";
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true })

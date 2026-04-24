@@ -5,7 +5,8 @@ import {
     buildStudentMobileMenu,
     buildStudentMobileBottomNav,
     bindStudentMobileShellEvents,
-    syncStudentMobileShellScrollLock
+    syncStudentMobileShellScrollLock,
+    enableStudentSoftNavigation
 } from "../../../shared/js/student-mobile-shell.js";
 import {
     buildStudentCarnetModal,
@@ -16,7 +17,9 @@ import {
     getMe,
     setMe,
     getStudentMe,
-    setStudentMe
+    setStudentMe,
+    getActiveCompany,
+    setActiveCompany
 } from "../../../shared/js/storage.js";
 
 let companySlug = null;
@@ -35,6 +38,23 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function isSasUrlExpired(url) {
+    if (!url) return false;
+
+    try {
+        const parsedUrl = new URL(url);
+        const expires = parsedUrl.searchParams.get("se");
+
+        if (!expires) return false;
+
+        const expiresAt = new Date(expires).getTime();
+
+        return Date.now() > expiresAt - 5 * 60 * 1000;
+    } catch {
+        return true;
+    }
 }
 
 function getCompanyName() {
@@ -533,14 +553,14 @@ document.querySelectorAll("#logoutBtn").forEach(btn => {
 }
 
 async function loadStudentProfile() {
-    let cachedStudent = getStudentMe();
+    let cachedStudent = getStudentMe(companySlug);
 
-    if (cachedStudent) {
-        return cachedStudent;
-    }
+if (cachedStudent && !isSasUrlExpired(cachedStudent.profileImageUrl)) {
+    return cachedStudent;
+}
 
     const result = await get(`/api/student/${companySlug}/me`);
-    setStudentMe(result);
+    setStudentMe(companySlug, result);
 
     return result;
 }
@@ -553,20 +573,31 @@ async function init() {
     try {            
         await loadConfig();
 
+        enableStudentSoftNavigation();
+
         const session = requireAuth();
         if (!session) return;
 
         companySlug = session.activeCompanySlug;
 
-        let me = getMe();
+        let cachedCompany = getActiveCompany(companySlug);
 
-        if (!me) {
-            me = await get("/api/admin/me");
-            setMe(me);
-        }
+if (cachedCompany && !isSasUrlExpired(cachedCompany.logoUrl)) {
+    company = cachedCompany;
+} else {
+    let me = getMe();
 
-        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+    if (!me) {
+        me = await get("/api/admin/me");
+        setMe(me);
+    }
 
+    company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+
+    if (company) {
+        setActiveCompany(companySlug, company);
+    }
+}
         if (!company) {
             throw new Error("No se encontró la empresa activa del alumno.");
         }

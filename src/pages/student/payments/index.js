@@ -6,7 +6,8 @@ import {
     buildStudentMobileMenu,
     buildStudentMobileBottomNav,
     bindStudentMobileShellEvents,
-    syncStudentMobileShellScrollLock
+    syncStudentMobileShellScrollLock,
+    enableStudentSoftNavigation
 } from "../../../shared/js/student-mobile-shell.js";
 import {
     buildStudentCarnetModal,
@@ -17,7 +18,11 @@ import {
     getMe,
     setMe,
     getStudentMe,
-    setStudentMe
+    setStudentMe,
+    getActiveCompany,
+    setActiveCompany,
+    getPayments,
+    setPayments
 } from "../../../shared/js/storage.js";
 
 let companySlug = null;
@@ -54,6 +59,23 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function isSasUrlExpired(url) {
+    if (!url) return false;
+
+    try {
+        const parsedUrl = new URL(url);
+        const expires = parsedUrl.searchParams.get("se");
+
+        if (!expires) return false;
+
+        const expiresAt = new Date(expires).getTime();
+
+        return Date.now() > expiresAt - 5 * 60 * 1000;
+    } catch {
+        return true;
+    }
 }
 
 function setUiMessage(type, text) {
@@ -1072,21 +1094,31 @@ initNotificationsBell({
 }
 
 async function loadStudentProfile() {
-    let cached = getStudentMe();
+    const cached = getStudentMe(companySlug);
 
-    if (cached) {
+    if (cached && !isSasUrlExpired(cached.profileImageUrl)) {
         return cached;
     }
 
     const result = await get(`/api/student/${companySlug}/me`);
-    setStudentMe(result);
+    setStudentMe(companySlug, result);
 
     return result;
 }
 
 async function loadPayments() {
+    const cached = getPayments(companySlug);
+
+    if (cached) {
+        return cached;
+    }
+
     const result = await get(`/api/student/${companySlug}/billing`);
-    return Array.isArray(result) ? result : [];
+    const data = Array.isArray(result) ? result : [];
+
+    setPayments(companySlug, data);
+
+    return data;
 }
 
 async function loadTransferInfo() {
@@ -1221,20 +1253,26 @@ async function init() {
     try {
         clearUiMessage();
         await loadConfig();
-
+        enableStudentSoftNavigation();
         const session = requireAuth();
         if (!session) return;
 
         companySlug = session.activeCompanySlug;
 
-        let me = getMe();
+const cachedCompany = getActiveCompany(companySlug);
 
-if (!me) {
-    me = await get("/api/admin/me");
+if (cachedCompany && !isSasUrlExpired(cachedCompany.logoUrl)) {
+    company = cachedCompany;
+} else {
+    const me = await get("/api/admin/me");
     setMe(me);
-}
 
-company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+    company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+
+    if (company) {
+        setActiveCompany(companySlug, company);
+    }
+}
 
 if (!company) {
     throw new Error("No se encontró la empresa activa del alumno.");

@@ -1,4 +1,4 @@
-import { get, post, put, del } from "../../../shared/js/api.js";
+import { get, post, put, del, postForm } from "../../../shared/js/api.js";
 import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
@@ -64,6 +64,31 @@ function buildContent() {
                         Alta inicial para que luego complete su perfil.
                     </p>
                 </div>
+
+<div class="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-900">Alta masiva por Excel</h3>
+            <p class="mt-1 text-sm text-slate-600">
+                Columnas requeridas: Nombre, Apellido, Correo y Contraseña.
+            </p>
+        </div>
+
+        <div class="flex gap-2">
+            <button
+                id="btnImportExcel"
+                type="button"
+                class="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            >
+                Importar Excel
+            </button>
+
+            <input id="inputExcel" type="file" accept=".xlsx" class="hidden" />
+        </div>
+    </div>
+
+    <div id="importExcelResult" class="mt-3 hidden rounded-xl border px-4 py-3 text-sm"></div>
+</div>
 
                 <form id="studentForm" class="space-y-4">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -651,6 +676,30 @@ function closeModal() {
     setModal("");
 }
 
+function showImportResult(message, type = "success") {
+    const box = qs("importExcelResult");
+    if (!box) return;
+
+    box.className = "mt-3 rounded-xl border px-4 py-3 text-sm";
+
+    if (type === "error") {
+        box.classList.add("border-rose-200", "bg-rose-50", "text-rose-700");
+    } else {
+        box.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-700");
+    }
+
+    box.innerHTML = message;
+    box.classList.remove("hidden");
+}
+
+function hideImportResult() {
+    const box = qs("importExcelResult");
+    if (!box) return;
+
+    box.className = "mt-3 hidden rounded-xl border px-4 py-3 text-sm";
+    box.innerHTML = "";
+}
+
 function buildConfirmModal({ title, description, confirmText, confirmClass, onConfirm }) {
     setModal(`
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
@@ -810,6 +859,61 @@ function clearResetPasswordErrors() {
         el.classList.add("hidden");
         el.textContent = "";
     });
+}
+
+async function importStudentsExcel(file) {
+    if (!file || !company?.slug) return;
+
+    hideImportResult();
+
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+        showImportResult("El archivo debe ser .xlsx.", "error");
+        return;
+    }
+
+    const btn = qs("btnImportExcel");
+    const input = qs("inputExcel");
+
+    try {
+        btn.disabled = true;
+        btn.textContent = "Importando...";
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const result = await postForm(
+            `/api/admin/${company.slug}/students/import-excel`,
+            formData
+        );
+
+        const errorsHtml = Array.isArray(result.errors) && result.errors.length
+            ? `
+                <div class="mt-3">
+                    <div class="font-semibold">Observaciones:</div>
+                    <ul class="mt-1 list-disc space-y-1 pl-5">
+                        ${result.errors.slice(0, 10).map(x => `<li>${escapeHtml(x)}</li>`).join("")}
+                    </ul>
+                    ${result.errors.length > 10 ? `<div class="mt-2 text-xs">Se muestran 10 de ${result.errors.length} errores.</div>` : ""}
+                </div>
+            `
+            : "";
+
+        showImportResult(`
+            <div class="font-semibold">Importación finalizada</div>
+            <div class="mt-1">
+                Total: ${result.totalRows} · Creados: ${result.created} · Omitidos: ${result.skipped}
+            </div>
+            ${errorsHtml}
+        `);
+
+        await loadStudents();
+    } catch (error) {
+        showImportResult(error?.message || "No se pudo importar el Excel.", "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Importar Excel";
+        if (input) input.value = "";
+    }
 }
 
 function openResetPasswordModal(studentId) {
@@ -1165,6 +1269,14 @@ async function init() {
     qs("cancelStudentEditBtn").addEventListener("click", resetStudentForm);
     qs("studentsSearch").addEventListener("input", handleSearchInput);
 
+    qs("btnImportExcel")?.addEventListener("click", () => {
+    qs("inputExcel")?.click();
+});
+
+qs("inputExcel")?.addEventListener("change", async () => {
+    const file = qs("inputExcel")?.files?.[0] || null;
+    await importStudentsExcel(file);
+});
     registerGlobalMenuClose();
 
     await loadStudents();

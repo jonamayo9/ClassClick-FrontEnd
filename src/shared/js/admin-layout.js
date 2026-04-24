@@ -246,7 +246,7 @@ export async function setupAdminLayout({
   if (logoutButton) {
     logoutButton.addEventListener("click", () => {
       logout();
-      window.location.href = "/src/pages/auth/login/index.html";
+      window.location.href = "/index.html";
     });
   }
 

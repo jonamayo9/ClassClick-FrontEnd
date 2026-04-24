@@ -81,19 +81,6 @@ export function removeActiveRole() {
   localStorage.removeItem(STORAGE_KEYS.activeRole);
 }
 
-export function setActiveCompany(company) {
-  localStorage.setItem(STORAGE_KEYS.activeCompany, JSON.stringify(company));
-}
-
-export function getActiveCompany() {
-  const raw = localStorage.getItem(STORAGE_KEYS.activeCompany);
-  return raw ? JSON.parse(raw) : null;
-}
-
-export function removeActiveCompany() {
-  localStorage.removeItem(STORAGE_KEYS.activeCompany);
-}
-
 export function clearSession() {
   removeToken();
   removeRefreshToken();
@@ -133,15 +120,81 @@ export function removeStudentProfile() {
   localStorage.removeItem("classclick_profile");
 }
 
-export function setStudentMe(student) {
-  localStorage.setItem("classclick_student_me", JSON.stringify(student));
+export function setStudentMe(companySlug, student) {
+  if (!companySlug || !student) return;
+
+  localStorage.setItem(
+    `classclick_student_me:${companySlug}`,
+    JSON.stringify(student)
+  );
 }
 
-export function getStudentMe() {
-  const raw = localStorage.getItem("classclick_student_me");
+export function getStudentMe(companySlug) {
+  if (!companySlug) return null;
+
+  const raw = localStorage.getItem(
+    `classclick_student_me:${companySlug}`
+  );
+
   return raw ? JSON.parse(raw) : null;
 }
 
-export function removeStudentMe() {
-  localStorage.removeItem("classclick_student_me");
+export function removeStudentMe(companySlug) {
+  if (!companySlug) return;
+
+  localStorage.removeItem(
+    `classclick_student_me:${companySlug}`
+  );
+}
+export function setActiveCompany(companySlug, company) {
+  if (!companySlug || !company) return;
+
+  localStorage.setItem(
+    `classclick_active_company:${companySlug}`,
+    JSON.stringify(company)
+  );
+}
+
+export function getActiveCompany(companySlug) {
+  if (!companySlug) return null;
+
+  const raw = localStorage.getItem(`classclick_active_company:${companySlug}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function removeActiveCompany(companySlug) {
+  if (!companySlug) return;
+
+  localStorage.removeItem(`classclick_active_company:${companySlug}`);
+}
+export function getMatches(companySlug) {
+  if (!companySlug) return null;
+
+  const raw = localStorage.getItem(`classclick_matches:${companySlug}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function setMatches(companySlug, data) {
+  if (!companySlug || !data) return;
+
+  localStorage.setItem(
+    `classclick_matches:${companySlug}`,
+    JSON.stringify(data)
+  );
+}
+
+export function getPayments(companySlug) {
+  if (!companySlug) return null;
+
+  const raw = localStorage.getItem(`classclick_payments:${companySlug}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function setPayments(companySlug, data) {
+  if (!companySlug || !data) return;
+
+  localStorage.setItem(
+    `classclick_payments:${companySlug}`,
+    JSON.stringify(data)
+  );
 }
