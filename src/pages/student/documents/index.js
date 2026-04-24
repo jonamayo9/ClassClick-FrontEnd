@@ -687,7 +687,7 @@ function render() {
                 ${buildSidebar()}
 
                 <main class="min-w-0 flex-1">
-                    <div class="px-4 py-6 sm:px-6 lg:px-8">
+                    <div class="px-4 py-6 pb-[170px] sm:px-6 lg:px-8 md:pb-6">
                         ${buildContent()}
                     </div>
                 </main>
@@ -853,7 +853,31 @@ async function downloadFile(fileId) {
             throw new Error("No se pudo obtener el archivo.");
         }
 
-        window.open(result.url, "_blank", "noopener,noreferrer");
+        const response = await fetch(result.url, {
+            mode: "cors",
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error("No se pudo descargar el archivo.");
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        const fileName =
+            result.fileName ||
+            documents.find(x => x.currentFileId === fileId)?.currentFileName ||
+            "documento";
+
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(objectUrl);
     } catch (error) {
         pageError = error?.message || "No se pudo descargar el archivo.";
         rerender();
