@@ -1,5 +1,5 @@
 import { get, postForm } from "../../../shared/js/api.js";
-import { loadConfig } from "../../../shared/js/config.js";
+import { loadConfign, getApiBaseUrl  } from "../../../shared/js/config.js";
 import { requireAuth, logoutAndRedirect } from "../../../shared/js/session.js";
 import {
     buildStudentMobileMenu,
@@ -845,38 +845,16 @@ openPreviewModal({
 
 async function downloadFile(fileId) {
     try {
-        const result = await get(
-            `/api/student/${companySlug}/student-files/files/${fileId}/download`
-        );
+        const baseUrl = getApiBaseUrl();
 
-        if (!result?.url) {
-            throw new Error("No se pudo obtener el archivo.");
-        }
-
-        const response = await fetch(result.url);
-
-        if (!response.ok) {
-            throw new Error("No se pudo descargar el archivo.");
-        }
-
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-
-        const fileName =
-            result.fileName ||
-            documents.find(x => x.currentFileId === fileId)?.currentFileName ||
-            "documento";
+        const url = `${baseUrl}/api/student/${companySlug}/student-files/files/${fileId}/download-file`;
 
         const link = document.createElement("a");
-        link.href = objectUrl;
-        link.download = fileName;
-
+        link.href = url;
+        link.download = "";
         document.body.appendChild(link);
         link.click();
         link.remove();
-
-        URL.revokeObjectURL(objectUrl);
-
     } catch (error) {
         pageError = error?.message || "No se pudo descargar el archivo.";
         rerender();
