@@ -25,7 +25,7 @@ import {
     getMatches,
     setMatches
 } from "../../../shared/js/storage.js";
-
+let isRefreshingOpponentLogos = false;
 let companySlug = null;
 let company = null;
 let student = null;
@@ -38,7 +38,6 @@ let loading = true;
 let pageError = "";
 let isRefreshingStudentPhoto = false;
 let carnetOpen = false;
-let isRefreshingOpponentLogos = false;
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -681,7 +680,7 @@ function buildMatchDetailModal() {
 
                     <div class="mt-5 flex items-start justify-center gap-5 sm:gap-8">
                         <div class="flex min-w-0 flex-1 flex-col items-center text-center">
-                            ${buildMatchLogoImage(companyLogo, companyName)}
+                            ${buildCompanyMatchLogoImage(companyLogo, companyName)}
                             <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
                                 ${escapeHtml(companyName)}
                             </div>
@@ -692,7 +691,7 @@ function buildMatchDetailModal() {
                         </div>
 
                         <div class="flex min-w-0 flex-1 flex-col items-center text-center">
-                            ${buildMatchLogoImage(selectedMatch.opponentLogoUrl, selectedMatch.opponentName || "Rival")}
+                            ${buildOpponentMatchLogoImage(selectedMatch.opponentLogoUrl, selectedMatch.opponentName || "Rival")}
                             <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
                                 ${escapeHtml(selectedMatch.opponentName || "Rival")}
                             </div>
@@ -1045,8 +1044,6 @@ function bindEvents() {
         handleStudentPhotoError();
     };
 
-let isRefreshingOpponentLogos = false;
-
 window.__studentHomeOpponentLogoError = async (img) => {
     img.onerror = null;
     img.parentElement.innerHTML = "⚽";
@@ -1066,7 +1063,6 @@ window.__studentHomeOpponentLogoError = async (img) => {
     } finally {
         isRefreshingOpponentLogos = false;
     }
-};
 };
 
 bindStudentMobileShellEvents({
