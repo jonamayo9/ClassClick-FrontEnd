@@ -1006,6 +1006,10 @@ video {
   max-height: 90vh;
 }
 
+.max-h-\[92vh\] {
+  max-height: 92vh;
+}
+
 .max-h-full {
   max-height: 100%;
 }
@@ -2710,6 +2714,10 @@ body {
 
 .disabled\:cursor-not-allowed:disabled {
   cursor: not-allowed;
+}
+
+.disabled\:opacity-50:disabled {
+  opacity: 0.5;
 }
 
 .disabled\:opacity-60:disabled {

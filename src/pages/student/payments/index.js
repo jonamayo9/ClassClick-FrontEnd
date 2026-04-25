@@ -1130,6 +1130,10 @@ async function openTransferModal(chargeId) {
 
     clearUiMessage();
 
+    if (!transferInfo) {
+    transferInfo = await loadTransferInfo();
+}
+
     try {
         const ensured = await post(`/api/student/${companySlug}/charges/${chargeId}/ensure-payment`, {});
 
@@ -1279,10 +1283,9 @@ if (!company) {
     throw new Error("No se encontró la empresa activa del alumno.");
 }
 
-const [profile, paymentsResult, transferInfoResult] = await Promise.all([
+const [profile, paymentsResult] = await Promise.all([
     loadStudentProfile(),
-    loadPayments(),
-    loadTransferInfo()
+    loadPayments()
 ]);
 
 student = profile;
@@ -1292,7 +1295,6 @@ if (!student) {
 }
 
 payments = paymentsResult;
-transferInfo = transferInfoResult;
 
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información de pagos.";

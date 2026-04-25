@@ -1,5 +1,5 @@
 import { get, postForm } from "../../../shared/js/api.js";
-import { loadConfig, getApiBaseUrl } from "../../../shared/js/config.js";
+import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth, logoutAndRedirect } from "../../../shared/js/session.js";
 import {
     buildStudentMobileMenu,
@@ -845,13 +845,18 @@ openPreviewModal({
 
 async function downloadFile(fileId) {
     try {
-        const baseUrl = getApiBaseUrl();
+        const result = await get(
+            `/api/student/${companySlug}/student-files/files/${fileId}/download`
+        );
 
-        const url = `${baseUrl}/api/student/${companySlug}/student-files/files/${fileId}/download-file`;
+        if (!result?.url) {
+            throw new Error("No se pudo obtener el enlace de descarga.");
+        }
 
         const link = document.createElement("a");
-        link.href = url;
-        link.download = "";
+        link.href = result.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
         document.body.appendChild(link);
         link.click();
         link.remove();
