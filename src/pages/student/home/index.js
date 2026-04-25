@@ -38,6 +38,7 @@ let loading = true;
 let pageError = "";
 let isRefreshingStudentPhoto = false;
 let carnetOpen = false;
+let isRefreshingOpponentLogos = false;
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -548,21 +549,43 @@ function getFeaturedMatch() {
     return getUpcomingMatches()[0] || null;
 }
 
-function buildMatchLogoImage(url, alt) {
+function buildLogoPlaceholder(alt) {
+    return `
+        <div class="flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl shadow-sm">
+            ⚽
+        </div>
+    `;
+}
+
+function buildCompanyMatchLogoImage(url, alt) {
     if (!url) {
-        return `
-            <div class="flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl shadow-sm">
-                ⚽
-            </div>
-        `;
+        return buildLogoPlaceholder(alt);
     }
 
     return `
         <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
             <img
                 src="${escapeHtml(url)}"
-                alt="${escapeHtml(alt || "Logo")}"
+                alt="${escapeHtml(alt || "Logo empresa")}"
                 class="h-full w-full object-cover"
+                onerror="this.remove(); this.parentElement.innerHTML='⚽';"
+            />
+        </div>
+    `;
+}
+
+function buildOpponentMatchLogoImage(url, alt) {
+    if (!url) {
+        return buildLogoPlaceholder(alt);
+    }
+
+    return `
+        <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+            <img
+                src="${escapeHtml(url)}"
+                alt="${escapeHtml(alt || "Logo rival")}"
+                class="h-full w-full object-cover"
+                onerror="window.__studentHomeOpponentLogoError && window.__studentHomeOpponentLogoError(this)"
             />
         </div>
     `;
@@ -580,7 +603,7 @@ function buildMatchCard(match, compact = false) {
         >
             <div class="flex items-start justify-center gap-5 sm:gap-8">
                 <div class="flex min-w-0 flex-1 flex-col items-center text-center">
-                    ${buildMatchLogoImage(companyLogo, companyName)}
+                    ${buildCompanyMatchLogoImage(companyLogo, companyName)}
                     <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
                         ${escapeHtml(companyName)}
                     </div>
@@ -591,7 +614,7 @@ function buildMatchCard(match, compact = false) {
                 </div>
 
                 <div class="flex min-w-0 flex-1 flex-col items-center text-center">
-                    ${buildMatchLogoImage(match.opponentLogoUrl, match.opponentName || "Rival")}
+                    ${buildOpponentMatchLogoImage(match.opponentLogoUrl, match.opponentName || "Rival")}
                     <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
                         ${escapeHtml(match.opponentName || "Rival")}
                     </div>
@@ -1022,6 +1045,30 @@ function bindEvents() {
         handleStudentPhotoError();
     };
 
+let isRefreshingOpponentLogos = false;
+
+window.__studentHomeOpponentLogoError = async (img) => {
+    img.onerror = null;
+    img.parentElement.innerHTML = "⚽";
+
+    if (isRefreshingOpponentLogos) return;
+
+    try {
+        isRefreshingOpponentLogos = true;
+
+        const result = await get(`/api/student/${companySlug}/matches`);
+        matches = Array.isArray(result) ? result : [];
+
+        setMatches(companySlug, matches);
+        rerender();
+    } catch {
+        // dejamos el fallback ⚽
+    } finally {
+        isRefreshingOpponentLogos = false;
+    }
+};
+};
+
 bindStudentMobileShellEvents({
     setMobileMenuOpen: (value) => {
         mobileMenuOpen = value;
@@ -1142,10 +1189,25 @@ async function loadStudentProfile() {
     return result;
 }
 
+function hasExpiredMatchLogo(matchesList) {
+    if (!Array.isArray(matchesList)) return true;
+
+    return matchesList.some(match => {
+        const url = match?.opponentLogoUrl;
+
+        if (!url) return false;
+
+        // Si es URL externa sin SAS, no la vencemos
+        if (!url.includes("?")) return false;
+
+        return isSasUrlExpired(url);
+    });
+}
+
 async function loadMatches() {
     const cached = getMatches(companySlug);
 
-    if (cached) {
+    if (cached && !hasExpiredMatchLogo(cached)) {
         matches = cached;
         return;
     }
