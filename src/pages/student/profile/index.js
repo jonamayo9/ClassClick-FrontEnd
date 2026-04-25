@@ -1,5 +1,5 @@
 import { get, put, post, postForm } from "../../../shared/js/api.js";
-import { loadConfig } from "../../../shared/js/config.js";
+import { loadConfig, getApiBaseUrl } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { logoutAndRedirect } from "../../../shared/js/session.js";
 import {
@@ -57,13 +57,13 @@ function escapeHtml(value) {
 }
 
 function isSasUrlExpired(url) {
-    if (!url) return false;
+    if (!url) return true;
 
     try {
         const parsedUrl = new URL(url);
         const expires = parsedUrl.searchParams.get("se");
 
-        if (!expires) return false;
+        if (!expires) return true;
 
         const expiresAt = new Date(expires).getTime();
 
@@ -90,7 +90,7 @@ function getCompanyName() {
 }
 
 function getCompanyLogoUrl() {
-    return company?.logoUrl?.trim() || "";
+    return (company?.logoUrl || company?.LogoUrl || "").trim();
 }
 
 function getProfileImageUrl() {
@@ -1032,23 +1032,21 @@ async function init() {
         if (!session) return;
 
         companySlug = session.activeCompanySlug;
-const cachedCompany = getActiveCompany(companySlug);
+        
+let me = getMe();
 
-if (cachedCompany && !isSasUrlExpired(cachedCompany.logoUrl)) {
-    company = cachedCompany;
-} else {
-    let me = getMe();
+const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
+const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
 
-    if (!me) {
-        me = await get("/api/admin/me");
-        setMe(me);
-    }
+if (!me || isSasUrlExpired(logoUrl)) {
+    me = await get("/api/admin/me");
+    setMe(me);
+}
 
-    company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
-    if (company) {
-        setActiveCompany(companySlug, company);
-    }
+if (company) {
+    setActiveCompany(companySlug, company);
 }
 
         if (!company) {

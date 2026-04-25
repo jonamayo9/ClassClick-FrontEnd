@@ -674,53 +674,53 @@ async function init() {
     return;
   }
 
-  logoutButton.addEventListener("click", logoutAndRedirect);
+  logoutButton?.addEventListener("click", logoutAndRedirect);
 
-  searchInput.addEventListener("input", (event) => {
+  searchInput?.addEventListener("input", (event) => {
     filterAdmins(event.target.value);
   });
 
-  openCreateModalButton.addEventListener("click", openCreateModal);
-  closeCreateModalButton.addEventListener("click", closeCreateModal);
-  cancelCreateButton.addEventListener("click", closeCreateModal);
+  openCreateModalButton?.addEventListener("click", openCreateModal);
+  closeCreateModalButton?.addEventListener("click", closeCreateModal);
+  cancelCreateButton?.addEventListener("click", closeCreateModal);
 
-  closeEditModalButton.addEventListener("click", closeEditModal);
-  cancelEditButton.addEventListener("click", closeEditModal);
+  closeEditModalButton?.addEventListener("click", closeEditModal);
+  cancelEditButton?.addEventListener("click", closeEditModal);
 
-  closeManageCompaniesModalButton.addEventListener("click", closeManageCompaniesModal);
+  closeManageCompaniesModalButton?.addEventListener("click", closeManageCompaniesModal);
 
-  confirmCancelButton.addEventListener("click", closeConfirmModal);
+  confirmCancelButton?.addEventListener("click", closeConfirmModal);
 
-  createModal.addEventListener("click", (event) => {
+  createModal?.addEventListener("click", (event) => {
     if (event.target === createModal) {
       closeCreateModal();
     }
   });
 
-  editModal.addEventListener("click", (event) => {
+  editModal?.addEventListener("click", (event) => {
     if (event.target === editModal) {
       closeEditModal();
     }
   });
 
-  manageCompaniesModal.addEventListener("click", (event) => {
+  manageCompaniesModal?.addEventListener("click", (event) => {
     if (event.target === manageCompaniesModal) {
       closeManageCompaniesModal();
     }
   });
 
-  confirmModal.addEventListener("click", (event) => {
+  confirmModal?.addEventListener("click", (event) => {
     if (event.target === confirmModal) {
       closeConfirmModal();
     }
   });
 
-  confirmAcceptButton.addEventListener("click", async () => {
+  confirmAcceptButton?.addEventListener("click", async () => {
     if (!confirmAction) return;
     await confirmAction();
   });
 
-  createAdminForm.addEventListener("submit", async (event) => {
+  createAdminForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     hideCreateError();
     setCreateLoading(true);
@@ -757,7 +757,7 @@ async function init() {
     }
   });
 
-  editAdminForm.addEventListener("submit", async (event) => {
+  editAdminForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     hideEditError();
     setEditLoading(true);
@@ -766,11 +766,12 @@ async function init() {
       const formData = new FormData(editAdminForm);
 
       const adminId = formData.get("editId")?.toString();
+
       const payload = {
         firstName: formData.get("editFirstName")?.toString().trim(),
         lastName: formData.get("editLastName")?.toString().trim(),
         email: formData.get("editEmail")?.toString().trim(),
-        isActive: document.getElementById("editIsActive").checked
+        isActive: document.getElementById("editIsActive")?.checked === true
       };
 
       if (!adminId) {
@@ -791,7 +792,7 @@ async function init() {
     }
   });
 
-  saveAssignedCompaniesButton.addEventListener("click", async () => {
+  saveAssignedCompaniesButton?.addEventListener("click", async () => {
     if (!selectedAdminForCompanies || isSavingCompanies) return;
 
     hideManageCompaniesError();
@@ -815,63 +816,63 @@ async function init() {
     }
   });
 
-  createCompanySearchInput.addEventListener("input", (event) => {
-  renderCreateCompanySearchResults(event.target.value);
-});
+  createCompanySearchInput?.addEventListener("input", (event) => {
+    renderCreateCompanySearchResults(event.target.value);
+  });
 
-assignCompanySearchInput.addEventListener("input", (event) => {
-  renderAssignCompanySearchResults(event.target.value);
-});
+  assignCompanySearchInput?.addEventListener("input", (event) => {
+    renderAssignCompanySearchResults(event.target.value);
+  });
 
-createCompanySearchResults.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action='add-company']");
-  if (!button) return;
+  createCompanySearchResults?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='add-company']");
+    if (!button) return;
 
-  const companyId = button.dataset.id;
-  const type = button.dataset.type;
+    const companyId = button.dataset.id;
+    const type = button.dataset.type;
 
-  if (!companyId || !type) return;
+    if (!companyId || !type) return;
 
-  addSelectedCompany(type, companyId);
-});
+    addSelectedCompany(type, companyId);
+  });
 
-assignCompanySearchResults.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action='add-company']");
-  if (!button) return;
+  assignCompanySearchResults?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='add-company']");
+    if (!button) return;
 
-  const companyId = button.dataset.id;
-  const type = button.dataset.type;
+    const companyId = button.dataset.id;
+    const type = button.dataset.type;
 
-  if (!companyId || !type) return;
+    if (!companyId || !type) return;
 
-  addSelectedCompany(type, companyId);
-});
+    addSelectedCompany(type, companyId);
+  });
 
-createSelectedCompanies.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action='remove-selected-company']");
-  if (!button) return;
+  createSelectedCompanies?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='remove-selected-company']");
+    if (!button) return;
 
-  const companyId = button.dataset.id;
-  const type = button.dataset.type;
+    const companyId = button.dataset.id;
+    const type = button.dataset.type;
 
-  if (!companyId || !type) return;
+    if (!companyId || !type) return;
 
-  removeSelectedCompany(type, companyId);
-});
+    removeSelectedCompany(type, companyId);
+  });
 
-assignSelectedCompanies.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action='remove-selected-company']");
-  if (!button) return;
+  assignSelectedCompanies?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='remove-selected-company']");
+    if (!button) return;
 
-  const companyId = button.dataset.id;
-  const type = button.dataset.type;
+    const companyId = button.dataset.id;
+    const type = button.dataset.type;
 
-  if (!companyId || !type) return;
+    if (!companyId || !type) return;
 
-  removeSelectedCompany(type, companyId);
-});
+    removeSelectedCompany(type, companyId);
+  });
 
-  assignedCompaniesList.addEventListener("click", (event) => {
+  assignedCompaniesList?.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action='remove-company']");
     if (!button) return;
 
@@ -883,7 +884,7 @@ assignSelectedCompanies.addEventListener("click", (event) => {
     askRemoveCompanyFromAdmin(adminId, companyId);
   });
 
-  adminsTableBody.addEventListener("click", async (event) => {
+  adminsTableBody?.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
 
@@ -896,6 +897,7 @@ assignSelectedCompanies.addEventListener("click", (event) => {
     if (action === "edit") {
       const admin = findAdminById(adminId);
       if (!admin) return;
+
       openEditModal(admin);
       return;
     }
@@ -903,6 +905,7 @@ assignSelectedCompanies.addEventListener("click", (event) => {
     if (action === "companies") {
       const admin = findAdminById(adminId);
       if (!admin) return;
+
       openManageCompaniesModal(admin);
       return;
     }
@@ -921,6 +924,8 @@ assignSelectedCompanies.addEventListener("click", (event) => {
   await loadAdmins();
 }
 
-init().catch(() => {
-  window.location.href = "/src/pages/auth/login.html";
+init().catch((error) => {
+  console.error("Error al inicializar admins:", error);
+  hideLoading();
+  showError(error?.message || "Ocurrió un error al cargar admins.");
 });

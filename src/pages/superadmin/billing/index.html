@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facturación | ClassClick</title>
+  <link rel="stylesheet" href="/public/assets/app.css" />
+</head>
+
+<body class="min-h-screen bg-slate-100">
+  <div class="min-h-screen">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <div>
+          <h1 class="text-xl font-bold text-slate-900">ClassClick</h1>
+          <p class="text-sm text-slate-500">SuperAdmin / Facturación</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <a href="/src/pages/superadmin/dashboard/index.html"
+             class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Volver
+          </a>
+
+          <button id="logoutButton" type="button"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <section class="mb-6">
+        <h2 class="text-2xl font-bold text-slate-900">Facturación por empresa</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Buscá una empresa, revisá su resumen mensual y cargá o editá su configuración de facturación.
+        </p>
+      </section>
+
+      <div id="errorBox" class="hidden mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+      <div id="successBox" class="hidden mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"></div>
+
+      <section class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
+        <div class="space-y-5">
+
+          <div class="card p-5">
+            <div class="mb-4">
+              <h3 class="text-lg font-semibold text-slate-900">Buscar empresa</h3>
+              <p class="mt-1 text-sm text-slate-500">
+                Seleccioná la empresa para ver o cargar su facturación.
+              </p>
+            </div>
+
+            <input
+              id="companySearchInput"
+              type="text"
+              class="input mb-3"
+              placeholder="Buscar por nombre o slug" />
+
+            <select id="companySelect" class="input">
+              <option value="">Cargando empresas...</option>
+            </select>
+          </div>
+
+          <div class="card p-5">
+            <div class="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 class="text-lg font-semibold text-slate-900">Configuración actual</h3>
+                <p id="configStatusText" class="mt-1 text-sm text-slate-500">
+                  -
+                </p>
+              </div>
+
+              <button
+                id="openBillingModalButton"
+                type="button"
+                class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
+                Nueva facturación
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Precio base mensual</p>
+                <p id="basePriceText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Alumnos incluidos</p>
+                <p id="includedUsersText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Modo extra</p>
+                <p id="extraModeText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Precio por alumno extra</p>
+                <p id="extraUserPriceText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Monto fijo extra</p>
+                <p id="extraFixedAmountText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Día de facturación</p>
+                <p id="billingDayText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs text-slate-500">Avisar días antes</p>
+                <p id="notifyDaysBeforeText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="space-y-5">
+          <div class="card p-5">
+            <p class="text-sm font-medium text-slate-500">Empresa seleccionada</p>
+            <h3 id="selectedCompanyName" class="mt-1 text-xl font-bold text-slate-900">-</h3>
+            <p id="selectedCompanySlug" class="mt-1 text-sm text-slate-500">-</p>
+          </div>
+
+          <div class="card p-5">
+            <div class="mb-4">
+              <h3 class="text-lg font-semibold text-slate-900">Resumen mensual</h3>
+              <p id="overviewPeriod" class="mt-1 text-sm text-slate-500">-</p>
+            </div>
+
+            <div class="space-y-3">
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-sm text-slate-500">Alumnos activos actuales</p>
+                <p id="currentStudentsText" class="mt-1 text-3xl font-bold text-slate-900">-</p>
+              </div>
+
+              <div class="rounded-2xl bg-blue-50 p-4">
+                <p class="text-sm text-blue-700">Máximo alcanzado en el mes</p>
+                <p id="maxStudentsText" class="mt-1 text-3xl font-bold text-blue-900">-</p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div class="rounded-2xl bg-slate-50 p-4">
+                  <p class="text-xs text-slate-500">Extras</p>
+                  <p id="extraUsersText" class="mt-1 text-xl font-bold text-slate-900">-</p>
+                </div>
+
+                <div class="rounded-2xl bg-slate-50 p-4">
+                  <p class="text-xs text-slate-500">Monto extra</p>
+                  <p id="extraAmountText" class="mt-1 text-xl font-bold text-slate-900">$0</p>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p class="text-sm font-medium text-emerald-700">Total estimado a cobrar</p>
+                <p id="totalAmountText" class="mt-1 text-3xl font-bold text-emerald-900">$0</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <div id="billingModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40"></div>
+
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h3 id="billingModalTitle" class="text-lg font-semibold text-slate-900">Alta de facturación</h3>
+            <p id="billingModalSubtitle" class="text-sm text-slate-500">-</p>
+          </div>
+
+          <button id="closeBillingModalButton" type="button"
+            class="rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100">
+            Cerrar
+          </button>
+        </div>
+
+        <form id="billingForm" class="space-y-4 px-5 py-5">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label for="basePriceInput" class="label">Precio base mensual</label>
+              <input id="basePriceInput" type="number" min="0" step="0.01" class="input" />
+            </div>
+
+            <div>
+              <label for="includedUsersInput" class="label">Alumnos incluidos</label>
+              <input id="includedUsersInput" type="number" min="0" step="1" class="input" />
+            </div>
+
+            <div>
+              <label for="extraModeInput" class="label">Cobro extra</label>
+              <select id="extraModeInput" class="input">
+                <option value="1">Por alumno adicional</option>
+                <option value="2">Monto fijo global</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="extraUserPriceInput" class="label">Precio por alumno extra</label>
+              <input id="extraUserPriceInput" type="number" min="0" step="0.01" class="input" />
+            </div>
+
+            <div>
+              <label for="extraFixedAmountInput" class="label">Monto fijo extra</label>
+              <input id="extraFixedAmountInput" type="number" min="0" step="0.01" class="input" />
+            </div>
+
+            <div>
+              <label for="billingDayInput" class="label">Día de facturación</label>
+              <input id="billingDayInput" type="number" min="1" max="28" step="1" class="input" />
+            </div>
+
+            <div>
+              <label for="notifyDaysBeforeInput" class="label">Avisar días antes</label>
+              <input id="notifyDaysBeforeInput" type="number" min="0" max="15" step="1" class="input" />
+            </div>
+          </div>
+
+          <div id="billingFormError" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+          <div class="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
+            <button id="cancelBillingModalButton" type="button"
+              class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+              Cancelar
+            </button>
+
+            <button id="saveButton" type="submit"
+              class="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+              Guardar configuración
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/pages/superadmin/billing/index.js"></script>
+</body>
+</html>

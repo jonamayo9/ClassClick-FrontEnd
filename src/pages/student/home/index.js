@@ -1,5 +1,5 @@
 import { get } from "../../../shared/js/api.js";
-import { loadConfig } from "../../../shared/js/config.js";
+import { loadConfig, getApiBaseUrl } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { logoutAndRedirect } from "../../../shared/js/session.js";
 import {
@@ -65,7 +65,7 @@ function getCompanyName() {
 }
 
 function getCompanyLogoUrl() {
-    return company?.logoUrl?.trim() || "";
+    return (company?.logoUrl || company?.LogoUrl || "").trim();
 }
 
 function getStudentFullName() {
@@ -1113,13 +1113,13 @@ initNotificationsBell({
 }
 
 function isSasUrlExpired(url) {
-    if (!url) return false;
+    if (!url) return true;
 
     try {
         const parsedUrl = new URL(url);
         const expires = parsedUrl.searchParams.get("se");
 
-        if (!expires) return false;
+        if (!expires) return true;
 
         const expiresAt = new Date(expires).getTime();
 
@@ -1165,19 +1165,20 @@ async function init() {
 
         companySlug = session.activeCompanySlug;
 
-const cachedCompany = getActiveCompany(companySlug);
+let me = getMe();
 
-if (cachedCompany && !isSasUrlExpired(cachedCompany.logoUrl)) {
-    company = cachedCompany;
-} else {
-    let me = await get("/api/admin/me");
+const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
+const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
+
+if (!me || isSasUrlExpired(logoUrl)) {
+    me = await get("/api/admin/me");
     setMe(me);
+}
 
-    company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
-    if (company) {
-        setActiveCompany(companySlug, company);
-    }
+if (company) {
+    setActiveCompany(companySlug, company);
 }
 
         if (!company) {

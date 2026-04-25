@@ -396,7 +396,6 @@ function openActionsDropdown(button, companyId) {
   if (!company) return;
 
   openedActionsCompanyId = companyId;
-
   actionsDocumentsLink.onclick = (event) => {
   event.preventDefault();
 
@@ -535,21 +534,21 @@ function onCompaniesTableClick(event) {
 }
 
 function bindEvents() {
-  logoutButton.addEventListener("click", logoutAndRedirect);
-  newCompanyButton.addEventListener("click", openCreateCompanyModal);
+  logoutButton?.addEventListener("click", logoutAndRedirect);
+  newCompanyButton?.addEventListener("click", openCreateCompanyModal);
 
-  searchInput.addEventListener("input", (event) => {
+  searchInput?.addEventListener("input", (event) => {
     filterCompanies(event.target.value);
   });
 
-  companiesTableBody.addEventListener("click", onCompaniesTableClick);
+  companiesTableBody?.addEventListener("click", onCompaniesTableClick);
 
-  closeCompanyModalButton.addEventListener("click", closeCompanyModal);
-  cancelCompanyModalButton.addEventListener("click", closeCompanyModal);
-  companyForm.addEventListener("submit", onSubmitCompanyForm);
+  closeCompanyModalButton?.addEventListener("click", closeCompanyModal);
+  cancelCompanyModalButton?.addEventListener("click", closeCompanyModal);
+  companyForm?.addEventListener("submit", onSubmitCompanyForm);
 
-  cancelStatusModalButton.addEventListener("click", closeStatusModal);
-  confirmStatusModalButton.addEventListener("click", onConfirmStatus);
+  cancelStatusModalButton?.addEventListener("click", closeStatusModal);
+  confirmStatusModalButton?.addEventListener("click", onConfirmStatus);
 
   if (actionsDropdown) {
     document.addEventListener("click", () => {
@@ -561,23 +560,23 @@ function bindEvents() {
     });
   }
 
-  if (actionsEditButton) {
-    actionsEditButton.addEventListener("click", () => {
-      if (!openedActionsCompanyId) return;
-      closeActionsDropdown();
-      openEditCompanyModal(openedActionsCompanyId);
-    });
-  }
+actionsEditButton?.addEventListener("click", () => {
+  const companyId = openedActionsCompanyId;
+  if (!companyId) return;
 
-  if (actionsToggleStatusButton) {
-    actionsToggleStatusButton.addEventListener("click", () => {
-      if (!openedActionsCompanyId) return;
-      closeActionsDropdown();
-      openStatusModal(openedActionsCompanyId);
-    });
-  }
+  openEditCompanyModal(companyId);
+  closeActionsDropdown();
+});
 
-  logoFileInput.addEventListener("change", () => {
+actionsToggleStatusButton?.addEventListener("click", () => {
+  const companyId = openedActionsCompanyId;
+  if (!companyId) return;
+
+  openStatusModal(companyId);
+  closeActionsDropdown();
+});
+
+  logoFileInput?.addEventListener("change", () => {
     const selectedFile = logoFileInput.files?.[0];
 
     if (!selectedFile) {
@@ -590,9 +589,9 @@ function bindEvents() {
     setLogoPreview(previewUrl, true);
   });
 
-  nameInput.addEventListener("input", () => {
+  nameInput?.addEventListener("input", () => {
     if (companyModalMode !== "create") return;
-    if (slugInput.dataset.touched === "true") return;
+    if (slugInput?.dataset.touched === "true") return;
 
     slugInput.value = nameInput.value
       .trim()
@@ -604,7 +603,7 @@ function bindEvents() {
       .replace(/-+/g, "-");
   });
 
-  slugInput.addEventListener("input", () => {
+  slugInput?.addEventListener("input", () => {
     slugInput.dataset.touched = "true";
     slugInput.value = slugInput.value
       .trim()
