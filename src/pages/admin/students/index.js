@@ -6,7 +6,16 @@ import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-la
 let company = null;
 
 let students = [];
+let courses = [];
+
 let searchTerm = "";
+let registrationFilter = "";
+let courseFilter = "";
+
+let currentPage = 1;
+let pageSize = 20;
+let totalCount = 0;
+let totalPages = 1;
 
 let editingStudentId = null;
 let togglingStudentId = null;
@@ -171,17 +180,46 @@ function buildContent() {
                         </p>
                     </div>
 
-                    <div class="w-full lg:max-w-sm">
-                        <label for="studentsSearch" class="mb-1 block text-sm font-medium text-slate-700">
-                            Buscar
-                        </label>
-                        <input
-                            id="studentsSearch"
-                            type="text"
-                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                            placeholder="Nombre, email o DNI"
-                        />
-                    </div>
+<div class="grid w-full grid-cols-1 gap-3 lg:grid-cols-4">
+    <div class="lg:col-span-2">
+        <label for="studentsSearch" class="mb-1 block text-sm font-medium text-slate-700">
+            Buscar
+        </label>
+        <input
+            id="studentsSearch"
+            type="text"
+            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+            placeholder="Nombre, email o DNI"
+        />
+    </div>
+
+    <div>
+        <label for="registrationFilter" class="mb-1 block text-sm font-medium text-slate-700">
+            Registro
+        </label>
+        <select
+            id="registrationFilter"
+            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+        >
+            <option value="">Todos</option>
+            <option value="true">Registrados</option>
+            <option value="false">Pendientes</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="courseFilter" class="mb-1 block text-sm font-medium text-slate-700">
+            Curso
+        </label>
+        <select
+            id="courseFilter"
+            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+        >
+            <option value="">Todos los cursos</option>
+            ${buildCourseOptions()}
+        </select>
+    </div>
+</div>
                 </div>
 
 <div class="hidden overflow-visible md:block">
@@ -204,6 +242,7 @@ function buildContent() {
                 <div id="studentsEmptyState" class="hidden py-10 text-center">
                     <p class="text-sm text-slate-500">No hay alumnos cargados.</p>
                 </div>
+                <div id="studentsPagination" class="mt-5"></div>
             </section>
         </section>
 
@@ -222,6 +261,15 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function buildCourseOptions() {
+    return courses.map(course => {
+        const id = course.id || course.courseId;
+        const name = course.name || course.courseName || "Curso";
+
+        return `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`;
+    }).join("");
 }
 
 function formatDate(value) {
@@ -415,10 +463,68 @@ function resetStudentForm() {
 }
 
 function renderStats() {
-    qs("statStudents").textContent = String(students.length);
+    qs("statStudents").textContent = String(totalCount);
     qs("statActiveStudents").textContent = String(students.filter(x => x.isActive).length);
     qs("statRegisteredStudents").textContent = String(students.filter(x => x.isRegistrationCompleted).length);
     qs("statPendingStudents").textContent = String(students.filter(x => !x.isRegistrationCompleted).length);
+}
+
+function renderPagination() {
+    const container = qs("studentsPagination");
+
+    if (!container) return;
+
+    if (totalCount === 0) {
+        container.innerHTML = "";
+        return;
+    }
+
+    const from = ((currentPage - 1) * pageSize) + 1;
+    const to = Math.min(currentPage * pageSize, totalCount);
+
+    container.innerHTML = `
+        <div class="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-sm text-slate-500">
+                Mostrando ${from}-${to} de ${totalCount} alumnos
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button
+                    id="prevPageBtn"
+                    type="button"
+                    class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+                    ${currentPage <= 1 ? "disabled" : ""}
+                >
+                    Anterior
+                </button>
+
+                <span class="text-sm text-slate-500">
+                    Página ${currentPage} de ${totalPages}
+                </span>
+
+                <button
+                    id="nextPageBtn"
+                    type="button"
+                    class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+                    ${currentPage >= totalPages ? "disabled" : ""}
+                >
+                    Siguiente
+                </button>
+            </div>
+        </div>
+    `;
+
+    qs("prevPageBtn")?.addEventListener("click", async () => {
+        if (currentPage <= 1) return;
+        currentPage--;
+        await loadStudents();
+    });
+
+    qs("nextPageBtn")?.addEventListener("click", async () => {
+        if (currentPage >= totalPages) return;
+        currentPage++;
+        await loadStudents();
+    });
 }
 
 function getDesktopActions(student) {
@@ -588,12 +694,13 @@ function bindStudentActionEvents() {
         });
     });
 
-    qs("studentsTable")?.querySelectorAll(".desktop-detail-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            openActionsMenuStudentId = null;
-            openStudentDetailModal(btn.dataset.id);
-        });
+qs("studentsTable")?.querySelectorAll(".desktop-detail-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        openActionsMenuStudentId = null;
+        renderStudentsTable();
+        openStudentDetailModal(btn.dataset.id);
     });
+});
 
     qs("studentsTable")?.querySelectorAll(".desktop-edit-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -632,12 +739,13 @@ function bindStudentActionEvents() {
         });
     });
 
-    qs("studentsMobileList")?.querySelectorAll(".mobile-detail-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            openActionsMenuStudentId = null;
-            openStudentDetailModal(btn.dataset.id);
-        });
+qs("studentsMobileList")?.querySelectorAll(".mobile-detail-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        openActionsMenuStudentId = null;
+        renderStudentsTable();
+        openStudentDetailModal(btn.dataset.id);
     });
+});
 
     qs("studentsMobileList")?.querySelectorAll(".mobile-edit-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -745,6 +853,10 @@ function openStudentDetailModal(studentId) {
     const emergencyContactName = getStudentField(student, "emergencyContactName");
     const emergencyContactPhone = getStudentField(student, "emergencyContactPhone");
     const notes = getStudentField(student, "notes");
+    const hasHealthInsurance = !!student.hasHealthInsurance;
+const healthInsuranceName = getStudentField(student, "healthInsuranceName");
+const healthInsuranceMemberNumber = getStudentField(student, "healthInsuranceMemberNumber");
+const healthInsurancePlan = getStudentField(student, "healthInsurancePlan");
 
     setModal(`
         <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
@@ -826,6 +938,38 @@ function openStudentDetailModal(studentId) {
                                 <p class="mt-2 text-sm font-medium text-slate-900 break-words">${escapeHtml(emergencyContactPhone || "—")}</p>
                             </div>
                         </div>
+
+                        <div class="rounded-3xl border border-slate-200 p-4">
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Obra social</p>
+
+    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Tiene</p>
+            <p class="mt-1 text-sm font-medium text-slate-900">${hasHealthInsurance ? "Sí" : "No"}</p>
+        </div>
+
+        ${
+            hasHealthInsurance
+                ? `
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Nombre</p>
+                        <p class="mt-1 text-sm font-medium text-slate-900">${escapeHtml(healthInsuranceName || "—")}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Nro. afiliado / socio</p>
+                        <p class="mt-1 text-sm font-medium text-slate-900">${escapeHtml(healthInsuranceMemberNumber || "—")}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Plan</p>
+                        <p class="mt-1 text-sm font-medium text-slate-900">${escapeHtml(healthInsurancePlan || "—")}</p>
+                    </div>
+                `
+                : ""
+        }
+    </div>
+</div>
 
                         <div class="rounded-3xl border border-slate-200 p-4">
                             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Notas</p>
@@ -1044,13 +1188,34 @@ function openDeleteStudentModal(studentId) {
 }
 
 async function loadStudents() {
-    const query = searchTerm.trim()
-        ? `?search=${encodeURIComponent(searchTerm.trim())}`
-        : "";
+    const params = new URLSearchParams();
 
-    students = await get(`/api/admin/${company.slug}/students${query}`);
+    if (searchTerm.trim()) {
+        params.append("search", searchTerm.trim());
+    }
+
+    if (registrationFilter !== "") {
+        params.append("isRegistrationCompleted", registrationFilter);
+    }
+
+    if (courseFilter) {
+        params.append("courseId", courseFilter);
+    }
+
+    params.append("page", currentPage);
+    params.append("pageSize", pageSize);
+
+    const result = await get(`/api/admin/${company.slug}/students?${params.toString()}`);
+
+    students = result.items || result.Items || [];
+    totalCount = result.totalCount ?? result.TotalCount ?? 0;
+    totalPages = result.totalPages ?? result.TotalPages ?? 1;
+    currentPage = result.page ?? result.Page ?? currentPage;
+    pageSize = result.pageSize ?? result.PageSize ?? pageSize;
+
     renderStudentsTable();
     renderStats();
+    renderPagination();
 }
 
 async function saveStudent(event) {
@@ -1218,8 +1383,13 @@ function handleSearchInput() {
     }
 
     searchTimeout = setTimeout(async () => {
+        currentPage = 1;
         await loadStudents();
     }, 350);
+}
+
+async function loadCourses() {
+    courses = await get(`/api/admin/${company.slug}/courses`);
 }
 
 function registerGlobalMenuClose() {
@@ -1255,23 +1425,59 @@ async function init() {
         onCompanyChanged: async selectedCompany => {
             company = selectedCompany;
             editingStudentId = null;
-            searchTerm = "";
-            openActionsMenuStudentId = null;
-            resetStudentForm();
-            qs("studentsSearch").value = "";
-            await loadStudents();
+searchTerm = "";
+registrationFilter = "";
+courseFilter = "";
+currentPage = 1;
+openActionsMenuStudentId = null;
+
+resetStudentForm();
+
+await loadCourses();
+
+qs("studentsSearch").value = "";
+qs("registrationFilter").value = "";
+qs("courseFilter").innerHTML = `
+    <option value="">Todos los cursos</option>
+    ${buildCourseOptions()}
+`;
+await loadStudents();
+
         }
     });
 
     company = layout.activeCompany;
 
+    await loadCourses();
+
+qs("courseFilter").innerHTML = `
+    <option value="">Todos los cursos</option>
+    ${buildCourseOptions()}
+`;
+
     qs("studentForm").addEventListener("submit", saveStudent);
     qs("cancelStudentEditBtn").addEventListener("click", resetStudentForm);
     qs("studentsSearch").addEventListener("input", handleSearchInput);
 
+    qs("registrationFilter")?.addEventListener("change", async () => {
+    registrationFilter = qs("registrationFilter").value;
+    currentPage = 1;
+    openActionsMenuStudentId = null;
+    await loadStudents();
+});
+
+qs("courseFilter")?.addEventListener("change", async () => {
+    courseFilter = qs("courseFilter").value;
+    currentPage = 1;
+    openActionsMenuStudentId = null;
+    await loadStudents();
+});
+
     qs("btnImportExcel")?.addEventListener("click", () => {
     qs("inputExcel")?.click();
 });
+
+
 
 qs("inputExcel")?.addEventListener("change", async () => {
     const file = qs("inputExcel")?.files?.[0] || null;

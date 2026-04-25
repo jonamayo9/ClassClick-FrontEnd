@@ -675,7 +675,10 @@ function buildPaymentsSection() {
 function buildTransferModal() {
     if (!selectedPaymentId) return "";
 
-    const payment = payments.find(x => x.paymentId === selectedPaymentId || x.id === selectedPaymentId);
+    const payment = payments.find(x =>
+    String(x.paymentId || x.id || "") === String(selectedPaymentId) ||
+    String(x.chargeId || "") === String(selectedPaymentId)
+);
     const alias = transferInfo?.alias?.trim() || "";
     const cbu = transferInfo?.cbu?.trim() || "";
     const holder = transferInfo?.accountHolder?.trim() || "";
@@ -693,7 +696,8 @@ function buildTransferModal() {
                             ${escapeHtml(payment?.courseName || "Pago")}
                         </h3>
                         <div class="mt-2 text-sm text-slate-500">
-                            ${escapeHtml(formatMonthYear(payment?.month, payment?.year))} · ${escapeHtml(money(payment?.amount ?? payment?.finalAmount))}
+                            Período: ${escapeHtml(formatMonthYear(payment?.month, payment?.year))}
+                            · Importe: ${escapeHtml(money(payment?.finalAmount ?? payment?.amount))}
                         </div>
                     </div>
 

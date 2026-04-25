@@ -28,7 +28,7 @@ import {
 let session = null;
 let companySlug = null;
 let company = null;
-
+let profileEditMode = false;
 let profile = null;
 let mobileMenuOpen = false;
 let loading = true;
@@ -71,6 +71,16 @@ function isSasUrlExpired(url) {
     } catch {
         return true;
     }
+}
+
+function readonlyAttr() {
+    return profileEditMode ? "" : "disabled";
+}
+
+function readonlyClass() {
+    return profileEditMode
+        ? "bg-white"
+        : "bg-slate-100 text-slate-500 cursor-not-allowed";
 }
 
 function formatDateInput(value) {
@@ -458,69 +468,153 @@ function buildProfileForm() {
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div class="xl:col-span-2 space-y-6">
                 <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="mb-5">
-                        <h2 class="text-lg font-semibold text-slate-900">Datos personales</h2>
-                        <p class="mt-1 text-sm text-slate-500">
-                            Actualizá tu información principal y contactos.
-                        </p>
+                    <div class="mb-5 flex items-start justify-between gap-4">
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-900">Datos personales</h2>
+                            <p class="mt-1 text-sm text-slate-500">
+                                Actualizá tu información principal y contactos.
+                            </p>
+                        </div>
+
+                        ${
+                            !profileEditMode
+                                ? `
+                                    <button
+                                        id="editProfileButton"
+                                        type="button"
+                                        class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                                    >
+                                        Editar perfil
+                                    </button>
+                                `
+                                : ""
+                        }
                     </div>
 
                     <form id="profileForm" class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
                                 <label for="firstName" class="mb-1 block text-sm font-medium text-slate-700">Nombre</label>
-                                <input id="firstName" type="text" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${escapeHtml(profile?.firstName || "")}" />
+                                <input id="firstName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.firstName || "")}" />
                             </div>
 
                             <div>
                                 <label for="lastName" class="mb-1 block text-sm font-medium text-slate-700">Apellido</label>
-                                <input id="lastName" type="text" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${escapeHtml(profile?.lastName || "")}" />
+                                <input id="lastName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.lastName || "")}" />
                             </div>
 
                             <div>
                                 <label for="dateOfBirth" class="mb-1 block text-sm font-medium text-slate-700">Fecha de nacimiento</label>
-                                <input id="dateOfBirth" type="date" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${formatDateInput(profile?.dateOfBirth)}" />
+                                <input id="dateOfBirth" type="date" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${formatDateInput(profile?.dateOfBirth)}" />
                             </div>
 
                             <div>
                                 <label for="phone" class="mb-1 block text-sm font-medium text-slate-700">Teléfono</label>
-                                <input id="phone" type="text" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${escapeHtml(profile?.phone || "")}" />
+                                <input id="phone" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.phone || "")}" />
                             </div>
 
                             <div class="md:col-span-2">
                                 <label for="address" class="mb-1 block text-sm font-medium text-slate-700">Dirección</label>
-                                <input id="address" type="text" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${escapeHtml(profile?.address || "")}" />
+                                <input id="address" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.address || "")}" />
+                            </div>
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                <input
+                                    id="hasHealthInsurance"
+                                    type="checkbox"
+                                    ${profile?.hasHealthInsurance ? "checked" : ""}
+                                    ${readonlyAttr()}
+                                    class="rounded border-slate-300"
+                                />
+                                Tengo obra social
+                            </label>
+
+                            <div id="healthInsuranceFields" class="${profile?.hasHealthInsurance ? "" : "hidden"} mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div>
+                                    <label for="healthInsuranceName" class="mb-1 block text-sm font-medium text-slate-700">
+                                        Nombre de obra social
+                                    </label>
+                                    <input
+                                        id="healthInsuranceName"
+                                        type="text"
+                                        ${readonlyAttr()}
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}"
+                                        value="${escapeHtml(profile?.healthInsuranceName || "")}"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label for="healthInsuranceMemberNumber" class="mb-1 block text-sm font-medium text-slate-700">
+                                        Nro. afiliado / socio
+                                    </label>
+                                    <input
+                                        id="healthInsuranceMemberNumber"
+                                        type="text"
+                                        ${readonlyAttr()}
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}"
+                                        value="${escapeHtml(profile?.healthInsuranceMemberNumber || "")}"
+                                    />
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label for="healthInsurancePlan" class="mb-1 block text-sm font-medium text-slate-700">
+                                        Plan
+                                    </label>
+                                    <input
+                                        id="healthInsurancePlan"
+                                        type="text"
+                                        ${readonlyAttr()}
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}"
+                                        value="${escapeHtml(profile?.healthInsurancePlan || "")}"
+                                    />
+                                </div>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
                                 <label for="emergencyContactName" class="mb-1 block text-sm font-medium text-slate-700">Contacto de emergencia</label>
-                                <input id="emergencyContactName" type="text" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${escapeHtml(profile?.emergencyContactName || "")}" />
+                                <input id="emergencyContactName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.emergencyContactName || "")}" />
                             </div>
 
                             <div>
                                 <label for="emergencyContactPhone" class="mb-1 block text-sm font-medium text-slate-700">Teléfono de emergencia</label>
-                                <input id="emergencyContactPhone" type="text" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400" value="${escapeHtml(profile?.emergencyContactPhone || "")}" />
+                                <input id="emergencyContactPhone" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.emergencyContactPhone || "")}" />
                             </div>
 
                             <div class="md:col-span-2">
                                 <label for="notes" class="mb-1 block text-sm font-medium text-slate-700">Notas</label>
-                                <textarea id="notes" rows="4" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400">${escapeHtml(profile?.notes || "")}</textarea>
+                                <textarea id="notes" rows="4" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}">${escapeHtml(profile?.notes || "")}</textarea>
                             </div>
                         </div>
 
                         <p id="profileError" class="hidden text-sm text-rose-600"></p>
 
-                        <div class="flex flex-wrap justify-end gap-3 pt-2">
-                            <button
-                                id="saveProfileButton"
-                                type="submit"
-                                class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                ${isSavingProfile ? "Guardando..." : "Guardar cambios"}
-                            </button>
-                        </div>
+                        ${
+                            profileEditMode
+                                ? `
+                                    <div class="flex flex-wrap justify-end gap-3 pt-2">
+                                        <button
+                                            id="cancelProfileEditButton"
+                                            type="button"
+                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                        >
+                                            Cancelar
+                                        </button>
+
+                                        <button
+                                            id="saveProfileButton"
+                                            type="submit"
+                                            class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            ${isSavingProfile ? "Guardando..." : "Guardar cambios"}
+                                        </button>
+                                    </div>
+                                `
+                                : ""
+                        }
                     </form>
                 </section>
             </div>
@@ -561,6 +655,32 @@ function buildProfileForm() {
                             <span class="font-semibold text-slate-900">Dirección:</span>
                             ${escapeHtml(profile?.address || "-")}
                         </div>
+
+                        <div>
+                            <span class="font-semibold text-slate-900">Obra social:</span>
+                            ${profile?.hasHealthInsurance ? "Sí" : "No"}
+                        </div>
+
+                        ${
+                            profile?.hasHealthInsurance
+                                ? `
+                                    <div>
+                                        <span class="font-semibold text-slate-900">Nombre:</span>
+                                        ${escapeHtml(profile?.healthInsuranceName || "-")}
+                                    </div>
+
+                                    <div>
+                                        <span class="font-semibold text-slate-900">Nro. afiliado/socio:</span>
+                                        ${escapeHtml(profile?.healthInsuranceMemberNumber || "-")}
+                                    </div>
+
+                                    <div>
+                                        <span class="font-semibold text-slate-900">Plan:</span>
+                                        ${escapeHtml(profile?.healthInsurancePlan || "-")}
+                                    </div>
+                                `
+                                : ""
+                        }
                     </div>
                 </section>
             </div>
@@ -850,6 +970,20 @@ function validateProfileForm() {
         return false;
     }
 
+    const hasHealthInsurance = qs("hasHealthInsurance")?.checked || false;
+const healthInsuranceName = qs("healthInsuranceName")?.value?.trim() || "";
+const healthInsuranceMemberNumber = qs("healthInsuranceMemberNumber")?.value?.trim() || "";
+
+if (hasHealthInsurance && !healthInsuranceName) {
+    showFieldError("profileError", "El nombre de la obra social es obligatorio.");
+    return false;
+}
+
+if (hasHealthInsurance && !healthInsuranceMemberNumber) {
+    showFieldError("profileError", "El número de afiliado / socio es obligatorio.");
+    return false;
+}
+
     return true;
 }
 
@@ -861,16 +995,27 @@ async function saveProfile(event) {
 
     if (!validateProfileForm()) return;
 
-    const payload = {
-        firstName: qs("firstName").value.trim(),
-        lastName: qs("lastName").value.trim(),
-        dateOfBirth: qs("dateOfBirth").value ? new Date(`${qs("dateOfBirth").value}T00:00:00`).toISOString() : null,
-        phone: qs("phone").value.trim() || null,
-        address: qs("address").value.trim() || null,
-        emergencyContactName: qs("emergencyContactName").value.trim() || null,
-        emergencyContactPhone: qs("emergencyContactPhone").value.trim() || null,
-        notes: qs("notes").value.trim() || null
-    };
+const payload = {
+    firstName: qs("firstName").value.trim(),
+    lastName: qs("lastName").value.trim(),
+    dateOfBirth: qs("dateOfBirth").value ? new Date(`${qs("dateOfBirth").value}T00:00:00`).toISOString() : null,
+    phone: qs("phone").value.trim() || null,
+    address: qs("address").value.trim() || null,
+    emergencyContactName: qs("emergencyContactName").value.trim() || null,
+    emergencyContactPhone: qs("emergencyContactPhone").value.trim() || null,
+    notes: qs("notes").value.trim() || null,
+
+    hasHealthInsurance: qs("hasHealthInsurance")?.checked || false,
+    healthInsuranceName: qs("hasHealthInsurance")?.checked
+        ? qs("healthInsuranceName").value.trim()
+        : null,
+    healthInsuranceMemberNumber: qs("hasHealthInsurance")?.checked
+        ? qs("healthInsuranceMemberNumber").value.trim()
+        : null,
+    healthInsurancePlan: qs("hasHealthInsurance")?.checked
+        ? qs("healthInsurancePlan").value.trim() || null
+        : null
+};
 
     try {
         isSavingProfile = true;
@@ -883,6 +1028,7 @@ setStudentMe(companySlug, profile);
 
 await refreshProfilePhotoUrl({ render: false });
         showMessage("Tu perfil se actualizó correctamente.");
+        profileEditMode = false;
     } catch (error) {
         showFieldError("profileError", error?.message || "No se pudo guardar el perfil.");
     } finally {
@@ -975,6 +1121,27 @@ bindStudentCarnetEvents({
         carnetOpen = !!value;
         rerender();
     }
+});
+qs("hasHealthInsurance")?.addEventListener("change", () => {
+    const checked = qs("hasHealthInsurance").checked;
+    const box = qs("healthInsuranceFields");
+
+    box?.classList.toggle("hidden", !checked);
+
+    if (!checked) {
+        qs("healthInsuranceName").value = "";
+        qs("healthInsuranceMemberNumber").value = "";
+        qs("healthInsurancePlan").value = "";
+    }
+});
+qs("editProfileButton")?.addEventListener("click", () => {
+    profileEditMode = true;
+    render();
+});
+
+qs("cancelProfileEditButton")?.addEventListener("click", () => {
+    profileEditMode = false;
+    render();
 });
 
     qs("profileForm")?.addEventListener("submit", saveProfile);

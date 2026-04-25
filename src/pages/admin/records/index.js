@@ -13,6 +13,10 @@ let activeCompany = null;
 let allStudents = [];
 let filteredStudents = [];
 let currentPage = 1;
+let searchFilter = "";
+let courseFilter = "";
+let statusFilter = "";
+let documentStatusFilter = "";
 let isSubmittingRequest = false;
 let selectedStudentIds = new Set();
 
@@ -170,34 +174,56 @@ function buildContent() {
       </div>
 
       <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div>
-            <label class="label" for="searchInput">Buscar</label>
-            <input
-              id="searchInput"
-              type="text"
-              class="input"
-              placeholder="Buscar por nombre, apellido o email"
-            />
-          </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-5">
+  <div>
+    <label class="label" for="searchInput">Buscar</label>
+    <input
+      id="searchInput"
+      type="text"
+      class="input"
+      placeholder="Nombre, apellido, email o DNI"
+    />
+  </div>
 
-          <div>
-            <label class="label" for="courseFilter">Curso</label>
-            <select id="courseFilter" class="input">
-              <option value="">Todos los cursos</option>
-            </select>
-          </div>
+  <div>
+    <label class="label" for="courseFilter">Curso</label>
+    <select id="courseFilter" class="input">
+      <option value="">Todos los cursos</option>
+    </select>
+  </div>
 
-          <div class="flex items-end">
-            <button
-              id="clearFiltersButton"
-              type="button"
-              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-        </div>
+  <div>
+    <label class="label" for="statusFilter">Alumno</label>
+    <select id="statusFilter" class="input">
+      <option value="">Todos</option>
+      <option value="active">Activos</option>
+      <option value="inactive">Inactivos</option>
+    </select>
+  </div>
+
+  <div>
+    <label class="label" for="documentStatusFilter">Documentación</label>
+    <select id="documentStatusFilter" class="input">
+      <option value="">Todos</option>
+      <option value="pending">Pendientes</option>
+      <option value="submitted">En revisión</option>
+      <option value="approved">Aprobados</option>
+      <option value="rejected">Rechazados</option>
+      <option value="expired">Vencidos</option>
+      <option value="none">Sin documentos</option>
+    </select>
+  </div>
+
+  <div class="flex items-end">
+    <button
+      id="clearFiltersButton"
+      type="button"
+      class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+    >
+      Limpiar filtros
+    </button>
+  </div>
+</div>
       </div>
 
       <div id="toastContainer" class="fixed right-4 top-4 z-[70] flex w-full max-w-sm flex-col gap-3"></div>
@@ -624,24 +650,51 @@ async function loadDocumentTypes() {
 }
 
 function applyFilters() {
-  const searchValue = document.getElementById("searchInput")?.value?.trim().toLowerCase() || "";
-  const courseValue = document.getElementById("courseFilter")?.value || "";
+  searchFilter = document.getElementById("searchInput")?.value?.trim().toLowerCase() || "";
+  courseFilter = document.getElementById("courseFilter")?.value || "";
+  statusFilter = document.getElementById("statusFilter")?.value || "";
+  documentStatusFilter = document.getElementById("documentStatusFilter")?.value || "";
 
   filteredStudents = allStudents.filter((item) => {
     const fullName = (item.fullName || "").trim().toLowerCase();
     const email = (item.email || "").toLowerCase();
-    const courseId = item.courseId || "";
+    const dni = String(item.dni || "").toLowerCase();
+    const memberNumber = String(item.memberNumber || "").toLowerCase();
+    const courseId = String(item.courseId || "");
 
     const matchesSearch =
-      !searchValue ||
-      fullName.includes(searchValue) ||
-      email.includes(searchValue);
+      !searchFilter ||
+      fullName.includes(searchFilter) ||
+      email.includes(searchFilter) ||
+      dni.includes(searchFilter) ||
+      memberNumber.includes(searchFilter);
 
     const matchesCourse =
-      !courseValue ||
-      courseId === courseValue;
+      !courseFilter ||
+      courseId === courseFilter;
 
-    return matchesSearch && matchesCourse;
+    const matchesStatus =
+      !statusFilter ||
+      (statusFilter === "active" && item.isActive) ||
+      (statusFilter === "inactive" && !item.isActive);
+
+    const totalDocs =
+      Number(item.pendingCount || 0) +
+      Number(item.submittedCount || 0) +
+      Number(item.approvedCount || 0) +
+      Number(item.rejectedCount || 0) +
+      Number(item.expiredCount || 0);
+
+    const matchesDocumentStatus =
+      !documentStatusFilter ||
+      (documentStatusFilter === "pending" && Number(item.pendingCount || 0) > 0) ||
+      (documentStatusFilter === "submitted" && Number(item.submittedCount || 0) > 0) ||
+      (documentStatusFilter === "approved" && Number(item.approvedCount || 0) > 0) ||
+      (documentStatusFilter === "rejected" && Number(item.rejectedCount || 0) > 0) ||
+      (documentStatusFilter === "expired" && Number(item.expiredCount || 0) > 0) ||
+      (documentStatusFilter === "none" && totalDocs === 0);
+
+    return matchesSearch && matchesCourse && matchesStatus && matchesDocumentStatus;
   });
 
   currentPage = 1;
@@ -784,6 +837,11 @@ function renderDetailDrawer() {
 
   const documents = Array.isArray(selectedStudentDetail.documents) ? selectedStudentDetail.documents : [];
 
+  const hasHealthInsurance = !!selectedStudentDetail.hasHealthInsurance;
+const healthInsuranceName = selectedStudentDetail.healthInsuranceName || "";
+const healthInsuranceMemberNumber = selectedStudentDetail.healthInsuranceMemberNumber || "";
+const healthInsurancePlan = selectedStudentDetail.healthInsurancePlan || "";
+
   content.innerHTML = `
     <div class="space-y-6">
       <section class="rounded-3xl border border-slate-200 bg-white p-5">
@@ -797,6 +855,16 @@ function renderDetailDrawer() {
               <div><span class="font-semibold text-slate-900">DNI:</span> ${escapeHtml(selectedStudentDetail.dni || "-")}</div>
               <div><span class="font-semibold text-slate-900">Legajo:</span> ${escapeHtml(selectedStudentDetail.memberNumber || "-")}</div>
               <div><span class="font-semibold text-slate-900">Curso:</span> ${escapeHtml(selectedStudentDetail.courseName || "-")}</div>
+              <div><span class="font-semibold text-slate-900">Obra social:</span> ${hasHealthInsurance ? "Sí" : "No"}</div>
+${
+  hasHealthInsurance
+    ? `
+      <div><span class="font-semibold text-slate-900">Nombre obra social:</span> ${escapeHtml(healthInsuranceName || "-")}</div>
+      <div><span class="font-semibold text-slate-900">Nro. afiliado / socio:</span> ${escapeHtml(healthInsuranceMemberNumber || "-")}</div>
+      <div><span class="font-semibold text-slate-900">Plan:</span> ${escapeHtml(healthInsurancePlan || "-")}</div>
+    `
+    : ""
+}
             </div>
           </div>
         </div>
@@ -1297,18 +1365,29 @@ async function submitReview(event) {
 }
 
 function bindEvents() {
-  document.getElementById("searchInput")?.addEventListener("input", applyFilters);
-  document.getElementById("courseFilter")?.addEventListener("change", applyFilters);
+document.getElementById("searchInput")?.addEventListener("input", applyFilters);
+document.getElementById("courseFilter")?.addEventListener("change", applyFilters);
+document.getElementById("statusFilter")?.addEventListener("change", applyFilters);
+document.getElementById("documentStatusFilter")?.addEventListener("change", applyFilters);
 
-  document.getElementById("clearFiltersButton")?.addEventListener("click", () => {
-    const searchInput = document.getElementById("searchInput");
-    const courseFilter = document.getElementById("courseFilter");
+document.getElementById("clearFiltersButton")?.addEventListener("click", () => {
+  const searchInput = document.getElementById("searchInput");
+  const courseSelect = document.getElementById("courseFilter");
+  const statusSelect = document.getElementById("statusFilter");
+  const documentStatusSelect = document.getElementById("documentStatusFilter");
 
-    if (searchInput) searchInput.value = "";
-    if (courseFilter) courseFilter.value = "";
+  if (searchInput) searchInput.value = "";
+  if (courseSelect) courseSelect.value = "";
+  if (statusSelect) statusSelect.value = "";
+  if (documentStatusSelect) documentStatusSelect.value = "";
 
-    applyFilters();
-  });
+  searchFilter = "";
+  courseFilter = "";
+  statusFilter = "";
+  documentStatusFilter = "";
+
+  applyFilters();
+});
 
   document.getElementById("prevPageButton")?.addEventListener("click", () => {
     if (currentPage > 1) {
