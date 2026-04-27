@@ -689,22 +689,36 @@ function renderStudentsTable() {
                     }
                 </td>
 
-                <td class="px-4 py-4">
-                    <input
-                        type="number"
-                        min="1"
-                        class="student-classes w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-400 ${!isAssignmentEditMode ? "cursor-not-allowed bg-slate-50 text-slate-500" : ""}"
-                        data-id="${student.studentId}"
-                        value="${student.classesPerWeek || 1}"
-                        ${!isAssignmentEditMode ? "disabled" : ""}
-                    />
-                </td>
+<td class="px-4 py-4">
+    <span class="inline-flex rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+        ${getCourseClassesPerWeekLabel(selectedCourseIdForStudents)}
+    </span>
+</td>
             </tr>
         `;
     }).join("");
 
     renderStudentsPagination();
     updateStudentsActionButtons();
+}
+
+function getCourseClassesPerWeek(courseId) {
+    const course = courses.find(x => x.id === courseId);
+    const name = normalizeText(course?.name);
+
+    const match = name.match(/(\d+)\s*(vez|veces|clase|clases)/i);
+
+    if (!match) return 0;
+
+    return Number(match[1]);
+}
+
+function getCourseClassesPerWeekLabel(courseId) {
+    const value = getCourseClassesPerWeek(courseId);
+
+    if (!value) return "Sin definir";
+
+    return `${value} ${value === 1 ? "clase" : "clases"} / semana`;
 }
 
 function setModal(html) {
@@ -1078,6 +1092,14 @@ async function saveStudents() {
     }
 
     if (!targetCourseId) {
+        alert("Seleccioná un curso.");
+        return;
+    }
+
+    const classesPerWeek = getCourseClassesPerWeek(targetCourseId);
+
+    if (!classesPerWeek) {
+        alert("No se pudo detectar la cantidad de clases por semana del curso.");
         return;
     }
 
@@ -1086,17 +1108,16 @@ async function saveStudents() {
     document.querySelectorAll(".student-check").forEach(check => {
         if (!check.checked) return;
 
-        const studentId = check.dataset.id;
-        const classesInput = document.querySelector(`.student-classes[data-id="${studentId}"]`);
-        const classesPerWeek = Number(classesInput?.value || 0);
-
-        if (classesPerWeek > 0) {
-            students.push({
-                studentId,
-                classesPerWeek
-            });
-        }
+        students.push({
+            studentId: check.dataset.id,
+            classesPerWeek
+        });
     });
+
+    if (!students.length) {
+        alert("Seleccioná al menos un alumno.");
+        return;
+    }
 
     try {
         setStudentsLoading(true);
@@ -1104,6 +1125,7 @@ async function saveStudents() {
         const url = studentsMode === "unassigned"
             ? `/api/admin/${company.slug}/courses/${targetCourseId}/students/add`
             : `/api/admin/${company.slug}/courses/${targetCourseId}/students`;
+
         await post(url, {
             students
         });
@@ -1112,6 +1134,7 @@ async function saveStudents() {
         isUnassignedAssignMode = false;
         selectedCourseIdForStudents = null;
         studentsMode = "unassigned";
+
         renderCoursesSelect();
         resetStudentEditingState();
         await loadAvailableStudents();
