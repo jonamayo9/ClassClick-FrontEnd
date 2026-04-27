@@ -548,12 +548,9 @@ function getFilteredStudents() {
         return availableStudents.filter(student => !student.isAssigned);
     }
 
-    if (isAssignmentEditMode) {
-        return availableStudents;
-    }
-
     return availableStudents.filter(student => student.isAssigned);
 }
+
 function getPagedStudents() {
     const filtered = getFilteredStudents();
     const total = filtered.length;
@@ -690,9 +687,7 @@ function renderStudentsTable() {
                 </td>
 
 <td class="px-4 py-4">
-    <span class="inline-flex rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
-        ${getCourseClassesPerWeekLabel(selectedCourseIdForStudents)}
-    </span>
+    ${renderStudentClassesCell(student)}
 </td>
             </tr>
         `;
@@ -702,23 +697,60 @@ function renderStudentsTable() {
     updateStudentsActionButtons();
 }
 
-function getCourseClassesPerWeek(courseId) {
-    const course = courses.find(x => x.id === courseId);
-    const name = normalizeText(course?.name);
-
-    const match = name.match(/(\d+)\s*(vez|veces|clase|clases)/i);
-
-    if (!match) return 0;
-
-    return Number(match[1]);
+function getSelectedAssignmentCourseId() {
+    return selectedCourseIdForStudents || assignmentTargetCourseId || null;
 }
 
-function getCourseClassesPerWeekLabel(courseId) {
-    const value = getCourseClassesPerWeek(courseId);
+function getCourseClassesPerWeekOptions(courseId) {
+    const course = courses.find(x => x.id === courseId);
 
-    if (!value) return "Sin definir";
+    return Array.isArray(course?.classesPerWeekOptions)
+        ? course.classesPerWeekOptions.map(Number)
+        : [];
+}
 
-    return `${value} ${value === 1 ? "clase" : "clases"} / semana`;
+function formatClassesPerWeek(value) {
+    const n = Number(value || 0);
+
+    if (!n) return "Sin definir";
+
+    return `${n} ${n === 1 ? "clase" : "clases"} / semana`;
+}
+
+function renderStudentClassesCell(student) {
+    const courseId = getSelectedAssignmentCourseId();
+    const options = getCourseClassesPerWeekOptions(courseId);
+    const currentValue = Number(student.classesPerWeek || 0);
+
+    if (!isAssignmentEditMode) {
+        return `
+            <span class="inline-flex rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+                ${formatClassesPerWeek(currentValue)}
+            </span>
+        `;
+    }
+
+    if (!courseId) {
+        return `<span class="text-sm text-slate-500">Seleccioná curso</span>`;
+    }
+
+    if (!options.length) {
+        return `<span class="text-sm text-red-600">Sin precios configurados</span>`;
+    }
+
+    return `
+        <select
+            class="student-classes w-40 rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            data-id="${student.studentId}"
+        >
+            <option value="">Seleccionar</option>
+            ${options.map(option => `
+                <option value="${option}" ${currentValue === option ? "selected" : ""}>
+                    ${formatClassesPerWeek(option)}
+                </option>
+            `).join("")}
+        </select>
+    `;
 }
 
 function setModal(html) {
@@ -1096,10 +1128,10 @@ async function saveStudents() {
         return;
     }
 
-    const classesPerWeek = getCourseClassesPerWeek(targetCourseId);
+    const validOptions = getCourseClassesPerWeekOptions(targetCourseId);
 
-    if (!classesPerWeek) {
-        alert("No se pudo detectar la cantidad de clases por semana del curso.");
+    if (!validOptions.length) {
+        alert("Este curso no tiene precios configurados.");
         return;
     }
 
@@ -1108,14 +1140,22 @@ async function saveStudents() {
     document.querySelectorAll(".student-check").forEach(check => {
         if (!check.checked) return;
 
+        const studentId = check.dataset.id;
+        const classesInput = document.querySelector(`.student-classes[data-id="${studentId}"]`);
+        const classesPerWeek = Number(classesInput?.value || 0);
+
+        if (!classesPerWeek || !validOptions.includes(classesPerWeek)) {
+            return;
+        }
+
         students.push({
-            studentId: check.dataset.id,
+            studentId,
             classesPerWeek
         });
     });
 
     if (!students.length) {
-        alert("Seleccioná al menos un alumno.");
+        alert("Seleccioná al menos un alumno y una frecuencia válida.");
         return;
     }
 
@@ -1126,9 +1166,7 @@ async function saveStudents() {
             ? `/api/admin/${company.slug}/courses/${targetCourseId}/students/add`
             : `/api/admin/${company.slug}/courses/${targetCourseId}/students`;
 
-        await post(url, {
-            students
-        });
+        await post(url, { students });
 
         assignmentTargetCourseId = null;
         isUnassignedAssignMode = false;
@@ -1158,6 +1196,7 @@ async function handleCourseSelectChange() {
 
 function handleAssignCourseChange() {
     assignmentTargetCourseId = qs("assignStudentsCourseSelect").value || null;
+    renderStudentsTable();
 }
 
 function handleEditStudents() {
