@@ -18,6 +18,8 @@ let filters = {
 
 let selectedChargeId = null;
 let selectedEditChargeId = null;
+let selectedGenerateStudentIds = [];
+let selectedGenerateStudents = [];
 
 function buildContent() {
     return `
@@ -245,29 +247,37 @@ function renderGenerateChargeModal() {
                             </select>
                         </div>
 
-                        <div id="generateStudentWrapper" class="hidden">
-                            <label class="block text-xs font-medium text-slate-500 mb-1">
-                                Alumno
-                            </label>
-                            <select
-                                id="generateStudentInput"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                            >
-                                <option value="">Seleccionar alumno</option>
-                            </select>
-                        </div>
+<div id="generateStudentWrapper" class="hidden">
+    <label class="block text-xs font-medium text-slate-500 mb-1">
+        Alumno/s
+    </label>
 
-                        <label class="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                            <input
-                                id="generateSkipExistingInput"
-                                type="checkbox"
-                                checked
-                                class="rounded border-slate-300"
-                            />
-                            Omitir cuotas ya existentes
-                        </label>
+    <input
+        id="generateStudentSearchInput"
+        type="text"
+        placeholder="Buscar por nombre, apellido o DNI"
+        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+    />
 
-                        <div id="generateChargeMessage" class="hidden rounded-xl px-3 py-2 text-sm"></div>
+    <div id="generateSelectedStudents" class="mt-2 flex flex-wrap gap-2"></div>
+
+    <div
+        id="generateStudentResults"
+        class="mt-2 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white text-sm"
+    ></div>
+</div>
+
+<label class="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-700">
+    <input
+        id="generateSkipExistingInput"
+        type="checkbox"
+        checked
+        class="rounded border-slate-300"
+    />
+    Omitir cuotas ya existentes
+</label>
+
+<div id="generateChargeMessage" class="hidden rounded-xl px-3 py-2 text-sm"></div>
 
                         <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
                             <button
@@ -294,115 +304,151 @@ function renderGenerateChargeModal() {
     `;
 }
 
+function renderSelectedGenerateStudents() {
+    const container = document.getElementById("generateSelectedStudents");
+    if (!container) return;
+
+    container.innerHTML = selectedGenerateStudents.map(student => `
+        <button
+            type="button"
+            data-remove-student-id="${student.id}"
+            class="rounded-full bg-slate-900 px-3 py-1 text-xs text-white"
+        >
+            ${getItemName(student)} ✕
+        </button>
+    `).join("");
+}
+
+function filterStudentsBySearch(items, search) {
+    const value = normalizeText(search);
+
+    if (!value) return [];
+
+    return items.filter(student => {
+        const firstName = normalizeText(student.firstName);
+        const lastName = normalizeText(student.lastName);
+        const fullName = normalizeText(getItemName(student));
+        const dni = normalizeText(student.dni);
+
+        return firstName.startsWith(value)
+            || lastName.startsWith(value)
+            || fullName.startsWith(value)
+            || dni.startsWith(value);
+    });
+}
+
+function renderGenerateStudentResults() {
+    const container = document.getElementById("generateStudentResults");
+    if (!container) return;
+
+    if (!students.length) {
+        container.innerHTML = `
+            <div class="px-3 py-2 text-slate-500">
+                Sin resultados
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = students.map(student => `
+        <button
+            type="button"
+            data-select-student-id="${student.id}"
+            class="block w-full px-3 py-2 text-left hover:bg-slate-50"
+        >
+            ${getItemName(student)}${student.dni ? ` - DNI ${student.dni}` : ""}
+        </button>
+    `).join("");
+}
+
 function renderEditChargeModal() {
     return `
         <div id="editChargeModal" class="fixed inset-0 z-50 hidden p-4">
-            <div
-                class="absolute inset-0 bg-slate-950/60"
-                data-close-edit-charge="true"
-            ></div>
+            <div class="absolute inset-0 bg-slate-950/60" data-close-edit-charge="true"></div>
 
             <div class="absolute inset-0 flex items-center justify-center p-4">
-                <div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+                <div class="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
                     <div class="flex items-center justify-between border-b px-5 py-4">
                         <div>
                             <h3 class="text-lg font-semibold text-slate-900">Editar cuota</h3>
                             <p class="text-sm text-slate-500">Ajustes manuales sobre la cuota seleccionada.</p>
                         </div>
 
-                        <button
-                            id="closeEditChargeModalBtn"
-                            type="button"
-                            class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                        >
+                        <button id="closeEditChargeModalBtn" type="button" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
                             Cerrar
                         </button>
                     </div>
 
                     <form id="editChargeForm" class="p-5 space-y-4">
-
                         <div class="rounded-xl bg-slate-50 p-4">
                             <div id="editChargeStudentName" class="font-semibold text-slate-900">-</div>
                             <div id="editChargeCourseName" class="text-sm text-slate-500">-</div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">
-                                Precio base
-                            </label>
-                            <input
-                                id="editBasePriceInput"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                            />
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+                                <select id="editStatusInput" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                                    <option value="1">Pendiente</option>
+                                    <option value="2">Pagada</option>
+                                    <option value="3">Vencida</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Vencimiento</label>
+                                <input id="editDueDateInput" type="date" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Precio base</label>
+                                <input id="editBasePriceInput" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">% descuento hermanos</label>
+                                <input id="editSiblingDiscountPercentInput" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Importe descuento hermanos</label>
+                                <input id="editSiblingDiscountAmountInput" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Mora</label>
+                                <input id="editLateChargeAmountInput" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </div>
+
                         </div>
 
                         <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">
-                                % descuento hermanos
-                            </label>
-                            <input
-                                id="editSiblingDiscountPercentInput"
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">
-                                Mora
-                            </label>
-                            <input
-                                id="editLateChargeAmountInput"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">
-                                Notas
-                            </label>
-                            <textarea
-                                id="editNotesInput"
-                                rows="3"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                                placeholder="Ajuste manual"
-                            ></textarea>
+                            <label class="block text-xs font-medium text-slate-500 mb-1">Notas</label>
+                            <textarea id="editNotesInput" rows="3" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea>
                         </div>
 
                         <div id="editChargeMessage" class="hidden rounded-xl px-3 py-2 text-sm"></div>
 
                         <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-                            <button
-                                id="cancelEditChargeBtn"
-                                type="button"
-                                class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
+                            <button id="cancelEditChargeBtn" type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                                 Cancelar
                             </button>
 
-                            <button
-                                id="submitEditChargeBtn"
-                                type="submit"
-                                class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-black"
-                            >
+                            <button id="submitEditChargeBtn" type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-black">
                                 Guardar
                             </button>
                         </div>
-
                     </form>
                 </div>
             </div>
         </div>
     `;
+}
+
+function toDateInputValue(value) {
+    if (!value || value.startsWith("0001-01-01")) return "";
+
+    return String(value).slice(0, 10);
 }
 
 function renderChargeProofModal() {
@@ -784,11 +830,16 @@ function renderCharges() {
                                 Ver detalle
                             </button>
 
-                            <button
-                                onclick="openEditChargeModal('${c.id}')"
-                                class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">
-                                Editar
-                            </button>
+${c.status == 2
+    ? ``
+    : `
+        <button
+            onclick="openEditChargeModal('${c.id}')"
+            class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">
+            Editar
+        </button>
+    `
+}
 
                             ${c.status == 2
                                 ? `
@@ -939,9 +990,9 @@ function renderPaymentSuccessModal() {
                         ✓
                     </div>
 
-                    <h3 class="mt-4 text-lg font-semibold text-slate-900">
-                        Pago confirmado
-                    </h3>
+<h3 id="paymentSuccessTitle" class="mt-4 text-lg font-semibold text-slate-900">
+    Operación realizada
+</h3>
 
                     <p id="paymentSuccessText" class="mt-2 text-sm text-slate-500">
                         El pago fue registrado correctamente.
@@ -961,12 +1012,17 @@ function renderPaymentSuccessModal() {
     `;
 }
 
-function openPaymentSuccessModal(message) {
+function openPaymentSuccessModal(message, title = "Operación realizada") {
     const modal = document.getElementById("paymentSuccessModal");
+    const titleElement = document.getElementById("paymentSuccessTitle");
     const text = document.getElementById("paymentSuccessText");
 
+    if (titleElement) {
+        titleElement.textContent = title;
+    }
+
     if (text) {
-        text.textContent = message || "El pago fue registrado correctamente.";
+        text.textContent = message || "La operación fue realizada correctamente.";
     }
 
     modal.classList.remove("hidden");
@@ -990,11 +1046,13 @@ function buildChargeDetailHtml(c) {
     const studentName = c.studentFullName || "Sin nombre";
     const studentDni = c.studentDni || "-";
     const courseName = c.courseName || "-";
+
     const basePrice = Number(c.basePrice || 0);
     const siblingDiscountAmount = Number(c.siblingDiscountAmount || 0);
     const siblingDiscountPercent = Number(c.siblingDiscountPercent || 0);
     const lateChargeAmount = Number(c.lateChargeAmount || 0);
     const finalAmount = Number(c.finalAmount || 0);
+
 
     return `
         <div class="space-y-5">
@@ -1145,8 +1203,18 @@ function openGenerateChargeModal() {
     document.getElementById("generateMonthInput").value = filters.month;
     document.getElementById("generateTypeInput").value = "global";
     document.getElementById("generateCourseInput").value = "";
-    document.getElementById("generateStudentInput").value = "";
     document.getElementById("generateSkipExistingInput").checked = true;
+
+    selectedGenerateStudentIds = [];
+    selectedGenerateStudents = [];
+    const studentSearchInput = document.getElementById("generateStudentSearchInput");
+    if (studentSearchInput) {
+        studentSearchInput.value = "";
+    }
+
+    students = [];
+    renderSelectedGenerateStudents();
+    renderGenerateStudentResults();
 
     refreshGenerateTypeVisibility();
 
@@ -1196,7 +1264,7 @@ async function onSubmitGenerateCharge(event) {
     const month = Number(document.getElementById("generateMonthInput").value);
     const type = document.getElementById("generateTypeInput").value;
     const courseId = document.getElementById("generateCourseInput").value;
-    const studentId = document.getElementById("generateStudentInput").value;
+    const studentIds = selectedGenerateStudentIds;
     const skipExisting = document.getElementById("generateSkipExistingInput").checked;
 
     if (!year || !month) {
@@ -1209,16 +1277,16 @@ async function onSubmitGenerateCharge(event) {
         return;
     }
 
-    if (type === "student" && !studentId) {
-        setGenerateChargeMessage("Seleccioná un alumno.", true);
-        return;
-    }
+if (type === "student" && !studentIds.length) {
+    setGenerateChargeMessage("Seleccioná al menos un alumno.", true);
+    return;
+}
 
     const body = {
         year,
         month,
         courseId: type === "course" ? courseId : null,
-        studentIds: type === "student" ? [studentId] : [],
+        studentIds: type === "student" ? studentIds : [],
         skipExisting
     };
 
@@ -1226,14 +1294,18 @@ async function onSubmitGenerateCharge(event) {
         submitButton.disabled = true;
         submitButton.textContent = "Generando...";
 
-        await post(
+        const result = await post(
             `/api/admin/${company.slug}/payments/monthly-charges/manual/bulk`,
             body
         );
 
         closeGenerateChargeModal();
         await loadCharges();
-        openPaymentSuccessModal("Las cuotas fueron generadas correctamente.");
+
+        openPaymentSuccessModal(
+            `Generadas: ${result?.created || 0}. Omitidas: ${result?.skipped || 0}.`,
+            "Cuotas generadas"
+        );
     } catch (error) {
         setGenerateChargeMessage(error?.message || "No se pudieron generar las cuotas.", true);
     } finally {
@@ -1245,8 +1317,7 @@ async function onSubmitGenerateCharge(event) {
 window.openEditChargeModal = function (id) {
     const charge = getChargeById(id);
 
-    if (!charge)
-        return;
+    if (!charge) return;
 
     selectedEditChargeId = id;
 
@@ -1255,8 +1326,12 @@ window.openEditChargeModal = function (id) {
     document.getElementById("editChargeStudentName").textContent = charge.studentFullName || "Sin nombre";
     document.getElementById("editChargeCourseName").textContent = charge.courseName || "-";
 
+    document.getElementById("editStatusInput").value = Number(charge.status || 1);
+    document.getElementById("editDueDateInput").value = toDateInputValue(charge.dueDateUtc);
+
     document.getElementById("editBasePriceInput").value = Number(charge.basePrice || 0);
     document.getElementById("editSiblingDiscountPercentInput").value = Number(charge.siblingDiscountPercent || 0);
+    document.getElementById("editSiblingDiscountAmountInput").value = Number(charge.siblingDiscountAmount || 0);
     document.getElementById("editLateChargeAmountInput").value = Number(charge.lateChargeAmount || 0);
     document.getElementById("editNotesInput").value = charge.notes || "";
 
@@ -1296,14 +1371,22 @@ async function onSubmitEditCharge(event) {
     clearEditChargeMessage();
 
     const submitButton = document.getElementById("submitEditChargeBtn");
+    const dueDateValue = document.getElementById("editDueDateInput").value;
 
-    const body = {
-        basePrice: Number(document.getElementById("editBasePriceInput").value || 0),
-        siblingDiscountPercent: Number(document.getElementById("editSiblingDiscountPercentInput").value || 0),
-        lateChargeAmount: Number(document.getElementById("editLateChargeAmountInput").value || 0),
-        notes: document.getElementById("editNotesInput").value?.trim() || null
-    };
+const body = {
+    basePrice: Number(document.getElementById("editBasePriceInput").value || 0),
+    siblingDiscountPercent: Number(document.getElementById("editSiblingDiscountPercentInput").value || 0),
+    siblingDiscountAmount: Number(document.getElementById("editSiblingDiscountAmountInput").value || 0),
+    lateChargeAmount: Number(document.getElementById("editLateChargeAmountInput").value || 0),
 
+    dueDateUtc: dueDateValue
+        ? `${dueDateValue}T23:59:59Z`
+        : getChargeById(selectedEditChargeId)?.dueDateUtc,
+
+    status: Number(document.getElementById("editStatusInput").value),
+
+    notes: document.getElementById("editNotesInput").value?.trim() || null
+};
     if (body.basePrice < 0 || body.siblingDiscountPercent < 0 || body.lateChargeAmount < 0) {
         setEditChargeMessage("Los importes no pueden ser negativos.", true);
         return;
@@ -1373,18 +1456,29 @@ function fillStudentOptions() {
     `;
 }
 
+function unwrapList(result) {
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result?.items)) return result.items;
+    if (Array.isArray(result?.data)) return result.data;
+    if (Array.isArray(result?.students)) return result.students;
+    if (Array.isArray(result?.courses)) return result.courses;
+    return [];
+}
+
 async function loadCoursesAndStudents() {
     try {
         const coursesResult = await get(`/api/admin/${company.slug}/courses`);
-        courses = Array.isArray(coursesResult) ? coursesResult : [];
-    } catch {
+        courses = unwrapList(coursesResult);
+    } catch (error) {
+        console.error("Error cargando cursos", error);
         courses = [];
     }
 
     try {
-        const studentsResult = await get(`/api/admin/${company.slug}/students`);
-        students = Array.isArray(studentsResult) ? studentsResult : [];
-    } catch {
+        const studentsResult = await get(`/api/admin/${company.slug}/students?search=`);
+        students = unwrapList(studentsResult);
+    } catch (error) {
+        console.error("Error cargando alumnos", error);
         students = [];
     }
 
@@ -1445,6 +1539,60 @@ function bindEvents() {
     document.getElementById("cancelGenerateChargeBtn")?.addEventListener("click", () => {
         closeGenerateChargeModal();
     });
+
+document.getElementById("generateStudentSearchInput")?.addEventListener("input", async e => {
+    const search = e.target.value.trim();
+
+    if (search.length < 2) {
+        students = [];
+        renderGenerateStudentResults();
+        return;
+    }
+
+    try {
+        const result = await get(`/api/admin/${company.slug}/students?search=${encodeURIComponent(search)}`);
+
+        const rawStudents = unwrapList(result);
+
+        students = filterStudentsBySearch(rawStudents, search)
+            .filter(student => !selectedGenerateStudentIds.includes(student.id));
+
+        renderGenerateStudentResults();
+        renderSelectedGenerateStudents();
+    } catch (error) {
+        console.error("Error buscando alumnos", error);
+        students = [];
+        renderGenerateStudentResults();
+    }
+});
+
+document.getElementById("generateStudentResults")?.addEventListener("click", e => {
+    const studentId = e.target.dataset.selectStudentId;
+    if (!studentId) return;
+
+    const student = students.find(x => x.id === studentId);
+    if (!student) return;
+
+    if (!selectedGenerateStudentIds.includes(studentId)) {
+        selectedGenerateStudentIds.push(studentId);
+        selectedGenerateStudents.push(student);
+    }
+
+    students = students.filter(x => x.id !== studentId);
+
+    renderSelectedGenerateStudents();
+    renderGenerateStudentResults();
+});
+
+document.getElementById("generateSelectedStudents")?.addEventListener("click", e => {
+    const studentId = e.target.dataset.removeStudentId;
+    if (!studentId) return;
+
+    selectedGenerateStudentIds = selectedGenerateStudentIds.filter(x => x !== studentId);
+    selectedGenerateStudents = selectedGenerateStudents.filter(x => x.id !== studentId);
+
+    renderSelectedGenerateStudents();
+});
 
     document.getElementById("generateChargeModal")?.addEventListener("click", e => {
         if (e.target.dataset.closeGenerateCharge === "true") {
