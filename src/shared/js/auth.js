@@ -1,4 +1,4 @@
-import { post, get } from "./api.js";
+import { post, get, apiFetch } from "./api.js";
 
 import {
   setToken,
@@ -47,6 +47,34 @@ function normalizeLoginResponse(data) {
   };
 }
 
+async function clearClientCache() {
+  try {
+    const keysToRemove = [
+      "classclick_student_me",
+      "classclick_admin_me",
+      "classclick_me",
+      "classclick_notifications",
+      "classclick_matches",
+      "classclick_courses",
+      "classclick_payments",
+      "classclick_profile"
+    ];
+
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.all(
+        names
+          .filter(n => n.includes("classclick"))
+          .map(n => caches.delete(n))
+      );
+    }
+  } catch (e) {
+    console.warn("Error limpiando cache cliente", e);
+  }
+}
+
 function resolveFirstCompany(companies) {
   if (!Array.isArray(companies) || companies.length === 0) return null;
   return companies[0];
@@ -72,6 +100,7 @@ function resolveCompanySlug(company) {
 
 export async function login(email, password) {
   clearSession();
+  await clearClientCache();
 
   const data = await post("/api/auth/login", {
     email,
@@ -92,7 +121,7 @@ export async function login(email, password) {
   setRefreshToken(normalized.refreshToken);
   setAccessTokenExpiresAtUtc(normalized.accessTokenExpiresAtUtc);
   setUser(normalized.user);
-  try {
+try {
   const me = await get("/api/admin/me");
   setMe(me);
 } catch (error) {
@@ -114,6 +143,33 @@ export async function login(email, password) {
   return normalized;
 }
 
-export function logout() {
+export async function logout() {
+  await unsubscribePushCurrentDevice();
   clearSession();
+}
+
+async function unsubscribePushCurrentDevice() {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      return;
+    }
+
+    await apiFetch("/api/notifications/unsubscribe", {
+      method: "POST",
+      body: {
+        endpoint: subscription.endpoint
+      }
+    });
+
+    await subscription.unsubscribe();
+  } catch (error) {
+    console.warn("No se pudo desuscribir push del dispositivo:", error);
+  }
 }

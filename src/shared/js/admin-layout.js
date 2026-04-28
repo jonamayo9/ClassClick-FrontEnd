@@ -246,10 +246,10 @@ export async function setupAdminLayout({
   setupMobileMenu();
 
   if (logoutButton) {
-    logoutButton.addEventListener("click", () => {
-      logout();
-      window.location.href = "/index.html";
-    });
+logoutButton.addEventListener("click", async () => {
+  await logout();
+  window.location.replace("/index.html");
+});
   }
 
   const { companies, activeCompany } = await resolveActiveAdminCompany();

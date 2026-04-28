@@ -1629,15 +1629,25 @@ function moveSponsorTo(index) {
     currentSponsorIndex = Math.max(0, Math.min(index, items.length - 1));
 
     const carousel = document.getElementById("sponsorsCarousel");
-    const card = carousel?.querySelectorAll(".sponsor-card")?.[currentSponsorIndex];
+    const cards = carousel?.querySelectorAll(".sponsor-card");
+    const card = cards?.[currentSponsorIndex];
 
-    card?.scrollIntoView({
-        behavior: "smooth",
-        inline: "center",
-        block: "nearest"
+    if (!carousel || !card) return;
+
+    carousel.scrollTo({
+        left: card.offsetLeft,
+        behavior: "smooth"
     });
 
-    rerender();
+    document.querySelectorAll(".sponsor-dot").forEach(dot => {
+        const dotIndex = Number(dot.dataset.index || 0);
+
+        dot.className = `sponsor-dot h-2.5 rounded-full ${
+            dotIndex === currentSponsorIndex
+                ? "w-6 bg-slate-900"
+                : "w-2.5 bg-slate-300"
+        }`;
+    });
 }
 
 function closeSponsorDetail() {
@@ -1876,14 +1886,34 @@ function hasExpiredMatchLogo(matchesList) {
     });
 }
 
-async function loadMatches() {
-    const cached = getMatches(companySlug);
 
-    if (cached && !hasExpiredMatchLogo(cached)) {
-        matches = cached;
-        return;
+document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible") {
+        await refreshHomeDynamicData();
     }
+});
 
+window.addEventListener("pageshow", async () => {
+    await refreshHomeDynamicData();
+});
+
+async function refreshHomeDynamicData() {
+    if (!companySlug) return;
+
+    try {
+        await Promise.all([
+            loadMatches(),
+            loadAnnouncements(),
+            loadSponsors()
+        ]);
+
+        rerender();
+    } catch (error) {
+        console.warn("No se pudo refrescar home al volver a abrir:", error);
+    }
+}
+
+async function loadMatches() {
     const result = await get(`/api/student/${companySlug}/matches`);
     matches = Array.isArray(result) ? result : [];
 

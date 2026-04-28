@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -22,11 +22,17 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // API: nunca cachear
-  if (url.pathname.startsWith("/api")) return;
+// API: nunca cachear ni interceptar
+if (url.pathname.startsWith("/api")) {
+  event.respondWith(fetch(event.request));
+  return;
+}
 
-  // Azure / externos: nunca interceptar
-  if (url.origin !== self.location.origin) return;
+// Azure / externos: nunca cachear ni interceptar
+if (url.origin !== self.location.origin) {
+  event.respondWith(fetch(event.request));
+  return;
+}
 
   // HTML: network first
   if (event.request.mode === "navigate") {
