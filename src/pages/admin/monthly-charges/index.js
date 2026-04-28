@@ -1679,7 +1679,7 @@ async function init() {
     const app = document.getElementById("app");
 
     app.innerHTML = renderAdminLayout({
-        activeKey: "monthlyCharges",
+        activeKey: "monthly-charges",
         pageTitle: "Cuotas",
         contentHtml: buildContent()
     });
