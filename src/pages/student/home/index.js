@@ -38,6 +38,16 @@ let loading = true;
 let pageError = "";
 let isRefreshingStudentPhoto = false;
 let carnetOpen = false;
+let announcements = [];
+let announcementsModalOpen = false;
+let announcementDetailModalOpen = false;
+let selectedAnnouncement = null;
+let announcementDetailFromHistory = false;
+let sponsors = [];
+let selectedSponsor = null;
+let sponsorDetailModalOpen = false;
+let currentSponsorIndex = 0;
+let isRestoringSponsorPosition = false;
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -859,6 +869,117 @@ function buildMatchesModal() {
     `;
 }
 
+function buildAnnouncementsModal() {
+    if (!announcementsModalOpen) return "";
+
+    const items = getNewsItems();
+
+    return `
+        <div id="announcementsModalOverlay" class="fixed inset-0 z-[65] bg-slate-950/60 px-4 py-6">
+            <div class="mx-auto flex w-full max-w-4xl items-center justify-center">
+                <div class="w-full rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                                Novedades
+                            </div>
+                            <h3 class="mt-1 text-xl font-bold text-slate-900">
+                                Historial de novedades
+                            </h3>
+                        </div>
+
+                        <button
+                            id="closeAnnouncementsModalBtn"
+                            type="button"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="mt-6 max-h-[75vh] space-y-4 overflow-y-auto pr-1">
+                        ${
+                            items.length
+                                ? items.map(x => buildNewsCard(x, true)).join("")
+                                : `<div class="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No hay novedades.</div>`
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function buildAnnouncementDetailModal() {
+    if (!announcementDetailModalOpen || !selectedAnnouncement) return "";
+
+    return `
+        <div id="announcementDetailOverlay" class="fixed inset-0 z-[70] bg-slate-950/60 px-4 py-6">
+            <div class="mx-auto flex w-full max-w-2xl items-center justify-center">
+                <div class="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white shadow-2xl">
+                    ${
+                        selectedAnnouncement.imageUrl
+                            ? `
+                                <img
+                                    src="${escapeHtml(selectedAnnouncement.imageUrl)}"
+                                    alt="${escapeHtml(selectedAnnouncement.imageFileName || "Novedad")}"
+                                    class="max-h-[360px] w-full object-cover"
+                                />
+                            `
+                            : ""
+                    }
+
+                    <div class="p-5">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                                    ${formatDate(selectedAnnouncement.createdAtUtc)}
+                                </div>
+
+                                <h3 class="mt-2 text-2xl font-bold text-slate-900">
+                                    ${escapeHtml(selectedAnnouncement.title || "Novedad")}
+                                </h3>
+                            </div>
+
+                            <button
+                                id="closeAnnouncementDetailBtn"
+                                type="button"
+                                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        ${
+                            selectedAnnouncement.text
+                                ? `
+                                    <p class="mt-5 whitespace-pre-line text-sm leading-7 text-slate-600">
+                                        ${escapeHtml(selectedAnnouncement.text)}
+                                    </p>
+                                `
+                                : `
+                                    <p class="mt-5 text-sm text-slate-400">
+                                        Esta novedad no tiene texto.
+                                    </p>
+                                `
+                        }
+
+                        <div class="mt-6">
+                            <button
+                                id="closeAnnouncementDetailSecondaryBtn"
+                                type="button"
+                                class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function buildFeaturedMatch() {
     const match = getFeaturedMatch();
 
@@ -904,18 +1025,98 @@ function buildFeaturedMatch() {
 }
 
 function getNewsItems() {
-    return [];
+    return Array.isArray(announcements) ? announcements : [];
+}
+
+function getFeaturedAnnouncement() {
+    return getNewsItems()[0] || null;
+}
+
+function formatDate(value) {
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    return new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+    }).format(date);
+}
+
+function buildNewsCard(item, compact = false) {
+    return `
+        <button
+            type="button"
+            data-announcement-id="${escapeHtml(item.id)}"
+            data-from-history="${compact ? "true" : "false"}"
+            class="announcement-card w-full overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+            <div class="flex items-center gap-4 p-5">
+                
+                ${
+                    item.imageUrl
+                        ? `
+                            <img
+                                src="${escapeHtml(item.imageUrl)}"
+                                alt="${escapeHtml(item.imageFileName || "Novedad")}"
+                                class="h-24 w-24 shrink-0 rounded-2xl object-cover"
+                            />
+                        `
+                        : `
+                            <div class="h-24 w-24 shrink-0 rounded-2xl bg-slate-100 flex items-center justify-center text-xs text-slate-400">
+                                Sin imagen
+                            </div>
+                        `
+                }
+
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        ${formatDate(item.createdAtUtc)}
+                    </div>
+
+                    <h3 class="mt-1 text-base font-bold text-slate-900 truncate">
+                        ${escapeHtml(item.title || "Novedad")}
+                    </h3>
+
+                    ${
+                        item.text
+                            ? `
+                                <p class="mt-1 text-sm text-slate-500 line-clamp-2">
+                                    ${escapeHtml(item.text)}
+                                </p>
+                            `
+                            : ""
+                    }
+
+                    <div class="mt-2 text-sm font-semibold text-slate-700">
+                        Ver detalle
+                    </div>
+                </div>
+            </div>
+        </button>
+    `;
 }
 
 function buildNews() {
-    const items = getNewsItems();
+    const latest = getFeaturedAnnouncement();
 
     return `
         <section class="space-y-4">
-            ${buildSectionHeader("Novedades", "Ver todas")}
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-bold text-slate-900">Novedades</h2>
+
+                <button
+                    id="openAnnouncementsModalBtn"
+                    type="button"
+                    class="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                >
+                    Ver todas
+                </button>
+            </div>
 
             ${
-                !items.length
+                !latest
                     ? `
                         <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
                             <div class="text-sm text-slate-500">
@@ -923,27 +1124,326 @@ function buildNews() {
                             </div>
                         </div>
                     `
-                    : `
-                        <div class="grid gap-4 lg:grid-cols-2">
-                            ${items.map(item => `
-                                <article class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-                                    ${
-                                        item.category
-                                            ? `<div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">${escapeHtml(item.category)}</div>`
-                                            : ""
-                                    }
-                                    <h3 class="mt-2 text-base font-semibold text-slate-900">${escapeHtml(item.title || "")}</h3>
-                                    ${
-                                        item.description
-                                            ? `<p class="mt-2 text-sm leading-6 text-slate-500">${escapeHtml(item.description)}</p>`
-                                            : ""
-                                    }
-                                </article>
+                    : buildNewsCard(latest)
+            }
+        </section>
+    `;
+}
+
+function getSponsorItems() {
+    return Array.isArray(sponsors)
+        ? sponsors.sort((a, b) => Number(a.displayOrder || 0) - Number(b.displayOrder || 0))
+        : [];
+}
+
+function getCurrentSponsor() {
+    const items = getSponsorItems();
+    return items[currentSponsorIndex] || items[0] || null;
+}
+
+function buildSponsors() {
+    const items = getSponsorItems();
+
+    if (!items.length) return "";
+
+    return `
+        <section class="space-y-4">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-bold text-slate-900">Sponsors</h2>
+
+                ${
+                    items.length > 1
+                        ? `<span class="text-sm font-semibold text-slate-500">${items.length} sponsors</span>`
+                        : ""
+                }
+            </div>
+
+            <div class="relative">
+                <div
+                    id="sponsorsCarousel"
+                    class="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-1 md:overflow-hidden"
+                    style="scrollbar-width: none;"
+                >
+                    ${items.map((sponsor, index) => `
+                        <button
+                            type="button"
+                            data-sponsor-id="${escapeHtml(sponsor.id)}"
+                            data-index="${index}"
+                            class="sponsor-card relative h-32 min-w-full snap-center overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:h-36"
+                        >
+                            ${
+                                sponsor.imageUrl
+                                    ? `
+                                        <img
+                                            src="${escapeHtml(sponsor.imageUrl)}"
+                                            alt="${escapeHtml(sponsor.name || "Sponsor")}"
+                                            class="h-full w-full object-cover"
+                                        />
+                                    `
+                                    : `
+                                        <div class="flex h-full w-full items-center justify-center bg-slate-100 text-sm text-slate-400">
+                                            Sin imagen
+                                        </div>
+                                    `
+                            }
+
+                            <div class="absolute inset-0 bg-gradient-to-r from-slate-950/60 via-slate-950/20 to-transparent"></div>
+
+                            <div class="absolute left-4 top-4 max-w-[75%]">
+                                ${
+                                    sponsor.overlayText
+                                        ? `
+                                            <span class="inline-flex rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-slate-900 shadow-sm">
+                                                ${escapeHtml(sponsor.overlayText)}
+                                            </span>
+                                        `
+                                        : ""
+                                }
+
+                                <div class="mt-2 text-lg font-bold text-white drop-shadow">
+                                    ${escapeHtml(sponsor.name || "Sponsor")}
+                                </div>
+
+                                <div class="mt-1 text-sm font-semibold text-white/90">
+                                    Ver detalle
+                                </div>
+                            </div>
+                        </button>
+                    `).join("")}
+                </div>
+
+                ${
+                    items.length > 1
+                        ? `
+                            <button
+                                id="prevSponsorBtn"
+                                type="button"
+                                class="hidden md:inline-flex absolute left-3 top-1/2 z-10 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-slate-900 shadow-md hover:bg-white"
+                                aria-label="Sponsor anterior"
+                            >
+                                ‹
+                            </button>
+
+                            <button
+                                id="nextSponsorBtn"
+                                type="button"
+                                class="hidden md:inline-flex absolute right-3 top-1/2 z-10 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-slate-900 shadow-md hover:bg-white"
+                                aria-label="Sponsor siguiente"
+                            >
+                                ›
+                            </button>
+                        `
+                        : ""
+                }
+            </div>
+
+            ${
+                items.length > 1
+                    ? `
+                        <div class="flex items-center justify-center gap-2 md:hidden">
+                            ${items.map((_, index) => `
+                                <button
+                                    type="button"
+                                    data-index="${index}"
+                                    class="sponsor-dot h-2.5 rounded-full ${
+                                        index === currentSponsorIndex
+                                            ? "w-6 bg-slate-900"
+                                            : "w-2.5 bg-slate-300"
+                                    }"
+                                ></button>
                             `).join("")}
                         </div>
                     `
+                    : ""
             }
         </section>
+    `;
+}
+
+function buildSponsorDetailModal() {
+    if (!sponsorDetailModalOpen || !selectedSponsor) return "";
+
+    const websiteUrl = (selectedSponsor.websiteUrl || "").trim();
+    const instagramUrl = (selectedSponsor.instagramUrl || "").trim();
+    const facebookUrl = (selectedSponsor.facebookUrl || "").trim();
+
+    const whatsAppRaw =
+        selectedSponsor.whatsApp ||
+        selectedSponsor.whatsapp ||
+        selectedSponsor.whatsAppNumber ||
+        selectedSponsor.whatsappNumber ||
+        "";
+
+    const cleanWhatsApp = String(whatsAppRaw).replace(/\D/g, "");
+
+    return `
+        <div id="sponsorDetailOverlay" class="fixed inset-0 z-[70] bg-slate-950/60 px-4 py-6">
+            <div class="mx-auto flex min-h-full w-full max-w-xl items-center justify-center">
+                <div class="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white shadow-2xl">
+                    <div class="relative bg-slate-100">
+                        ${
+                            selectedSponsor.imageUrl
+                                ? `
+                                    <img
+                                        src="${escapeHtml(selectedSponsor.imageUrl)}"
+                                        alt="${escapeHtml(selectedSponsor.name || "Sponsor")}"
+                                        class="max-h-[360px] w-full object-contain"
+                                    />
+                                `
+                                : `
+                                    <div class="flex h-48 w-full items-center justify-center text-sm text-slate-400">
+                                        Sin imagen
+                                    </div>
+                                `
+                        }
+
+                        ${
+                            selectedSponsor.overlayText
+                                ? `
+                                    <div class="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-slate-900 shadow-sm">
+                                        ${escapeHtml(selectedSponsor.overlayText)}
+                                    </div>
+                                `
+                                : ""
+                        }
+
+                        <button
+                            id="closeSponsorDetailBtn"
+                            type="button"
+                            class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/95 text-slate-700 shadow-sm"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="p-5">
+                        <h3 class="text-2xl font-bold text-slate-900">
+                            ${escapeHtml(selectedSponsor.name || "Sponsor")}
+                        </h3>
+
+                        ${
+                            selectedSponsor.description
+                                ? `<p class="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">${escapeHtml(selectedSponsor.description)}</p>`
+                                : `<p class="mt-3 text-sm text-slate-400">Sin descripción adicional.</p>`
+                        }
+
+                        <div class="mt-6 flex items-center gap-3">
+                            ${
+                                cleanWhatsApp
+                                    ? `
+                                        <a
+                                        href="https://wa.me/${escapeHtml(cleanWhatsApp)}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="inline-flex h-12 w-12 items-center justify-center transition hover:scale-110 active:scale-95"
+                                        aria-label="WhatsApp"
+                                        title="WhatsApp"
+                                        >
+                                        <svg viewBox="0 0 32 32" class="h-10 w-10">
+                                            <!-- Fondo -->
+                                            <circle cx="16" cy="16" r="16" fill="#25D366"/>
+
+                                            <!-- Globo -->
+                                            <path
+                                            fill="#FFFFFF"
+                                            d="M16 7C11 7 7 11 7 16c0 1.6.4 3.1 1.2 4.5L7 25l4.7-1.2C13.1 24.6 14.5 25 16 25c5 0 9-4 9-9s-4-9-9-9Z"
+                                            />
+
+                                            <!-- Teléfono -->
+                                            <path
+                                            fill="#25D366"
+                                            d="M21.5 18.7c-.3-.2-1.7-.8-2-.9-.3-.1-.5-.2-.7.2-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.6-.9-.8-1.4-1.8-1.6-2.1-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.2-.6-1.6-.8-2.2-.2-.6-.4-.5-.6-.5h-.5c-.2 0-.5.1-.7.3-.2.2-1 1-1 2.5s1 3 1.2 3.2c.2.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.8.6.8.2 1.4.2 2 .1.6-.1 1.7-.7 2-1.3.2-.6.2-1.1.2-1.3-.1-.2-.3-.3-.6-.4Z"
+                                            />
+                                        </svg>
+                                        </a>
+                                    `
+                                    : ""
+                            }
+
+                            ${
+                                instagramUrl
+                                    ? `
+                                        <a
+                                            href="${escapeHtml(instagramUrl)}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="inline-flex h-12 w-12 items-center justify-center transition hover:scale-110"
+                                            aria-label="Instagram"
+                                            title="Instagram"
+                                        >
+                                            <svg class="h-9 w-9" viewBox="0 0 32 32" fill="none">
+                                                <defs>
+                                                    <linearGradient id="igGradient" x1="6" y1="28" x2="28" y2="4" gradientUnits="userSpaceOnUse">
+                                                        <stop stop-color="#FEDA75"/>
+                                                        <stop offset="0.35" stop-color="#FA7E1E"/>
+                                                        <stop offset="0.65" stop-color="#D62976"/>
+                                                        <stop offset="1" stop-color="#4F5BD5"/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <rect width="32" height="32" rx="8" fill="url(#igGradient)"/>
+                                                <rect x="9" y="9" width="14" height="14" rx="4" stroke="#fff" stroke-width="2"/>
+                                                <circle cx="16" cy="16" r="4" stroke="#fff" stroke-width="2"/>
+                                                <circle cx="21.2" cy="10.8" r="1.2" fill="#fff"/>
+                                            </svg>
+                                        </a>
+                                    `
+                                    : ""
+                            }
+
+                            ${
+                                facebookUrl
+                                    ? `
+                                        <a
+                                            href="${escapeHtml(facebookUrl)}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="inline-flex h-12 w-12 items-center justify-center transition hover:scale-110"
+                                            aria-label="Facebook"
+                                            title="Facebook"
+                                        >
+                                            <svg class="h-9 w-9" viewBox="0 0 32 32" fill="none">
+                                                <circle cx="16" cy="16" r="16" fill="#1877F2"/>
+                                                <path fill="#fff" d="M18.2 17.1h3l.5-3.7h-3.5v-2.3c0-1.1.3-1.8 1.9-1.8h1.8V6.1c-.3 0-1.5-.1-2.8-.1-2.8 0-4.7 1.7-4.7 4.8v2.6h-3.2v3.7h3.2V26h3.8v-8.9Z"/>
+                                            </svg>
+                                        </a>
+                                    `
+                                    : ""
+                            }
+
+                            ${
+                                websiteUrl
+                                    ? `
+                                        <a
+                                            href="${escapeHtml(websiteUrl)}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="inline-flex h-12 w-12 items-center justify-center transition hover:scale-110"
+                                            aria-label="Sitio web"
+                                            title="Sitio web"
+                                        >
+                                            <svg class="h-9 w-9" viewBox="0 0 32 32" fill="none">
+                                                <circle cx="16" cy="16" r="16" fill="#0F172A"/>
+                                                <path d="M7 16h18" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+                                                <path d="M16 7c2.7 2.6 4.2 5.6 4.2 9S18.7 22.4 16 25c-2.7-2.6-4.2-5.6-4.2-9S13.3 9.6 16 7Z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                <circle cx="16" cy="16" r="9" stroke="#fff" stroke-width="2"/>
+                                            </svg>
+                                        </a>
+                                    `
+                                    : ""
+                            }
+
+                            <button
+                                id="closeSponsorDetailSecondaryBtn"
+                                type="button"
+                                class="ml-auto rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 }
 
@@ -955,6 +1455,7 @@ function buildHomeContent() {
             ${buildQuickAccess()}
             ${buildFeaturedMatch()}
             ${buildNews()}
+            ${buildSponsors()}
         </div>
     `;
 }
@@ -973,6 +1474,11 @@ function buildLoading() {
             </div>
         </div>
     `;
+}
+
+async function loadSponsors() {
+    const result = await get(`/api/student/${companySlug}/sponsors`);
+    sponsors = Array.isArray(result) ? result : [];
 }
 
 function buildError() {
@@ -1015,6 +1521,9 @@ function render() {
 
             ${buildMatchesModal()}
             ${buildMatchDetailModal()}
+            ${buildAnnouncementsModal()}
+            ${buildAnnouncementDetailModal()}
+            ${buildSponsorDetailModal()}
             ${buildStudentCarnetModal({
                 open: carnetOpen,
                 student,
@@ -1032,10 +1541,22 @@ function rerender() {
     bindEvents();
 }
 
+function closeAnnouncementDetail() {
+    announcementDetailModalOpen = false;
+    selectedAnnouncement = null;
+
+    if (announcementDetailFromHistory) {
+        announcementsModalOpen = true;
+    }
+
+    announcementDetailFromHistory = false;
+    rerender();
+}
+
 function syncBodyScrollLock() {
     syncStudentMobileShellScrollLock({
         mobileMenuOpen,
-        extraLocked: matchesModalOpen || matchDetailModalOpen || carnetOpen
+        extraLocked: matchesModalOpen || matchDetailModalOpen || announcementsModalOpen || announcementDetailModalOpen || sponsorDetailModalOpen || carnetOpen
     });
 }
 
@@ -1059,7 +1580,7 @@ window.__studentHomeOpponentLogoError = async (img) => {
         setMatches(companySlug, matches);
         rerender();
     } catch {
-        // dejamos el fallback ⚽
+       
     } finally {
         isRefreshingOpponentLogos = false;
     }
@@ -1090,6 +1611,161 @@ bindStudentMobileShellEvents({
         matchesModalOpen = true;
         rerender();
     });
+
+    document.getElementById("openAnnouncementsModalBtn")?.addEventListener("click", () => {
+    announcementsModalOpen = true;
+    rerender();
+});
+
+document.getElementById("closeAnnouncementsModalBtn")?.addEventListener("click", () => {
+    announcementsModalOpen = false;
+    rerender();
+});
+
+function moveSponsorTo(index) {
+    const items = getSponsorItems();
+    if (!items.length) return;
+
+    currentSponsorIndex = Math.max(0, Math.min(index, items.length - 1));
+
+    const carousel = document.getElementById("sponsorsCarousel");
+    const card = carousel?.querySelectorAll(".sponsor-card")?.[currentSponsorIndex];
+
+    card?.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest"
+    });
+
+    rerender();
+}
+
+function closeSponsorDetail() {
+    const indexToKeep = currentSponsorIndex;
+
+    isRestoringSponsorPosition = true;
+    sponsorDetailModalOpen = false;
+    selectedSponsor = null;
+
+    rerender();
+
+    requestAnimationFrame(() => {
+        const carousel = document.getElementById("sponsorsCarousel");
+        const card = carousel?.querySelectorAll(".sponsor-card")?.[indexToKeep];
+
+        if (carousel && card) {
+            carousel.scrollLeft = card.offsetLeft;
+        }
+
+        currentSponsorIndex = indexToKeep;
+        isRestoringSponsorPosition = false;
+    });
+}
+
+document.querySelectorAll(".sponsor-card").forEach(card => {
+    card.addEventListener("click", () => {
+        const sponsorId = card.dataset.sponsorId;
+        const found = sponsors.find(x => String(x.id) === String(sponsorId));
+        if (!found) return;
+
+        currentSponsorIndex = Number(card.dataset.index || 0);
+
+        selectedSponsor = found;
+        sponsorDetailModalOpen = true;
+        rerender();
+    });
+});
+
+document.querySelectorAll(".sponsor-dot").forEach(dot => {
+    dot.addEventListener("click", () => {
+        moveSponsorTo(Number(dot.dataset.index || 0));
+    });
+});
+
+document.getElementById("prevSponsorBtn")?.addEventListener("click", () => {
+    moveSponsorTo(currentSponsorIndex - 1);
+});
+
+document.getElementById("nextSponsorBtn")?.addEventListener("click", () => {
+    moveSponsorTo(currentSponsorIndex + 1);
+});
+
+const sponsorsCarousel = document.getElementById("sponsorsCarousel");
+
+sponsorsCarousel?.addEventListener("scroll", () => {
+    if (isRestoringSponsorPosition) return;
+
+    const cards = [...sponsorsCarousel.querySelectorAll(".sponsor-card")];
+    if (!cards.length) return;
+
+    const carouselRect = sponsorsCarousel.getBoundingClientRect();
+    const carouselCenter = carouselRect.left + carouselRect.width / 2;
+
+    let closestIndex = 0;
+    let closestDistance = Number.MAX_VALUE;
+
+    cards.forEach((card, index) => {
+        const rect = card.getBoundingClientRect();
+        const cardCenter = rect.left + rect.width / 2;
+        const distance = Math.abs(carouselCenter - cardCenter);
+
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = index;
+        }
+    });
+
+    if (closestIndex !== currentSponsorIndex) {
+        currentSponsorIndex = closestIndex;
+
+        document.querySelectorAll(".sponsor-dot").forEach(dot => {
+            const index = Number(dot.dataset.index || 0);
+            dot.className = `sponsor-dot h-2.5 rounded-full ${
+                index === currentSponsorIndex
+                    ? "w-6 bg-slate-900"
+                    : "w-2.5 bg-slate-300"
+            }`;
+        });
+    }
+});
+
+document.getElementById("closeSponsorDetailBtn")?.addEventListener("click", () => {
+    closeSponsorDetail();
+});
+
+document.getElementById("closeSponsorDetailSecondaryBtn")?.addEventListener("click", () => {
+    closeSponsorDetail();
+});
+
+document.getElementById("sponsorDetailOverlay")?.addEventListener("click", (event) => {
+    if (event.target.id === "sponsorDetailOverlay") {
+        closeSponsorDetail();
+    }
+});
+
+document.querySelectorAll(".announcement-card").forEach(card => {
+    card.addEventListener("click", () => {
+        const announcementId = card.dataset.announcementId;
+        const found = announcements.find(x => String(x.id) === String(announcementId));
+        if (!found) return;
+
+        announcementDetailFromHistory = card.dataset.fromHistory === "true";
+        selectedAnnouncement = found;
+        announcementsModalOpen = false;
+        announcementDetailModalOpen = true;
+        rerender();
+    });
+});
+
+document.getElementById("closeAnnouncementDetailBtn")?.addEventListener("click", closeAnnouncementDetail);
+
+document.getElementById("closeAnnouncementDetailSecondaryBtn")?.addEventListener("click", closeAnnouncementDetail);
+
+document.getElementById("announcementDetailOverlay")?.addEventListener("click", (event) => {
+    if (event.target.id === "announcementDetailOverlay") {
+        closeAnnouncementDetail();
+    }
+});
 
     document.getElementById("matchesModalOverlay")?.addEventListener("click", (event) => {
         if (event.target.id === "matchesModalOverlay") {
@@ -1214,6 +1890,11 @@ async function loadMatches() {
     setMatches(companySlug, matches);
 }
 
+async function loadAnnouncements() {
+    const result = await get(`/api/student/${companySlug}/announcements`);
+    announcements = Array.isArray(result) ? result : [];
+}
+
 async function init() {
     try {
         await loadConfig();
@@ -1243,10 +1924,12 @@ if (company) {
             throw new Error("No se encontró la empresa activa del alumno.");
         }
 
-        const [profile] = await Promise.all([
-            loadStudentProfile(),
-            loadMatches()
-        ]);
+const [profile] = await Promise.all([
+    loadStudentProfile(),
+    loadMatches(),
+    loadAnnouncements(),
+    loadSponsors()
+]);
 
         student = profile;
 

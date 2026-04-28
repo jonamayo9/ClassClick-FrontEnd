@@ -27,6 +27,8 @@ function getMenu(activeKey) {
     { key: "siblings", label: "Hermanos", href: "/src/pages/admin/siblings/index.html", enabled: true },
     { key: "pricing", label: "Configuración de pagos", href: "/src/pages/admin/pricing/index.html", enabled: true },
     { key: "matches", label: "Partidos", href: "/src/pages/admin/matches/index.html", enabled: true },
+    { key: "announcements", label: "Novedades", href: "/src/pages/admin/announcements/index.html", enabled: true },
+    { key: "sponsors", label: "Sponsors", href: "/src/pages/admin/sponsors/index.html", enabled: true },
     { key: "company-settings", label: "Mi empresa", href: "/src/pages/admin/company-settings/index.html", enabled: true },
     { key: "profile", label: "Mi perfil", href: "/src/pages/admin/profile/index.html", enabled: true }
   ];
