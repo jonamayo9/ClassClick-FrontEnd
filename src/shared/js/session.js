@@ -25,9 +25,15 @@ export function getSession() {
 export function requireAuth() {
   const session = getSession();
 
-  if (!session.token || !session.user) {
-    clearSession();
-    window.location.replace(LOGIN_URL);
+  if (!session?.token || !session?.user) {
+    console.warn("Sesión inválida, redirigiendo a login");
+
+    // ⚠️ Evita loop si ya estás en login
+    if (!window.location.pathname.includes("/auth/login")) {
+      clearSession();
+      window.location.replace(LOGIN_URL);
+    }
+
     return null;
   }
 

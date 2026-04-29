@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v6";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -35,12 +35,12 @@ if (url.origin !== self.location.origin) {
 }
 
   // HTML: network first
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match("/index.html"))
-    );
-    return;
-  }
+if (event.request.mode === "navigate") {
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match("/index.html"))
+  );
+  return;
+}
 
   // Imágenes locales: cache first
   if (event.request.destination === "image") {

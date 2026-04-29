@@ -24,30 +24,38 @@ function setLoading(isLoading) {
 }
 
 async function ensurePushEnabled(token) {
-  if (!("Notification" in window)) {
-    throw new Error("Este dispositivo o navegador no soporta notificaciones.");
-  }
+  try {
+    if (!("Notification" in window)) {
+      console.warn("Este dispositivo o navegador no soporta notificaciones.");
+      return;
+    }
 
-  if (!("serviceWorker" in navigator)) {
-    throw new Error("Este navegador no soporta service worker.");
-  }
+    if (!("serviceWorker" in navigator)) {
+      console.warn("Este navegador no soporta service worker.");
+      return;
+    }
 
-  if (Notification.permission === "granted") {
+    if (Notification.permission === "granted") {
+      await subscribeToPush(token);
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      console.warn("El usuario bloqueó las notificaciones desde el navegador.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      console.warn("El usuario no aceptó notificaciones.");
+      return;
+    }
+
     await subscribeToPush(token);
-    return;
+  } catch (error) {
+    console.warn("No se pudieron activar las notificaciones.", error);
   }
-
-  if (Notification.permission === "denied") {
-    throw new Error("Tenés que habilitar notificaciones desde la configuración del navegador para poder ingresar.");
-  }
-
-  const permission = await Notification.requestPermission();
-
-  if (permission !== "granted") {
-    throw new Error("Debés aceptar las notificaciones para ingresar.");
-  }
-
-  await subscribeToPush(token);
 }
 
 async function resolveRedirect(result) {
@@ -133,7 +141,7 @@ async function init() {
         throw new Error("El login fue correcto, pero no se recibió token de sesión.");
       }
 
-      await ensurePushEnabled(session.token);
+      ensurePushEnabled(session.token);
 
       const redirectUrl = await resolveRedirect(result);
 
@@ -141,7 +149,7 @@ async function init() {
         throw new Error("No se pudo resolver la pantalla inicial del usuario.");
       }
 
-      window.location.href = redirectUrl;
+      window.location.replace(redirectUrl);
     } catch (error) {
       showError(error.message || "No se pudo iniciar sesión.");
     } finally {
