@@ -58,7 +58,7 @@ function buildContent() {
                     description: "Creá categorías y subcategorías para organizar los productos.",
                     href: "/src/pages/admin/Clothing/Categories/index.html",
                     emoji: "🏷️",
-                    enabled: false
+                    enabled: true
                 })}
 
                 ${buildModuleCard({
@@ -66,7 +66,7 @@ function buildContent() {
                     description: "Cargá prendas, precios, variantes, talles e imágenes.",
                     href: "/src/pages/admin/clothing/products/index.html",
                     emoji: "👕",
-                    enabled: false
+                    enabled: true
                 })}
 
                 ${buildModuleCard({
@@ -98,7 +98,7 @@ function buildContent() {
                     description: "Controlá disponibilidad por producto o variante.",
                     href: "/src/pages/admin/Clothing/Stock/index.html",
                     emoji: "📦",
-                    enabled: false
+                    enabled: true
                 })}
             </section>
         </section>

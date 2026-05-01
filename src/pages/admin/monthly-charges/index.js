@@ -1138,18 +1138,18 @@ function buildChargeDetailHtml(c) {
                 <div class="rounded-xl bg-slate-50 p-4">
                     <div class="text-xs uppercase tracking-wide text-slate-500">Comprobante</div>
                     <div class="mt-2">
-                        ${Number(c.paymentMethod) === 2 && c.paymentId
-                            ? `
-                            <button
-                                type="button"
-                                onclick="openChargeProofModal('${c.id}')"
-                                class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                            >
-                                Ver comprobante
-                            </button>
-                            `
-                            : `<span class="text-sm text-slate-500">-</span>`
-                        }
+                    ${Number(c.paymentMethod) === 2 && c.paymentId && c.paymentReference
+                        ? `
+                        <button
+                            type="button"
+                            onclick="openChargeProofModal('${c.id}')"
+                            class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                            Ver comprobante
+                        </button>
+                        `
+                        : `<span class="text-sm text-slate-500">-</span>`
+                    }
                     </div>
                 </div>
             </div>
@@ -1640,7 +1640,11 @@ document.getElementById("generateSelectedStudents")?.addEventListener("click", e
                 await loadCharges();
                 openPaymentSuccessModal("El pago en efectivo fue registrado correctamente.");
             } catch (error) {
-                alert(error.message || "No se pudo registrar el pago.");
+                closePayModal();
+                openPaymentSuccessModal(
+                    error.message || "No se pudo registrar el pago.",
+                    "No se pudo registrar"
+                );
             }
         }
 

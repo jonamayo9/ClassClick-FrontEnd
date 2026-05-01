@@ -6,6 +6,7 @@ import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin
 let company = null;
 let products = [];
 let categories = [];
+let productVariants = [];
 
 let isSavingProduct = false;
 let deletingProductId = null;
@@ -115,6 +116,23 @@ function buildContent() {
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-3">
+                    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                        <input id="productHasVariants" type="checkbox" class="h-4 w-4" />
+                        <span class="text-sm font-semibold text-slate-700">Tiene variantes</span>
+                    </label>
+                    <div id="variantsBox" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-sm font-bold">Variantes</h4>
+
+                            <button type="button" id="addVariantBtn"
+                                class="rounded-xl bg-slate-900 text-white px-3 py-1 text-xs">
+                                + Agregar
+                            </button>
+                        </div>
+
+                        <div id="variantsList" class="space-y-2"></div>
+                    </div>
+
                         <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
                             <input id="productIsReservation" type="checkbox" class="h-4 w-4" />
                             <span class="text-sm font-semibold text-slate-700">Es reserva</span>
@@ -383,6 +401,8 @@ function toggleDepositBox() {
 }
 
 function getCreatePayload() {
+    const hasVariants = qs("productHasVariants").checked;
+
     return {
         categoryId: getSelectedCategoryId("product"),
         name: qs("productName").value.trim(),
@@ -393,11 +413,23 @@ function getCreatePayload() {
         depositAmount: qs("productRequiresDeposit").checked
             ? Number(qs("productDepositAmount").value || 0)
             : null,
+
         tracksStock: false,
         stockQuantity: null,
-        hasVariants: false,
+
+        hasVariants: hasVariants,
+
         isActive: qs("productIsActive").checked,
-        variants: []
+
+        variants: hasVariants
+            ? productVariants
+                .filter(v => v.name.trim())
+                .map(v => ({
+                    name: v.name.trim(),
+                    tracksStock: true,
+                    stockQuantity: 0
+                }))
+            : []
     };
 }
 
@@ -409,8 +441,13 @@ function setProductFormLoading(loading) {
 }
 
 function resetProductForm() {
-    qs("productForm").reset();
+        qs("productForm").reset();
     qs("productIsActive").checked = true;
+
+    productVariants = [];
+    renderVariants();
+
+    qs("variantsBox").classList.add("hidden");
 
     pendingCreateImages = [];
     syncProductImagesInput();
@@ -433,6 +470,44 @@ function getMainImage(product) {
     return product.images?.find(x => x.isMain)?.imageUrl
         || product.images?.[0]?.imageUrl
         || "";
+}
+
+function renderVariants() {
+    const list = qs("variantsList");
+
+    if (!productVariants.length) {
+        list.innerHTML = `<p class="text-xs text-slate-400">Sin variantes</p>`;
+        return;
+    }
+
+    list.innerHTML = productVariants.map((v, i) => `
+        <div class="flex gap-2 items-center">
+            <input 
+                type="text"
+                value="${escapeHtml(v.name)}"
+                data-index="${i}"
+                class="flex-1 border rounded-xl px-3 py-2 text-sm"
+            />
+
+            <button data-remove="${i}" class="text-rose-600 text-xs font-bold">
+                Eliminar
+            </button>
+        </div>
+    `).join("");
+
+    list.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", e => {
+            const index = e.target.dataset.index;
+            productVariants[index].name = e.target.value;
+        });
+    });
+
+    list.querySelectorAll("[data-remove]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            productVariants.splice(btn.dataset.remove, 1);
+            renderVariants();
+        });
+    });
 }
 
 function getFilteredProducts() {
@@ -1040,6 +1115,16 @@ async function init() {
             await loadProducts();
         }
     });
+
+    qs("addVariantBtn").addEventListener("click", () => {
+    productVariants.push({
+        name: "",
+        tracksStock: true,
+        stockQuantity: 0
+    });
+
+    renderVariants();
+});
 
     company = layout.activeCompany;
 
