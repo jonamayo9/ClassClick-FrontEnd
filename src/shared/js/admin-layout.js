@@ -29,6 +29,7 @@ function getMenu(activeKey) {
     { key: "matches", label: "Partidos", href: "/src/pages/admin/matches/index.html", enabled: true },
     { key: "announcements", label: "Novedades", href: "/src/pages/admin/announcements/index.html", enabled: true },
     { key: "sponsors", label: "Sponsors", href: "/src/pages/admin/sponsors/index.html", enabled: true },
+    { key: "clothing", label: "Indumentaria", href: "/src/pages/admin/Clothing/index.html", enabled: false },
     { key: "company-settings", label: "Mi empresa", href: "/src/pages/admin/company-settings/index.html", enabled: true },
     { key: "profile", label: "Mi perfil", href: "/src/pages/admin/profile/index.html", enabled: true }
   ];

@@ -1110,10 +1110,10 @@ async function loadStudentProfile() {
     return result;
 }
 
-async function loadPayments() {
+async function loadPayments(force = false) {
     const cached = getPayments(companySlug);
 
-    if (cached) {
+    if (cached && !force) {
         return cached;
     }
 
@@ -1121,7 +1121,6 @@ async function loadPayments() {
     const data = Array.isArray(result) ? result : [];
 
     setPayments(companySlug, data);
-
     return data;
 }
 
@@ -1247,7 +1246,7 @@ async function submitProof() {
 
         await postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData);
 
-        payments = await loadPayments();
+        payments = await loadPayments(true);
         setUiMessage("success", "Comprobante enviado correctamente.");
         closeTransferModal();
     } catch (err) {

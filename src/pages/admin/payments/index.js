@@ -765,9 +765,12 @@ function syncModalButtons() {
 
   const isApproved = Number(currentSelectedPayment.paymentStatus) === 3;
   const isTransfer = Number(currentSelectedPayment.paymentMethod) === 2;
-  const isInReview = Number(currentSelectedPayment.paymentStatus) === 2;
+const hasSubmissionInReview =
+  currentSelectedSubmission &&
+  Number(currentSelectedSubmission.status) === 2;
 
-  approveButton.disabled = !isInReview;
+approveButton.disabled = !hasSubmissionInReview;
+
   rejectButton.disabled = !isTransfer || !currentSelectedSubmission || !isInReview;
 
   if (!isTransfer || !currentSelectedSubmission || currentSelectedSubmission.isDeletedFromStorage) {
