@@ -770,8 +770,7 @@ const hasSubmissionInReview =
   Number(currentSelectedSubmission.status) === 2;
 
 approveButton.disabled = !hasSubmissionInReview;
-
-  rejectButton.disabled = !isTransfer || !currentSelectedSubmission || !isInReview;
+rejectButton.disabled = !isTransfer || !hasSubmissionInReview;
 
   if (!isTransfer || !currentSelectedSubmission || currentSelectedSubmission.isDeletedFromStorage) {
     viewButton.classList.add("hidden");
