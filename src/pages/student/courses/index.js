@@ -187,14 +187,19 @@ function buildSidebar() {
                 }
             </div>
 
-            <nav class="flex-1 space-y-2 px-4 py-4">
-                ${navLink("Inicio", "/src/pages/student/home/index.html")}
-                ${navLink("Cursos", "/src/pages/student/courses/index.html", true)}
-                ${navLink("Pagos", "/src/pages/student/payments/index.html")}
-                ${navLink("Legajo", "/src/pages/student/documents/index.html")}
-                ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-                ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
-            </nav>
+<nav class="flex-1 space-y-2 px-4 py-4">
+    ${navLink("Inicio", "/src/pages/student/home/index.html")}
+    ${navLink("Cursos", "/src/pages/student/courses/index.html", true)}
+    ${navLink("Pagos", "/src/pages/student/payments/index.html")}
+    ${navLink("Documentos", "/src/pages/student/documents/index.html")}
+    ${navLink("Perfil", "/src/pages/student/profile/index.html")}
+    ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
+
+    ${company?.isClothingEnabled === true
+        ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+        : ""
+    }
+</nav>
 
             <div class="mt-auto border-t border-slate-200 px-4 py-4">
                 <button

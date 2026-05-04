@@ -232,8 +232,26 @@
               </div>
             </div>
 
-            <div id="companyFormError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+            <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h3 class="mb-3 text-sm font-bold text-slate-900">Indumentaria</h3>
 
+              <label class="flex items-center justify-between rounded-xl bg-white px-3 py-3">
+                <span class="text-sm font-medium text-slate-700">Habilitar módulo</span>
+                <input id="clothingEnabledInput" type="checkbox" class="h-5 w-5" />
+              </label>
+
+              <label class="mt-2 flex items-center justify-between rounded-xl bg-white px-3 py-3">
+                <span class="text-sm font-medium text-slate-700">Permitir comprobantes manuales</span>
+                <input id="clothingManualProofInput" type="checkbox" class="h-5 w-5" checked />
+              </label>
+
+              <label class="mt-2 flex items-center justify-between rounded-xl bg-white px-3 py-3">
+                <span class="text-sm font-medium text-slate-700">Permitir MercadoPago</span>
+                <input id="clothingMercadoPagoInput" type="checkbox" class="h-5 w-5" />
+              </label>
+            </div>
+
+            <div id="companyFormError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
             <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 id="cancelCompanyModalButton"

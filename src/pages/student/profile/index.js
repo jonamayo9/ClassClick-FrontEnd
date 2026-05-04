@@ -290,6 +290,11 @@ function buildSidebar() {
                 ${navLink("Documentos", "/src/pages/student/documents/index.html")}
                 ${navLink("Perfil", "/src/pages/student/profile/index.html", true)}
                 ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
+                ${
+                    company?.isClothingEnabled === true
+                        ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+                        : ""
+                }
             </nav>
             <div class="mt-auto border-t border-slate-200 px-4 py-4">
                 <button
@@ -337,7 +342,8 @@ function buildMobileMenu() {
         mobileMenuOpen,
         studentFullName: getFullName(),
         studentEmail: profile?.email || "",
-        activeItem: "profile"
+        activeItem: "profile",
+        isClothingEnabled: company?.isClothingEnabled === true
     });
 }
 

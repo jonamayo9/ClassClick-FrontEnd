@@ -28,6 +28,11 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
+function togglePersonalizationBox() {
+    const enabled = qs("productAllowsPersonalization")?.checked === true;
+    qs("productPersonalizationBox")?.classList.toggle("hidden", !enabled);
+}
+
 function money(value) {
     return `$${Number(value || 0).toLocaleString("es-AR")}`;
 }
@@ -115,39 +120,65 @@ function buildContent() {
                         <textarea id="productDescription" rows="3" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-100" placeholder="Detalle del producto..."></textarea>
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-3">
-                    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                        <input id="productHasVariants" type="checkbox" class="h-4 w-4" />
-                        <span class="text-sm font-semibold text-slate-700">Tiene variantes</span>
-                    </label>
-                    <div id="variantsBox" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="text-sm font-bold">Variantes</h4>
+                    <div class="rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
+                        <label class="flex items-center gap-3">
+                            <input id="productAllowsPersonalization" type="checkbox" class="h-4 w-4" />
+                            <span class="text-sm font-bold text-slate-700">Permite personalización</span>
+                        </label>
 
-                            <button type="button" id="addVariantBtn"
-                                class="rounded-xl bg-slate-900 text-white px-3 py-1 text-xs">
-                                + Agregar
-                            </button>
+                        <div id="productPersonalizationBox" class="mt-4 hidden grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700">Etiqueta</label>
+                                <input id="productPersonalizationLabel" type="text" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Ej: Nombre en camiseta" />
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700">Máximo caracteres</label>
+                                <input id="productPersonalizationMaxLength" type="number" min="1" max="50" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" placeholder="Ej: 15" />
+                            </div>
                         </div>
-
-                        <div id="variantsList" class="space-y-2"></div>
                     </div>
 
-                        <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                            <input id="productIsReservation" type="checkbox" class="h-4 w-4" />
-                            <span class="text-sm font-semibold text-slate-700">Es reserva</span>
-                        </label>
+                    <div class="grid gap-4 md:grid-cols-4">
+    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+        <input id="productHasVariants" type="checkbox" class="h-4 w-4" />
+        <span class="text-sm font-semibold text-slate-700">Tiene variantes</span>
+    </label>
 
-                        <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                            <input id="productRequiresDeposit" type="checkbox" class="h-4 w-4" />
-                            <span class="text-sm font-semibold text-slate-700">Requiere seña</span>
-                        </label>
+    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+        <input id="productIsReservation" type="checkbox" class="h-4 w-4" />
+        <span class="text-sm font-semibold text-slate-700">Es reserva</span>
+    </label>
 
-                        <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                            <input id="productIsActive" type="checkbox" checked class="h-4 w-4" />
-                            <span class="text-sm font-semibold text-slate-700">Activo</span>
-                        </label>
-                    </div>
+    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+        <input id="productRequiresDeposit" type="checkbox" class="h-4 w-4" />
+        <span class="text-sm font-semibold text-slate-700">Requiere seña</span>
+    </label>
+
+    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+        <input id="productIsActive" type="checkbox" checked class="h-4 w-4" />
+        <span class="text-sm font-semibold text-slate-700">Activo</span>
+    </label>
+</div>
+
+<div id="variantsBox" class="hidden rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+    <div class="mb-3 flex items-center justify-between">
+        <div>
+            <h4 class="text-sm font-bold text-slate-900">Variantes</h4>
+            <p class="text-xs text-slate-500">Ej: S, M, L, XL, Hombre, Mujer.</p>
+        </div>
+
+        <button
+            type="button"
+            id="addVariantBtn"
+            class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+        >
+            + Agregar variante
+        </button>
+    </div>
+
+    <div id="variantsList" class="space-y-2"></div>
+</div>
 
                     <div id="depositBox" class="hidden rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
                         <label class="mb-1 block text-sm font-semibold text-slate-700">Monto de seña</label>
@@ -429,7 +460,15 @@ function getCreatePayload() {
                     tracksStock: true,
                     stockQuantity: 0
                 }))
-            : []
+            : [],
+
+        allowsPersonalization: qs("productAllowsPersonalization").checked,
+        personalizationLabel: qs("productAllowsPersonalization").checked
+            ? qs("productPersonalizationLabel").value.trim()
+            : null,
+         personalizationMaxLength: qs("productAllowsPersonalization").checked
+            ? Number(qs("productPersonalizationMaxLength").value || 30)
+            : null
     };
 }
 
@@ -443,6 +482,10 @@ function setProductFormLoading(loading) {
 function resetProductForm() {
         qs("productForm").reset();
     qs("productIsActive").checked = true;
+    qs("productAllowsPersonalization").checked = false;
+    qs("productPersonalizationLabel").value = "";
+    qs("productPersonalizationMaxLength").value = "";
+    togglePersonalizationBox();
 
     productVariants = [];
     renderVariants();
@@ -474,37 +517,48 @@ function getMainImage(product) {
 
 function renderVariants() {
     const list = qs("variantsList");
+    if (!list) return;
 
     if (!productVariants.length) {
-        list.innerHTML = `<p class="text-xs text-slate-400">Sin variantes</p>`;
+        list.innerHTML = `
+            <div class="rounded-2xl border border-dashed border-orange-200 bg-white px-4 py-4 text-sm text-slate-500">
+                Todavía no agregaste variantes.
+            </div>
+        `;
         return;
     }
 
-    list.innerHTML = productVariants.map((v, i) => `
-        <div class="flex gap-2 items-center">
-            <input 
+    list.innerHTML = productVariants.map((variant, index) => `
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1fr_auto] md:items-center">
+            <input
                 type="text"
-                value="${escapeHtml(v.name)}"
-                data-index="${i}"
-                class="flex-1 border rounded-xl px-3 py-2 text-sm"
+                value="${escapeHtml(variant.name || "")}"
+                data-variant-index="${index}"
+                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                placeholder="Ej: S, M, L, XL"
             />
 
-            <button data-remove="${i}" class="text-rose-600 text-xs font-bold">
+            <button
+                type="button"
+                data-remove-variant="${index}"
+                class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+            >
                 Eliminar
             </button>
         </div>
     `).join("");
 
-    list.querySelectorAll("input").forEach(input => {
-        input.addEventListener("input", e => {
-            const index = e.target.dataset.index;
-            productVariants[index].name = e.target.value;
+    list.querySelectorAll("[data-variant-index]").forEach(input => {
+        input.addEventListener("input", event => {
+            const index = Number(event.target.dataset.variantIndex);
+            productVariants[index].name = event.target.value;
         });
     });
 
-    list.querySelectorAll("[data-remove]").forEach(btn => {
-        btn.addEventListener("click", () => {
-            productVariants.splice(btn.dataset.remove, 1);
+    list.querySelectorAll("[data-remove-variant]").forEach(button => {
+        button.addEventListener("click", () => {
+            const index = Number(button.dataset.removeVariant);
+            productVariants.splice(index, 1);
             renderVariants();
         });
     });
@@ -648,6 +702,7 @@ function renderProductsList() {
                             ${product.hasVariants ? `<span class="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700">Tiene variantes</span>` : ""}
                             ${product.tracksStock ? `<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Controla stock</span>` : ""}
                             ${product.requiresDeposit ? `<span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Seña: ${money(product.depositAmount)}</span>` : ""}
+                            ${product.allowsPersonalization ? `<span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">Personalizable</span>` : ""}
                         </div>
 
                         ${renderProductImages(product)}
@@ -676,6 +731,61 @@ function renderProductsList() {
     });
 
     renderProductsPagination();
+}
+
+function buildEditVariantsManager(product) {
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+
+    return `
+        <div class="rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                    <h4 class="text-sm font-bold text-slate-900">Variantes</h4>
+                    <p class="text-xs text-slate-500">
+                        Acá configurás talles o variantes. El stock se ajusta después desde Stock.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    id="editAddVariantBtn"
+                    class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+                >
+                    + Agregar variante
+                </button>
+            </div>
+
+            <div id="editVariantsList" class="space-y-2">
+                ${
+                    variants.length
+                        ? variants.map((variant, index) => `
+                            <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1fr_auto] md:items-center">
+                                <input
+                                    type="text"
+                                    value="${escapeHtml(variant.name || "")}"
+                                    data-edit-variant-index="${index}"
+                                    class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                                    placeholder="Ej: S, M, L, XL"
+                                />
+
+                                <button
+                                    type="button"
+                                    data-remove-edit-variant="${index}"
+                                    class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+                                >
+                                    Eliminar
+                                </button>
+                            </div>
+                        `).join("")
+                        : `
+                            <div class="rounded-2xl border border-dashed border-orange-200 bg-white px-4 py-4 text-sm text-slate-500">
+                                Este producto todavía no tiene variantes.
+                            </div>
+                        `
+                }
+            </div>
+        </div>
+    `;
 }
 
 function buildImagesManager(product) {
@@ -779,6 +889,30 @@ function buildEditModal(product) {
                         <textarea id="editDescription" rows="3" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">${escapeHtml(product.description || "")}</textarea>
                     </div>
 
+<div class="rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
+    <label class="flex items-center gap-3">
+        <input id="editAllowsPersonalization" type="checkbox" class="h-4 w-4"
+            ${product.allowsPersonalization ? "checked" : ""} />
+        <span class="text-sm font-bold text-slate-700">Permite personalización</span>
+    </label>
+
+    <div id="editPersonalizationBox" class="mt-4 grid gap-4 md:grid-cols-2 ${product.allowsPersonalization ? "" : "hidden"}">
+        <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Etiqueta</label>
+            <input id="editPersonalizationLabel" type="text"
+                value="${escapeHtml(product.personalizationLabel || "")}"
+                class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" />
+        </div>
+
+        <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Máximo caracteres</label>
+            <input id="editPersonalizationMaxLength" type="number" min="1" max="50"
+                value="${product.personalizationMaxLength ?? ""}"
+                class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm" />
+        </div>
+    </div>
+</div>
+
                     <div class="grid gap-3 md:grid-cols-3">
                         <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
                             <input id="editIsReservation" type="checkbox" class="h-4 w-4" ${product.isReservation ? "checked" : ""} />
@@ -800,7 +934,7 @@ function buildEditModal(product) {
                         <label class="mb-1 block text-sm font-semibold text-slate-700">Monto de seña</label>
                         <input id="editDepositAmount" type="number" min="0" step="0.01" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" value="${product.depositAmount ?? ""}" />
                     </div>
-
+                    ${buildEditVariantsManager(product)}
                     ${buildImagesManager(product)}
 
                     <div class="flex justify-end gap-3">
@@ -847,6 +981,11 @@ function buildEditModal(product) {
         if (refreshed) buildEditModal(refreshed);
     });
 
+    qs("editAllowsPersonalization").addEventListener("change", () => {
+    const enabled = qs("editAllowsPersonalization").checked;
+    qs("editPersonalizationBox").classList.toggle("hidden", !enabled);
+});
+
     document.querySelectorAll(".delete-image-btn").forEach(btn => {
         btn.addEventListener("click", async () => {
             await deleteProductImage(product.id, btn.dataset.imageId);
@@ -862,11 +1001,94 @@ function buildEditModal(product) {
             if (refreshed) buildEditModal(refreshed);
         });
     });
+
+    let editVariants = Array.isArray(product.variants)
+    ? product.variants.map(v => ({
+        name: v.name || "",
+        tracksStock: v.tracksStock === true,
+        stockQuantity: v.tracksStock ? Number(v.stockQuantity ?? 0) : null
+    }))
+    : [];
+
+function renderEditVariants() {
+    const list = qs("editVariantsList");
+    if (!list) return;
+
+    if (!editVariants.length) {
+        list.innerHTML = `
+            <div class="rounded-2xl border border-dashed border-orange-200 bg-white px-4 py-4 text-sm text-slate-500">
+                Este producto todavía no tiene variantes.
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = editVariants.map((variant, index) => `
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1fr_auto] md:items-center">
+            <input
+                type="text"
+                value="${escapeHtml(variant.name || "")}"
+                data-edit-variant-index="${index}"
+                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                placeholder="Ej: S, M, L, XL"
+            />
+
+            <button
+                type="button"
+                data-remove-edit-variant="${index}"
+                class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+            >
+                Eliminar
+            </button>
+        </div>
+    `).join("");
+
+    list.querySelectorAll("[data-edit-variant-index]").forEach(input => {
+        input.addEventListener("input", event => {
+            const index = Number(event.target.dataset.editVariantIndex);
+            editVariants[index].name = event.target.value;
+        });
+    });
+
+    list.querySelectorAll("[data-remove-edit-variant]").forEach(button => {
+        button.addEventListener("click", () => {
+            const index = Number(button.dataset.removeEditVariant);
+            editVariants.splice(index, 1);
+            renderEditVariants();
+        });
+    });
+}
+
+qs("editAddVariantBtn").addEventListener("click", () => {
+    editVariants.push({
+        name: "",
+        tracksStock: false,
+        stockQuantity: null
+    });
+
+    renderEditVariants();
+});
+
+qs("editProductForm").dataset.variants = "ready";
+qs("editProductForm")._editVariants = editVariants;
 }
 
 async function saveEditProduct(productId) {
     const product = products.find(x => x.id === productId);
     if (!product) return;
+
+    const form = qs("editProductForm");
+    const editVariants = form._editVariants || [];
+
+    const cleanVariants = editVariants
+        .filter(v => v.name.trim())
+        .map(v => ({
+            name: v.name.trim(),
+            tracksStock: v.tracksStock === true,
+            stockQuantity: v.tracksStock ? Number(v.stockQuantity ?? 0) : null
+        }));
+
+    const hasVariants = cleanVariants.length > 0;
 
     const payload = {
         categoryId: qs("editChildCategoryId").value || qs("editParentCategoryId").value,
@@ -878,17 +1100,20 @@ async function saveEditProduct(productId) {
         depositAmount: qs("editRequiresDeposit").checked
             ? Number(qs("editDepositAmount").value || 0)
             : null,
-        tracksStock: product.tracksStock,
-        stockQuantity: product.stockQuantity,
-        hasVariants: product.hasVariants,
+
+        tracksStock: hasVariants ? false : product.tracksStock,
+        stockQuantity: hasVariants ? null : product.stockQuantity,
+
+        hasVariants,
+        allowsPersonalization: qs("editAllowsPersonalization").checked,
+        personalizationLabel: qs("editAllowsPersonalization").checked
+            ? qs("editPersonalizationLabel").value.trim()
+            : null,
+        personalizationMaxLength: qs("editAllowsPersonalization").checked
+            ? Number(qs("editPersonalizationMaxLength").value || 30)
+            : null,
         isActive: qs("editIsActive").checked,
-        variants: Array.isArray(product.variants)
-            ? product.variants.map(v => ({
-                name: v.name,
-                tracksStock: v.tracksStock,
-                stockQuantity: v.stockQuantity
-            }))
-            : []
+        variants: cleanVariants
     };
 
     try {
@@ -1116,7 +1341,7 @@ async function init() {
         }
     });
 
-    qs("addVariantBtn").addEventListener("click", () => {
+qs("addVariantBtn").addEventListener("click", () => {
     productVariants.push({
         name: "",
         tracksStock: true,
@@ -1160,6 +1385,18 @@ qs("productImages").addEventListener("change", event => {
     });
 
     qs("productRequiresDeposit").addEventListener("change", toggleDepositBox);
+    qs("productAllowsPersonalization").addEventListener("change", togglePersonalizationBox);
+
+    qs("productHasVariants").addEventListener("change", () => {
+    const enabled = qs("productHasVariants").checked;
+
+    qs("variantsBox").classList.toggle("hidden", !enabled);
+
+    if (!enabled) {
+        productVariants = [];
+        renderVariants();
+    }
+});
 
     qs("productSearchInput").addEventListener("input", () => {
         currentPage = 1;
@@ -1184,6 +1421,7 @@ qs("productImages").addEventListener("change", event => {
     await loadProducts();
 
     toggleDepositBox();
+    togglePersonalizationBox();
 }
 
 init();

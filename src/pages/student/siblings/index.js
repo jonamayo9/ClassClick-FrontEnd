@@ -262,14 +262,20 @@ function buildSidebar() {
                 }
             </div>
 
-            <nav class="flex-1 space-y-2 px-4 py-4">
-                ${navLink("Inicio", "/src/pages/student/home/index.html")}
-                ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-                ${navLink("Pagos", "/src/pages/student/payments/index.html")}
-                ${navLink("Documentos", "/src/pages/student/documents/index.html")}
-                ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-                ${navLink("Hermanos", "/src/pages/student/siblings/index.html", true)}
-            </nav>
+<nav class="flex-1 space-y-2 px-4 py-4">
+    ${navLink("Inicio", "/src/pages/student/home/index.html")}
+    ${navLink("Cursos", "/src/pages/student/courses/index.html")}
+    ${navLink("Pagos", "/src/pages/student/payments/index.html")}
+    ${navLink("Documentos", "/src/pages/student/documents/index.html")}
+    ${navLink("Perfil", "/src/pages/student/profile/index.html")}
+    ${navLink("Hermanos", "/src/pages/student/siblings/index.html", true)}
+
+    ${
+        company?.isClothingEnabled === true
+            ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+            : ""
+    }
+</nav>
             <div class="mt-auto border-t border-slate-200 px-4 py-4">
                 <button
                     id="logoutBtn"
@@ -314,7 +320,8 @@ function buildMobileMenu() {
         mobileMenuOpen,
         studentFullName: getStudentFullName(),
         studentEmail: getStudentEmail(),
-        activeItem: "siblings"
+        activeItem: "siblings",
+        isClothingEnabled: company?.isClothingEnabled === true
     });
 }
 

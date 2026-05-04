@@ -1,4 +1,4 @@
-import { get, post, postForm } from "../../../shared/js/api.js";
+import { get, post, postForm, ensureFreshAccessToken } from "../../../shared/js/api.js";
 import { loadConfig, getApiBaseUrl } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { logoutAndRedirect } from "../../../shared/js/session.js";
@@ -34,12 +34,15 @@ let mobileMenuOpen = false;
 let loading = true;
 let pageError = "";
 let selectedPaymentId = null;
+let selectedTransferItem = null;
+let aliasCopied = false;
 let uploadingProof = false;
 let uiMessage = {
     type: "",
     text: ""
 };
 let carnetOpen = false;
+let isUploadingProof = false;
 
 let proofViewer = {
     open: false,
@@ -226,13 +229,20 @@ function buildSidebar() {
             </div>
 
             <div class="flex min-h-0 flex-1 flex-col">
-                <nav class="space-y-2 px-4 py-4">
-                    ${buildSidebarLink("Inicio", "/src/pages/student/home/index.html")}
-                    ${buildSidebarLink("Cursos", "/src/pages/student/courses/index.html")}
-                    ${buildSidebarLink("Pagos", "/src/pages/student/payments/index.html", true)}
-                    ${buildSidebarLink("Perfil", "/src/pages/student/profile/index.html")}
-                    ${buildSidebarLink("Hermanos", "/src/pages/student/siblings/index.html")}
-                </nav>
+<nav class="space-y-2 px-4 py-4">
+    ${buildSidebarLink("Inicio", "/src/pages/student/home/index.html")}
+    ${buildSidebarLink("Cursos", "/src/pages/student/courses/index.html")}
+    ${buildSidebarLink("Pagos", "/src/pages/student/payments/index.html", true)}
+    ${buildSidebarLink("Documentos", "/src/pages/student/documents/index.html")}
+    ${buildSidebarLink("Perfil", "/src/pages/student/profile/index.html")}
+    ${buildSidebarLink("Hermanos", "/src/pages/student/siblings/index.html")}
+
+    ${
+        company?.isClothingEnabled === true
+            ? buildSidebarLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+            : ""
+    }
+</nav>
 
                 <div class="mt-auto border-t border-slate-200 p-4">
                     <button
@@ -276,68 +286,6 @@ function buildMobileHeader() {
     `;
 }
 
-function buildMobileMenu() {
-    return `
-        <div
-            id="mobileMenuOverlay"
-            class="${mobileMenuOpen ? "fixed" : "hidden"} inset-0 z-40 bg-slate-950/40 md:hidden"
-        ></div>
-
-        <aside
-            class="fixed left-0 top-0 z-50 flex h-full w-72 flex-col transform border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 md:hidden ${
-                mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-            }"
-        >
-            <div class="border-b border-slate-200 px-4 py-4">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                            Alumno
-                        </div>
-
-                        <div class="mt-1 truncate text-sm font-semibold text-slate-900">
-                            ${escapeHtml(getStudentFullName() || "—")}
-                        </div>
-
-                        ${
-                            getStudentEmail()
-                                ? `<div class="truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
-                                : ""
-                        }
-                    </div>
-
-                    <button
-                        id="closeMobileMenuBtn"
-                        type="button"
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
-                    >
-                        ✕
-                    </button>
-                </div>
-            </div>
-
-            <div class="flex min-h-0 flex-1 flex-col">
-                <nav class="space-y-2 px-4 py-4">
-                    ${navLink("Inicio", "/src/pages/student/home/index.html")}
-                    ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-                    ${navLink("Pagos", "/src/pages/student/payments/index.html", true)}
-                    ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-                    ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
-                </nav>
-
-                <div class="mt-auto border-t border-slate-200 p-4">
-                    <button
-                        id="mobileLogoutBtn"
-                        type="button"
-                        class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                        Cerrar sesión
-                    </button>
-                </div>
-            </div>
-        </aside>
-    `;
-}
 
 function buildTopBar() {
     return `
@@ -675,7 +623,7 @@ function buildPaymentsSection() {
 function buildTransferModal() {
     if (!selectedPaymentId) return "";
 
-    const payment = payments.find(x =>
+const payment = selectedTransferItem || payments.find(x =>
     String(x.paymentId || x.id || "") === String(selectedPaymentId) ||
     String(x.chargeId || "") === String(selectedPaymentId)
 );
@@ -685,8 +633,8 @@ function buildTransferModal() {
     const bank = transferInfo?.bankName?.trim() || "";
 
     return `
-        <div id="transferModalOverlay" class="fixed inset-0 z-50 bg-slate-950/40 p-4 backdrop-blur-[1px]">
-            <div class="mx-auto mt-8 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl">
+        <div id="transferModalOverlay" class="fixed inset-0 z-[140] overflow-y-auto bg-slate-950/40 p-4 pb-32 backdrop-blur-[1px]">
+            <div class="mx-auto my-6 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
@@ -716,6 +664,11 @@ function buildTransferModal() {
                             Alias
                         </div>
                         <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        ${aliasCopied ? `
+                            <div class="text-xs font-bold text-emerald-700">
+                                Alias copiado correctamente.
+                            </div>
+                        ` : ""}
                             <div class="break-all text-base font-semibold text-slate-900">
                                 ${escapeHtml(alias || "No configurado")}
                             </div>
@@ -931,6 +884,16 @@ function buildError() {
     `;
 }
 
+function buildMobileMenu() {
+    return buildStudentMobileMenu({
+        mobileMenuOpen,
+        activeItem: "payments",
+        studentFullName: getStudentFullName(),
+        studentEmail: getStudentEmail(),
+        isClothingEnabled: company?.isClothingEnabled === true
+    });
+}
+
 function render() {
     if (loading) return buildLoading();
     if (pageError) return buildError();
@@ -938,14 +901,7 @@ function render() {
     return `
         <div class="min-h-screen bg-slate-100">
             ${buildMobileCompanyHeader()}
-
-            ${buildStudentMobileMenu({
-                mobileMenuOpen,
-                activeItem: "payments",
-                studentName: getStudentFullName() || "Alumno",
-                studentEmail: getStudentEmail() || "",
-                activeItem: "payments"
-            })}
+            ${buildMobileMenu()}
 
             <div class="flex min-h-screen">
                 ${buildSidebar()}
@@ -1066,7 +1022,7 @@ bindStudentCarnetEvents({
 
         try {
             await navigator.clipboard.writeText(alias);
-            setUiMessage("success", "Alias copiado.");
+            aliasCopied = true;
             rerender();
         } catch {
             setUiMessage("error", "No se pudo copiar el alias.");
@@ -1132,10 +1088,15 @@ async function openTransferModal(chargeId) {
     if (!chargeId) return;
 
     clearUiMessage();
+    aliasCopied = false;
+
+    selectedTransferItem = payments.find(x =>
+        String(x.chargeId || "") === String(chargeId)
+    ) || null;
 
     if (!transferInfo) {
-    transferInfo = await loadTransferInfo();
-}
+        transferInfo = await loadTransferInfo();
+    }
 
     try {
         const ensured = await post(`/api/student/${companySlug}/charges/${chargeId}/ensure-payment`, {});
@@ -1144,10 +1105,6 @@ async function openTransferModal(chargeId) {
         if (!paymentId) {
             throw new Error("No se pudo crear o recuperar el pago.");
         }
-
-        await post(`/api/student/${companySlug}/${paymentId}/select-method`, {
-            paymentMethod: 2
-        });
 
         selectedPaymentId = paymentId;
         rerender();
@@ -1159,6 +1116,8 @@ async function openTransferModal(chargeId) {
 
 function closeTransferModal() {
     selectedPaymentId = null;
+    selectedTransferItem = null;
+    aliasCopied = false;
     uploadingProof = false;
     rerender();
 }
@@ -1221,18 +1180,24 @@ async function openProofViewer(paymentId) {
 }
 
 async function submitProof() {
+    if (isUploadingProof) return;
+
+    isUploadingProof = true;
+
     const fileInput = document.getElementById("paymentProofFileInput");
     const file = fileInput?.files?.[0];
 
     if (!selectedPaymentId) {
         setUiMessage("error", "No se encontró el pago seleccionado.");
         rerender();
+        isUploadingProof = false;
         return;
     }
 
     if (!file) {
         setUiMessage("error", "Seleccioná un archivo.");
         rerender();
+        isUploadingProof = false;
         return;
     }
 
@@ -1247,10 +1212,16 @@ async function submitProof() {
         await postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData);
 
         payments = await loadPayments(true);
+
         setUiMessage("success", "Comprobante enviado correctamente.");
+
+        isUploadingProof = false;
+
         closeTransferModal();
     } catch (err) {
         uploadingProof = false;
+        isUploadingProof = false;
+
         setUiMessage("error", err?.message || "No se pudo subir el comprobante.");
         rerender();
     }
@@ -1263,6 +1234,8 @@ async function init() {
         enableStudentSoftNavigation();
         const session = requireAuth();
         if (!session) return;
+
+        await ensureFreshAccessToken();
 
         companySlug = session.activeCompanySlug;
 

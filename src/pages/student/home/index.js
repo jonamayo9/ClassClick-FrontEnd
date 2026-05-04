@@ -49,6 +49,10 @@ let sponsorDetailModalOpen = false;
 let currentSponsorIndex = 0;
 let isRestoringSponsorPosition = false;
 
+function isCurrentHomePage() {
+    return window.location.pathname.includes("/src/pages/student/home");
+}
+
 function escapeHtml(value) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -346,6 +350,10 @@ function buildSidebar() {
                 ${navLink("Documentos", "/src/pages/student/documents/index.html")}
                 ${navLink("Perfil", "/src/pages/student/profile/index.html")}
                 ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
+                ${company?.isClothingEnabled === true
+                    ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+                    : ""
+                }
             </nav>
 
             <div class="mt-auto border-t border-slate-200 px-4 py-4">
@@ -403,7 +411,8 @@ function buildMobileMenu() {
         mobileMenuOpen,
         studentFullName: getStudentFullName(),
         studentEmail: getStudentEmail(),
-        activeItem: "home"
+        activeItem: "home",
+        isClothingEnabled: company?.isClothingEnabled === true
     });
 }
 
@@ -1534,8 +1543,11 @@ function render() {
 }
 
 function rerender() {
+    if (!isCurrentHomePage()) return;
+
     const app = document.getElementById("app");
     if (!app) return;
+
     app.innerHTML = render();
     syncBodyScrollLock();
     bindEvents();
@@ -1898,6 +1910,7 @@ window.addEventListener("pageshow", async () => {
 });
 
 async function refreshHomeDynamicData() {
+    if (!isCurrentHomePage()) return;
     if (!companySlug) return;
 
     try {

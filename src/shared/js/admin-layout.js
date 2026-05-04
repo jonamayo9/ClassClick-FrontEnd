@@ -4,6 +4,8 @@ import {
   changeActiveAdminCompany
 } from "./admin-company.js";
 
+let currentActiveKey = "";
+
 function getInitials(name) {
   if (!name) return "CC";
 
@@ -15,7 +17,13 @@ function getInitials(name) {
   return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 }
 
-function getMenu(activeKey) {
+function fillAdminMenus(activeKey, activeCompany) {
+  document.querySelectorAll("[data-admin-menu]").forEach(nav => {
+    nav.innerHTML = getMenu(activeKey, activeCompany);
+  });
+}
+
+function getMenu(activeKey, activeCompany = null) {
   const items = [
     { key: "dashboard", label: "Dashboard", href: "/src/pages/admin/dashboard/index.html", enabled: true },
     { key: "students", label: "Alumnos", href: "/src/pages/admin/students/index.html", enabled: true },
@@ -29,7 +37,12 @@ function getMenu(activeKey) {
     { key: "matches", label: "Partidos", href: "/src/pages/admin/matches/index.html", enabled: true },
     { key: "announcements", label: "Novedades", href: "/src/pages/admin/announcements/index.html", enabled: true },
     { key: "sponsors", label: "Sponsors", href: "/src/pages/admin/sponsors/index.html", enabled: true },
-    { key: "clothing", label: "Indumentaria", href: "/src/pages/admin/Clothing/index.html", enabled: false },
+    {
+      key: "clothing",
+      label: "Indumentaria",
+      href: "/src/pages/admin/Clothing/index.html",
+      enabled: !!activeCompany?.isClothingEnabled
+    },
     { key: "company-settings", label: "Mi empresa", href: "/src/pages/admin/company-settings/index.html", enabled: true },
     { key: "profile", label: "Mi perfil", href: "/src/pages/admin/profile/index.html", enabled: true }
   ];
@@ -94,6 +107,7 @@ export function renderAdminLayout({
   pageTitle,
   contentHtml
 }) {
+  currentActiveKey = activeKey || "";
   return `
     <div class="min-h-screen bg-slate-100 text-slate-900">
       <div class="flex min-h-screen">
@@ -105,7 +119,7 @@ export function renderAdminLayout({
             ${buildBrand(null)}
           </div>
 
-          <nav class="flex-1 space-y-2 px-3 py-4">
+          <nav data-admin-menu class="flex-1 space-y-2 px-3 py-4">
             ${getMenu(activeKey)}
           </nav>
         </aside>
@@ -193,7 +207,7 @@ export function renderAdminLayout({
           </button>
         </div>
 
-        <nav class="flex-1 space-y-2 overflow-y-auto px-3 py-4">
+        <nav data-admin-menu class="flex-1 space-y-2 overflow-y-auto px-3 py-4">
           ${getMenu(activeKey)}
         </nav>
       </aside>
@@ -254,6 +268,8 @@ logoutButton.addEventListener("click", async () => {
   }
 
   const { companies, activeCompany } = await resolveActiveAdminCompany();
+
+  fillAdminMenus(currentActiveKey, activeCompany);
 
   if (selector) {
     if (!companies.length) {

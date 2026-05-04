@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -22,27 +22,33 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-// API: nunca cachear ni interceptar
-if (url.pathname.startsWith("/api")) {
-  event.respondWith(fetch(event.request));
-  return;
-}
+  // =========================
+  // 🚫 API → NO INTERCEPTAR
+  // =========================
+  if (url.pathname.startsWith("/api")) {
+    return;
+  }
 
-// Azure / externos: nunca cachear ni interceptar
-if (url.origin !== self.location.origin) {
-  event.respondWith(fetch(event.request));
-  return;
-}
+  // =========================
+  // 🚫 EXTERNOS (Azure, etc)
+  // =========================
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
-  // HTML: network first
-if (event.request.mode === "navigate") {
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match("/index.html"))
-  );
-  return;
-}
+  // =========================
+  // HTML → network first
+  // =========================
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
 
-  // Imágenes locales: cache first
+  // =========================
+  // IMÁGENES LOCALES
+  // =========================
   if (event.request.destination === "image") {
     event.respondWith(
       caches.open(IMAGE_CACHE).then(async (cache) => {
@@ -61,7 +67,9 @@ if (event.request.mode === "navigate") {
     return;
   }
 
-  // JS/CSS: network first
+  // =========================
+  // JS / CSS
+  // =========================
   if (
     event.request.destination === "script" ||
     event.request.destination === "style"
@@ -73,6 +81,9 @@ if (event.request.mode === "navigate") {
   }
 });
 
+// =========================
+// PUSH
+// =========================
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -99,6 +110,9 @@ self.addEventListener("push", (event) => {
   );
 });
 
+// =========================
+// CLICK NOTIFICACIÓN
+// =========================
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 

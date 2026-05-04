@@ -74,7 +74,7 @@ function buildContent() {
                     description: "Revisá reservas, aprobá pedidos y marcá entregas.",
                     href: "/src/pages/admin/Clothing/Orders/index.html",
                     emoji: "🧾",
-                    enabled: false
+                    enabled: true
                 })}
 
                 ${buildModuleCard({
@@ -82,7 +82,7 @@ function buildContent() {
                     description: "Validá comprobantes manuales enviados por alumnos.",
                     href: "/src/pages/admin/Clothing/PaymentProofs/index.html",
                     emoji: "💳",
-                    enabled: false
+                    enabled: true
                 })}
 
                 ${buildModuleCard({
@@ -90,7 +90,7 @@ function buildContent() {
                     description: "Aprobá o rechazá solicitudes de cancelación y devoluciones.",
                     href: "/src/pages/admin/Clothing/Cancellations/index.html",
                     emoji: "↩️",
-                    enabled: false
+                    enabled: true
                 })}
 
                 ${buildModuleCard({
@@ -115,7 +115,13 @@ async function init() {
         contentHtml: buildContent()
     });
 
-    await setupAdminLayout();
+    const layout = await setupAdminLayout();
+    const company = layout.activeCompany;
+
+    if (!company?.isClothingEnabled) {
+        window.location.replace("/src/pages/admin/dashboard/index.html");
+        return;
+    }
 }
 
 init();

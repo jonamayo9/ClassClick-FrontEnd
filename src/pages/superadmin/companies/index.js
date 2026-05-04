@@ -7,6 +7,7 @@ import {
   setSuperAdminCompanyStatus,
   uploadSuperAdminCompanyLogo
 } from "../../../shared/js/superadmin-company-service.js";
+import { get, put } from "../../../shared/js/api.js";
 
 const logoutButton = document.getElementById("logoutButton");
 const newCompanyButton = document.getElementById("newCompanyButton");
@@ -47,7 +48,9 @@ const logoFileInput = document.getElementById("logoFileInput");
 const logoPreviewWrapper = document.getElementById("logoPreviewWrapper");
 const logoPreviewImage = document.getElementById("logoPreviewImage");
 const isActiveInput = document.getElementById("isActiveInput");
-
+const clothingEnabledInput = document.getElementById("clothingEnabledInput");
+const clothingManualProofInput = document.getElementById("clothingManualProofInput");
+const clothingMercadoPagoInput = document.getElementById("clothingMercadoPagoInput");
 const statusModal = document.getElementById("statusModal");
 const statusModalTitle = document.getElementById("statusModalTitle");
 const statusModalText = document.getElementById("statusModalText");
@@ -263,6 +266,31 @@ function setLogoPreview(url, isObjectUrl = false) {
   logoPreviewWrapper.classList.remove("hidden");
 }
 
+function resetClothingSettingsForm() {
+  if (clothingEnabledInput) clothingEnabledInput.checked = false;
+  if (clothingManualProofInput) clothingManualProofInput.checked = true;
+  if (clothingMercadoPagoInput) clothingMercadoPagoInput.checked = false;
+}
+
+function buildClothingSettingsPayload() {
+  return {
+    isEnabled: clothingEnabledInput?.checked === true,
+    allowsManualProof: clothingManualProofInput?.checked === true,
+    allowsMercadoPago: clothingMercadoPagoInput?.checked === true
+  };
+}
+
+async function loadClothingSettings(companyId) {
+  return await get(`/api/superadmin/companies/${companyId}/clothing/settings`);
+}
+
+async function saveClothingSettings(companyId) {
+  return await put(
+    `/api/superadmin/companies/${companyId}/clothing/settings`,
+    buildClothingSettingsPayload()
+  );
+}
+
 function resetCompanyForm() {
   companyForm.reset();
   isActiveInput.value = "true";
@@ -274,6 +302,7 @@ function resetCompanyForm() {
   }
 
   setLogoPreview("");
+  resetClothingSettingsForm();
 }
 
 function buildCompanyPayload() {
@@ -310,8 +339,12 @@ function openCreateCompanyModal() {
   companyModalMode = "create";
   selectedCompanyId = null;
   resetCompanyForm();
+
   companyModalTitle.textContent = "Nueva empresa";
   isActiveWrapper.classList.add("hidden");
+
+  resetClothingSettingsForm();
+
   setSaveCompanyLoading(false);
   companyModal.classList.remove("hidden");
 }
@@ -346,6 +379,16 @@ function openEditCompanyModal(companyId) {
     setLogoPreview(company.logoUrl);
   }
 
+  loadClothingSettings(companyId)
+  .then((settings) => {
+    if (clothingEnabledInput) clothingEnabledInput.checked = settings.isEnabled === true;
+    if (clothingManualProofInput) clothingManualProofInput.checked = settings.allowsManualProof === true;
+    if (clothingMercadoPagoInput) clothingMercadoPagoInput.checked = settings.allowsMercadoPago === true;
+  })
+  .catch(() => {
+    resetClothingSettingsForm();
+  });
+  
   setSaveCompanyLoading(false);
   companyModal.classList.remove("hidden");
 }
@@ -463,6 +506,10 @@ async function onSubmitCompanyForm(event) {
     if (selectedFile && companyResponse?.id) {
       await uploadSuperAdminCompanyLogo(companyResponse.id, selectedFile);
     }
+
+    if (companyResponse?.id) {
+  await saveClothingSettings(companyResponse.id);
+}
 
     setSaveCompanyLoading(false);
     closeCompanyModal();

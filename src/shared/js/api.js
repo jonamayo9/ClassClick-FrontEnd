@@ -9,7 +9,7 @@ import {
   clearSession
 } from "./storage.js";
 
-const LOGIN_URL = "/src/pages/auth/login.html";
+const LOGIN_URL = "index.html";
 
 let refreshPromise = null;
 
@@ -188,4 +188,13 @@ export function del(endpoint) {
 
 export function postForm(endpoint, formData) {
   return apiFetch(endpoint, { method: "POST", body: formData });
+}
+
+export async function ensureFreshAccessToken() {
+  try {
+    return await refreshAccessToken();
+  } catch {
+    redirectToLogin();
+    throw new Error("Tu sesión expiró.");
+  }
 }

@@ -77,7 +77,8 @@ export function buildStudentMobileMenu({
     studentFullName,
     studentName,
     studentEmail,
-    activeItem = "home"
+    activeItem = "home",
+    isClothingEnabled = false
 }) {
     const resolvedStudentName = studentFullName || studentName || "—";
 
@@ -151,6 +152,13 @@ export function buildStudentMobileMenu({
                     <a href="/src/pages/student/siblings/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
                         activeItem === "siblings" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
                     }">Hermanos</a>
+                    ${isClothingEnabled ? `
+                        <a href="/src/pages/student/clothing/catalog/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
+                            activeItem === "clothing" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        }">
+                            Indumentaria
+                        </a>
+                    ` : ""}
                 </nav>
 
                 <div class="mt-auto border-t border-slate-200 px-4 py-4">

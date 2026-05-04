@@ -37,5 +37,5 @@ async function init() {
 }
 
 init().catch(() => {
-  window.location.href = "/src/pages/auth/login.html";
+  window.location.href = "index.html";
 });
