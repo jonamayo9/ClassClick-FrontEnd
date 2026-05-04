@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v11-clean-soft-nav";
+const CACHE_VERSION = "v12-payments-no-cache";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -31,33 +31,30 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // =========================
-  // 🚫 API → NO INTERCEPTAR
-  // =========================
   if (url.pathname.startsWith("/api")) {
     return;
   }
 
-  // =========================
-  // 🚫 EXTERNOS (Azure, etc)
-  // =========================
   if (url.origin !== self.location.origin) {
     return;
   }
 
-  // =========================
-  // HTML → network first
-  // =========================
+  if (
+    url.pathname.includes("/src/pages/student/payments/") ||
+    url.pathname.includes("/shared/js/") ||
+    url.pathname.includes("/src/pages/student/payments/index.js")
+  ) {
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
+    return;
+  }
+
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("/index.html"))
+      fetch(event.request, { cache: "no-store" }).catch(() => caches.match("/index.html"))
     );
     return;
   }
 
-  // =========================
-  // IMÁGENES LOCALES
-  // =========================
   if (event.request.destination === "image") {
     event.respondWith(
       caches.open(IMAGE_CACHE).then(async (cache) => {
@@ -76,23 +73,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // =========================
-  // JS / CSS
-  // =========================
   if (
     event.request.destination === "script" ||
     event.request.destination === "style"
   ) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
     return;
   }
 });
 
-// =========================
-// PUSH
-// =========================
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -119,9 +108,6 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// =========================
-// CLICK NOTIFICACIÓN
-// =========================
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
