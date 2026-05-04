@@ -26,3 +26,18 @@ export function getConfig() {
 export function getApiBaseUrl() {
   return getConfig().apiBaseUrl;
 }
+
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "CLASSCLICK_FORCE_RELOAD") {
+            if (sessionStorage.getItem("sw_reloaded_v11") !== "true") {
+                sessionStorage.setItem("sw_reloaded_v11", "true");
+                window.location.reload();
+            }
+        }
+    });
+
+    navigator.serviceWorker.register("/service-worker.js").then((registration) => {
+        registration.update();
+    });
+}

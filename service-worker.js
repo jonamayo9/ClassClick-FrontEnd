@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v10-clean-soft-nav";
+const CACHE_VERSION = "v11-clean-soft-nav";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
