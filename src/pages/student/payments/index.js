@@ -1229,17 +1229,9 @@ async function submitProof() {
 
 async function init() {
     try {
-        if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister());
-    });
-
-    caches.keys().then(keys => {
-        keys.forEach(key => caches.delete(key));
-    });
-}
         clearUiMessage();
         await loadConfig();
+
         const session = requireAuth();
         if (!session) return;
 
@@ -1247,38 +1239,33 @@ async function init() {
 
         companySlug = session.activeCompanySlug;
 
-let me = getMe();
+        let me = getMe();
 
-const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
-const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
+        const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
+        const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
 
-if (!me || isSasUrlExpired(logoUrl)) {
-    me = await get("/api/admin/me");
-    setMe(me);
-}
+        if (!me || isSasUrlExpired(logoUrl)) {
+            me = await get("/api/admin/me");
+            setMe(me);
+        }
 
-company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
-if (company) {
-    setActiveCompany(companySlug, company);
-}
+        if (company) {
+            setActiveCompany(companySlug, company);
+        }
 
-if (!company) {
-    throw new Error("No se encontró la empresa activa del alumno.");
-}
+        if (!company) {
+            throw new Error("No se encontró la empresa activa del alumno.");
+        }
 
-const [profile, paymentsResult] = await Promise.all([
-    loadStudentProfile(),
-    loadPayments()
-]);
+        student = await loadStudentProfile();
 
-student = profile;
+        if (!student) {
+            throw new Error("No se pudo obtener el perfil del alumno.");
+        }
 
-if (!student) {
-    throw new Error("No se pudo obtener el perfil del alumno.");
-}
-
-payments = paymentsResult;
+        payments = await loadPayments(true);
 
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información de pagos.";
@@ -1287,5 +1274,4 @@ payments = paymentsResult;
         rerender();
     }
 }
-
 init();
