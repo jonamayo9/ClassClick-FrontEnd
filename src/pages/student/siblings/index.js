@@ -978,7 +978,6 @@ document.querySelectorAll("#logoutBtn").forEach(btn => {
 async function init() {
     try {
         await loadConfig();
-        enableStudentSoftNavigation();
         session = requireAuth();
         if (!session) return;
 

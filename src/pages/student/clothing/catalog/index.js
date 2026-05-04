@@ -1150,8 +1150,6 @@ async function loadProducts() {
 async function init() {
     try {
         await loadConfig();
-        enableStudentSoftNavigation();
-
         const session = requireAuth();
         if (!session) return;
 

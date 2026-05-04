@@ -1954,7 +1954,6 @@ async function init() {
     localStorage.setItem("cache_cleaned_v1", "true");
 }
         await loadConfig();
-        enableStudentSoftNavigation();
         const session = requireAuth();
         if (!session) return;
 

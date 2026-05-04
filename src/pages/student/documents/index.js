@@ -896,7 +896,6 @@ async function loadDocuments() {
 async function init() {
     try {
         await loadConfig();
-        enableStudentSoftNavigation();
         session = requireAuth();
         if (!session) return;
 
