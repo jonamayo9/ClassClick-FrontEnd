@@ -1229,9 +1229,17 @@ async function submitProof() {
 
 async function init() {
     try {
+        if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+    });
+
+    caches.keys().then(keys => {
+        keys.forEach(key => caches.delete(key));
+    });
+}
         clearUiMessage();
         await loadConfig();
-        enableStudentSoftNavigation();
         const session = requireAuth();
         if (!session) return;
 

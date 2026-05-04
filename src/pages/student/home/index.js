@@ -1940,6 +1940,19 @@ async function loadAnnouncements() {
 
 async function init() {
     try {
+        if (!localStorage.getItem("cache_cleaned_v1")) {
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(reg => reg.unregister());
+        });
+
+        caches.keys().then(keys => {
+            keys.forEach(key => caches.delete(key));
+        });
+    }
+
+    localStorage.setItem("cache_cleaned_v1", "true");
+}
         await loadConfig();
         enableStudentSoftNavigation();
         const session = requireAuth();

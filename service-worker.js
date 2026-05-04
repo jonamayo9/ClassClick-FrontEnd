@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v8";
+const CACHE_VERSION = "v10-clean-soft-nav";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -7,15 +7,24 @@ self.addEventListener("install", () => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => !key.includes(CACHE_VERSION))
-            .map((key) => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+
+      await self.clients.claim();
+
+      const clientsList = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true
+      });
+
+      for (const client of clientsList) {
+        client.postMessage({
+          type: "CLASSCLICK_FORCE_RELOAD",
+          version: CACHE_VERSION
+        });
+      }
+    })()
   );
 });
 
