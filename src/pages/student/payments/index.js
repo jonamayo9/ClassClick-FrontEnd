@@ -55,6 +55,17 @@ let proofViewer = {
     isPdf: false
 };
 
+const REQUEST_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, message = "La solicitud tardó demasiado. Cerrá y volvé a abrir la pantalla.") {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(message)), REQUEST_TIMEOUT_MS)
+        )
+    ]);
+}
+
 function escapeHtml(value) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -1073,7 +1084,11 @@ async function loadPayments(force = false) {
         return cached;
     }
 
-    const result = await get(`/api/student/${companySlug}/billing`);
+    const result = await withTimeout(
+        get(`/api/student/${companySlug}/billing?_=${Date.now()}`),
+        "No se pudieron cargar los pagos. Probá refrescar la pantalla."
+    );
+
     const data = Array.isArray(result) ? result : [];
 
     setPayments(companySlug, data);
@@ -1081,7 +1096,10 @@ async function loadPayments(force = false) {
 }
 
 async function loadTransferInfo() {
-    return await get(`/api/student/${companySlug}/payment-transfer-info`);
+    return await withTimeout(
+        get(`/api/student/${companySlug}/payment-transfer-info?_=${Date.now()}`),
+        "No se pudo cargar la información de transferencia."
+    );
 }
 
 async function openTransferModal(chargeId) {
@@ -1094,14 +1112,22 @@ async function openTransferModal(chargeId) {
         String(x.chargeId || "") === String(chargeId)
     ) || null;
 
-    if (!transferInfo) {
-        transferInfo = await loadTransferInfo();
-    }
+    selectedPaymentId = String(chargeId);
+    rerender();
 
     try {
-        const ensured = await post(`/api/student/${companySlug}/charges/${chargeId}/ensure-payment`, {});
+        if (!transferInfo) {
+            transferInfo = await loadTransferInfo();
+            rerender();
+        }
+
+        const ensured = await withTimeout(
+            post(`/api/student/${companySlug}/charges/${chargeId}/ensure-payment`, {}),
+            "No se pudo iniciar el pago. Probá nuevamente."
+        );
 
         const paymentId = ensured?.paymentId;
+
         if (!paymentId) {
             throw new Error("No se pudo crear o recuperar el pago.");
         }
@@ -1109,6 +1135,7 @@ async function openTransferModal(chargeId) {
         selectedPaymentId = paymentId;
         rerender();
     } catch (error) {
+        closeTransferModal();
         setUiMessage("error", error?.message || "No se pudo iniciar el pago.");
         rerender();
     }
@@ -1209,7 +1236,10 @@ async function submitProof() {
         const formData = new FormData();
         formData.append("file", file);
 
-        await postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData);
+        await withTimeout(
+    postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData),
+    "La subida tardó demasiado. Probá nuevamente."
+);
 
         payments = await loadPayments(true);
 
