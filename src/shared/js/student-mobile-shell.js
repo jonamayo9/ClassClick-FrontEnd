@@ -353,58 +353,59 @@ export function syncStudentMobileShellScrollLock({ mobileMenuOpen, extraLocked =
 }
 
 export function enableStudentSoftNavigation() {
-    if (window.__studentSoftNavigationEnabled) return;
-    window.__studentSoftNavigationEnabled = true;
+    // if (window.__studentSoftNavigationEnabled) return;
+    // window.__studentSoftNavigationEnabled = true;
 
-    document.addEventListener("click", async (e) => {
-        const link = e.target.closest("a[href]");
-        if (!link) return;
+    // document.addEventListener("click", async (e) => {
+    //     const link = e.target.closest("a[href]");
+    //     if (!link) return;
 
-        const url = link.getAttribute("href");
+    //     const url = link.getAttribute("href");
 
-        if (!url || !url.startsWith("/src/pages/student")) return;
-        if (url.includes("javascript:void")) return;
+    //     if (!url || !url.startsWith("/src/pages/student")) return;
+    //     if (url.includes("javascript:void")) return;
 
-        e.preventDefault();
+    //     e.preventDefault();
 
-        try {
-            document.body.classList.remove("overflow-hidden");
-            document.documentElement.classList.remove("overflow-hidden");
+    //     try {
+    //         document.body.classList.remove("overflow-hidden");
+    //         document.documentElement.classList.remove("overflow-hidden");
 
-            const response = await fetch(url, { cache: "no-store" });
-            const html = await response.text();
+    //         const response = await fetch(url, { cache: "no-store" });
+    //         const html = await response.text();
 
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
+    //         const parser = new DOMParser();
+    //         const doc = parser.parseFromString(html, "text/html");
 
-            const currentApp = document.querySelector("#app");
-            const script = doc.querySelector("script[type='module']");
+    //         const currentApp = document.querySelector("#app");
+    //         const script = doc.querySelector("script[type='module']");
 
-            if (!currentApp || !script?.src) {
-                window.location.href = url;
-                return;
-            }
+    //         if (!currentApp || !script?.src) {
+    //             window.location.href = url;
+    //             return;
+    //         }
 
-            currentApp.innerHTML = `
-                <div class="min-h-screen bg-slate-100">
-                    <div class="px-4 py-6">
-                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando...</div>
-                        </div>
-                    </div>
-                </div>
-            `;
+    //         currentApp.innerHTML = `
+    //             <div class="min-h-screen bg-slate-100">
+    //                 <div class="px-4 py-6">
+    //                     <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+    //                         <div class="text-sm text-slate-500">Cargando...</div>
+    //                     </div>
+    //                 </div>
+    //             </div>
+    //         `;
 
-            window.history.pushState({}, "", url);
+    //         window.history.pushState({}, "", url);
 
-            const newScript = document.createElement("script");
-            newScript.type = "module";
-            newScript.src = `${script.src}?soft=${Date.now()}`;
+    //         const newScript = document.createElement("script");
+    //         newScript.type = "module";
+    //         newScript.src = `${script.src}?soft=${Date.now()}`;
 
-            document.body.appendChild(newScript);
-        } catch (error) {
-            console.error("Soft navigation failed:", error);
-            window.location.href = url;
-        }
-    });
+    //         document.body.appendChild(newScript);
+    //     } catch (error) {
+    //         console.error("Soft navigation failed:", error);
+    //         window.location.href = url;
+    //     }
+    // });
+    return;
 }
