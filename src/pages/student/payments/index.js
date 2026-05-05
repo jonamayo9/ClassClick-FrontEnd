@@ -43,6 +43,7 @@ let uiMessage = {
 };
 let carnetOpen = false;
 let isUploadingProof = false;
+let selectedProofFile = null;
 
 let proofViewer = {
     open: false,
@@ -55,7 +56,7 @@ let proofViewer = {
     isPdf: false
 };
 
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = 45000;
 
 function withTimeout(promise, message = "La solicitud tardó demasiado. Cerrá y volvé a abrir la pantalla.") {
     return Promise.race([
@@ -1045,6 +1046,10 @@ bindStudentCarnetEvents({
         logoutAndRedirect();
     });
 
+    document.getElementById("paymentProofFileInput")?.addEventListener("change", (e) => {
+    selectedProofFile = e.target.files?.[0] || null;
+});
+
     document.getElementById("submitProofBtn")?.addEventListener("click", submitProof);
 
     document.getElementById("closeProofViewerBtn")?.addEventListener("click", closeProofViewer);
@@ -1153,6 +1158,7 @@ function closeTransferModal() {
     aliasCopied = false;
     uploadingProof = false;
     isUploadingProof = false;
+    selectedProofFile = null;
     rerender();
 }
 
@@ -1216,27 +1222,46 @@ async function openProofViewer(paymentId) {
 async function submitProof() {
     if (isUploadingProof) return;
 
-    isUploadingProof = true;
-
     const fileInput = document.getElementById("paymentProofFileInput");
-    const file = fileInput?.files?.[0];
+    const file = selectedProofFile || fileInput?.files?.[0];
 
     if (!selectedPaymentId) {
         setUiMessage("error", "No se encontró el pago seleccionado.");
         rerender();
-        isUploadingProof = false;
         return;
     }
 
     if (!file) {
         setUiMessage("error", "Seleccioná un archivo.");
         rerender();
-        isUploadingProof = false;
         return;
     }
 
-    clearUiMessage();
+    const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "application/pdf"
+    ];
+
+    const maxSizeMb = 5;
+    const maxSizeBytes = maxSizeMb * 1024 * 1024;
+
+    if (!allowedTypes.includes(file.type)) {
+        setUiMessage("error", "El comprobante debe ser una imagen JPG, PNG, WEBP o un PDF.");
+        rerender();
+        return;
+    }
+
+    if (file.size > maxSizeBytes) {
+        setUiMessage("error", `El comprobante no puede superar los ${maxSizeMb}MB.`);
+        rerender();
+        return;
+    }
+
+    isUploadingProof = true;
     uploadingProof = true;
+    clearUiMessage();
     rerender();
 
     try {
@@ -1244,17 +1269,21 @@ async function submitProof() {
         formData.append("file", file);
 
         await withTimeout(
-    postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData),
-    "La subida tardó demasiado. Probá nuevamente."
-);
+            postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData),
+            "La subida tardó demasiado. Probá nuevamente."
+        );
 
         payments = await loadPayments(true);
 
-        setUiMessage("success", "Comprobante enviado correctamente.");
-
+        selectedProofFile = null;
+        selectedPaymentId = null;
+        selectedTransferItem = null;
+        aliasCopied = false;
+        uploadingProof = false;
         isUploadingProof = false;
 
-        closeTransferModal();
+        setUiMessage("success", "Comprobante enviado correctamente.");
+        rerender();
     } catch (err) {
         uploadingProof = false;
         isUploadingProof = false;

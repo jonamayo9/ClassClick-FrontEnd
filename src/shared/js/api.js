@@ -9,12 +9,17 @@ import {
   clearSession
 } from "./storage.js";
 
-const LOGIN_URL = "index.html";
+const LOGIN_URL = "/src/pages/auth/login/login.html";
 
 let refreshPromise = null;
 
 function redirectToLogin() {
   clearSession();
+
+  if (window.location.pathname.includes("/src/pages/student/payments/")) {
+    throw new Error("Tu sesión expiró. Cerrá sesión e ingresá nuevamente.");
+  }
+
   window.location.replace(LOGIN_URL);
 }
 

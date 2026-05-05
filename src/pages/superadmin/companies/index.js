@@ -51,6 +51,7 @@ const isActiveInput = document.getElementById("isActiveInput");
 const clothingEnabledInput = document.getElementById("clothingEnabledInput");
 const clothingManualProofInput = document.getElementById("clothingManualProofInput");
 const clothingMercadoPagoInput = document.getElementById("clothingMercadoPagoInput");
+const matchOrganizationEnabledInput = document.getElementById("matchOrganizationEnabledInput");
 const statusModal = document.getElementById("statusModal");
 const statusModalTitle = document.getElementById("statusModalTitle");
 const statusModalText = document.getElementById("statusModalText");
@@ -303,6 +304,9 @@ function resetCompanyForm() {
 
   setLogoPreview("");
   resetClothingSettingsForm();
+  if (matchOrganizationEnabledInput) {
+  matchOrganizationEnabledInput.checked = false;
+}
 }
 
 function buildCompanyPayload() {
@@ -319,7 +323,8 @@ function buildCompanyPayload() {
     stateOrProvince: stateOrProvinceInput.value.trim(),
     postalCode: postalCodeInput.value.trim(),
     country: countryInput.value.trim(),
-    isActive: isActiveInput.value === "true"
+    isActive: isActiveInput.value === "true",
+    isMatchOrganizationEnabled: matchOrganizationEnabledInput?.checked === true
   };
 }
 
@@ -374,6 +379,9 @@ function openEditCompanyModal(companyId) {
   countryInput.value = company.country ?? "";
   isActiveInput.value = company.isActive ? "true" : "false";
   slugInput.dataset.touched = "true";
+  if (matchOrganizationEnabledInput) {
+  matchOrganizationEnabledInput.checked = company.isMatchOrganizationEnabled === true;
+}
 
   if (company.logoUrl) {
     setLogoPreview(company.logoUrl);

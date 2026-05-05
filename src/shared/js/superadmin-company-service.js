@@ -18,7 +18,8 @@ function mapCompanyPayload(company) {
     logoUrl: company.logoUrl ?? "",
     isActive: !!company.isActive,
     createdAtUtc: company.createdAtUtc ?? null,
-    adminsCount: company.adminsCount ?? 0
+    adminsCount: company.adminsCount ?? 0,
+    isMatchOrganizationEnabled: company.isMatchOrganizationEnabled === true,
   };
 }
 

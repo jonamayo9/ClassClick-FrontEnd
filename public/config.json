@@ -1,5 +1,5 @@
 {
-  "apiBaseUrl": "https://localhost:7117",
+  "apiBaseUrl": "https://classclick-backend.onrender.com",
   "storageKeys": {
     "token": "classclick_token",
     "refreshToken": "classclick_refresh_token",

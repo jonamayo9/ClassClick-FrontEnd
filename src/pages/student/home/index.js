@@ -25,6 +25,8 @@ import {
     getMatches,
     setMatches
 } from "../../../shared/js/storage.js";
+
+
 let isRefreshingOpponentLogos = false;
 let companySlug = null;
 let company = null;
@@ -48,6 +50,24 @@ let selectedSponsor = null;
 let sponsorDetailModalOpen = false;
 let currentSponsorIndex = 0;
 let isRestoringSponsorPosition = false;
+let selectedMatchLineup = null;
+
+function getShortPosition(label) {
+    if (!label) return "";
+
+    const map = {
+        "Arquero": "ARQ",
+        "Defensor": "DF",
+        "Central": "DF",
+        "Lateral": "LAT",
+        "Mediocampo": "MC",
+        "Volante": "MC",
+        "Delantero": "DEL",
+        "Atacante": "AC"
+    };
+
+    return map[label] || label.substring(0, 2).toUpperCase();
+}
 
 function isCurrentHomePage() {
     return window.location.pathname.includes("/src/pages/student/home");
@@ -128,6 +148,19 @@ function getInitials(text) {
 
     if (!parts.length) return "";
     return parts.map(x => x.charAt(0).toUpperCase()).join("");
+}
+
+function getShortPlayerName(fullName) {
+    const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "";
+
+    if (parts.length === 1) return parts[0];
+
+    return `${parts[0].charAt(0).toUpperCase()}. ${parts.slice(1).join(" ")}`;
+}
+
+function getStarterPlayers(data) {
+    return (data.players || []).filter(p => p.xPercent !== null && p.yPercent !== null);
 }
 
 function buildBottomNavIcon(type, extraClass = "") {
@@ -736,6 +769,7 @@ function buildMatchDetailModal() {
                                     : ""
                             }
                         </div>
+                        ${buildMatchLineupBox()}
 
                         ${
                             selectedMatch.hasTicketSale
@@ -822,6 +856,250 @@ function buildMatchDetailModal() {
     `;
 }
 
+function buildMatchLineupBox() {
+    if (company?.isMatchOrganizationEnabled !== true) return "";
+    if (!selectedMatchLineup?.hasLineup) return "";
+
+    const data = selectedMatchLineup;
+
+    return `
+        <div id="matchLineupBox" class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div class="text-xs font-semibold uppercase text-slate-400">
+                Organización del partido
+            </div>
+
+            <div class="mt-2 text-sm font-semibold text-slate-800">
+                ${
+                    data.isStarter
+                        ? `Titular ${data.positionLabel ? "· " + data.positionLabel : ""}`
+                        : "Suplente"
+                }
+            </div>
+
+            <button
+                id="openLineupBtn"
+                type="button"
+                class="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-sm text-white"
+            >
+                Ver formación
+            </button>
+        </div>
+    `;
+}
+
+async function loadMatchLineup(matchId) {
+    try {
+        const data = await get(`/api/student/${companySlug}/matches/${matchId}/lineup`);
+
+        selectedMatchLineup = data?.hasLineup ? data : null;
+
+        rerender();
+
+    } catch {
+        selectedMatchLineup = null;
+    }
+}
+
+function openLineupModal(data) {
+    const modal = document.createElement("div");
+
+    modal.className = "fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-4";
+
+    modal.innerHTML = `
+        <div class="lineup-modal-in max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl">
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-900">
+                    Formación ${data.formationName ? `· ${escapeHtml(data.formationName)}` : ""}
+                </h2>
+                <button id="closeLineupModal" class="rounded-xl border px-3 py-1 text-sm text-slate-600">
+                    Cerrar
+                </button>
+            </div>
+
+            <div class="relative h-[540px] sm:h-[600px] overflow-hidden rounded-[24px] border-4 border-emerald-900 bg-emerald-700">
+<div class="absolute inset-4 rounded-[20px] border-2 border-white/70"></div>
+
+<div class="absolute left-4 right-4 top-1/2 border-t-2 border-white/60"></div>
+
+<div class="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60"></div>
+
+<div class="absolute left-1/2 top-4 h-20 w-32 -translate-x-1/2 rounded-b-2xl border-x-2 border-b-2 border-white/70"></div>
+
+<div class="absolute left-1/2 bottom-4 h-20 w-32 -translate-x-1/2 rounded-t-2xl border-x-2 border-t-2 border-white/70"></div>
+
+                ${data.players
+                    .filter(p => p.xPercent !== null && p.yPercent !== null)
+                    .map((p, index) => {
+                    const isMe = String(p.studentId) === String(student?.id || student?.studentId || student?.userId);
+
+                    return `
+                    <div
+                        class="lineup-player-in absolute -translate-x-1/2 -translate-y-1/2 text-center"
+                        style="left:${Number(p.xPercent)}%; top:${Number(p.yPercent)}%; animation-delay:${index * 90}ms;"
+                    >
+<div class="relative flex flex-col items-center">
+<div class="absolute -bottom-1 right-0 z-10 rounded-full bg-black/80 px-1.5 py-[2px] text-[9px] font-bold text-white">
+    ${escapeHtml(getShortPosition(p.positionLabel))}
+</div>
+    ${p.isCaptain
+        ? `<div class="absolute -left-1 -top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-slate-950 shadow">C</div>`
+        : ""
+    }
+
+    ${p.profileImageUrl
+        ? `<img src="${escapeHtml(p.profileImageUrl)}" class="h-9 w-9 rounded-full border-2 ${isMe ? "border-yellow-300 ring-2 ring-yellow-300/70 shadow-[0_0_10px_rgba(253,224,71,0.7)]" : "border-white"} object-cover shadow" />`
+        : `<div class="flex h-9 w-9 items-center justify-center rounded-full border-2 ${isMe ? "border-yellow-300 ring-2 ring-yellow-300/70 shadow-[0_0_10px_rgba(253,224,71,0.7)]" : "border-white bg-slate-900"} text-[10px] font-bold text-white shadow">
+            ${escapeHtml(getInitials(p.fullName))}
+        </div>`
+    }
+</div>
+
+<div class="mt-1 max-w-[82px] rounded-lg bg-white px-1.5 py-0.5 text-[9px] font-bold leading-tight text-slate-900 shadow">
+    ${escapeHtml(getShortPlayerName(p.fullName))}
+</div>
+
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+
+            ${buildStartersPreview(data)}
+${buildSubstitutesPreview(data)}
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    document.getElementById("closeLineupModal")?.addEventListener("click", () => {
+        modal.remove();
+    });
+
+    modal.addEventListener("click", event => {
+        if (event.target === modal) {
+            modal.remove();
+        }
+    });
+
+    document.getElementById("toggleSubsBtn")?.addEventListener("click", () => {
+    const list = document.getElementById("extraSubsList");
+    const btn = document.getElementById("toggleSubsBtn");
+
+    const isHidden = list.classList.contains("hidden");
+
+    list.classList.toggle("hidden", !isHidden);
+    btn.textContent = isHidden ? "Ver menos" : "Ver todos";
+});
+
+document.getElementById("toggleStartersBtn")?.addEventListener("click", () => {
+    const list = document.getElementById("extraStartersList");
+    const btn = document.getElementById("toggleStartersBtn");
+
+    const isHidden = list.classList.contains("hidden");
+
+    list.classList.toggle("hidden", !isHidden);
+    btn.textContent = isHidden ? "Ver menos" : "Ver todos";
+});
+}
+
+function buildStartersPreview(data) {
+    const starters = getStarterPlayers(data);
+
+    if (!starters.length) return "";
+
+    return `
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-bold text-slate-900">
+                    Titulares (${starters.length})
+                </div>
+
+                <button id="toggleStartersBtn" type="button" class="text-xs font-bold text-slate-700">
+                    Ver todos
+                </button>
+            </div>
+
+            <div id="extraStartersList" class="mt-3 hidden max-h-64 space-y-2 overflow-y-auto pr-1">
+                ${starters.map(p => `
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
+${p.profileImageUrl
+    ? `<img src="${escapeHtml(p.profileImageUrl)}" class="h-8 w-8 rounded-full object-cover border border-slate-200" />`
+    : `<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+        ${escapeHtml(getInitials(p.fullName))}
+    </div>`
+}
+
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-sm font-bold text-slate-900">
+                                ${escapeHtml(p.fullName)}
+                            </div>
+                            <div class="truncate text-xs text-slate-500">
+                                ${escapeHtml(p.positionLabel || "Titular")}
+                            </div>
+                        </div>
+
+                        ${p.isCaptain
+                            ? `<span class="ml-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-slate-900">C</span>`
+                            : ""
+                        }
+                    </div>
+                `).join("")}
+            </div>
+        </div>
+    `;
+}
+
+function buildSubstitutesPreview(data) {
+    const substitutes = data.players.filter(p => p.xPercent === null || p.yPercent === null);
+
+    if (!substitutes.length) {
+        return `
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-400">
+                Sin suplentes
+            </div>
+        `;
+    }
+
+    return `
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-bold text-slate-900">
+                    Suplentes (${substitutes.length})
+                </div>
+
+                <button id="toggleSubsBtn" type="button" class="text-xs font-bold text-slate-700">
+                    Ver todos
+                </button>
+            </div>
+
+            <div id="extraSubsList" class="mt-3 hidden max-h-64 space-y-2 overflow-y-auto pr-1">
+                ${substitutes.map(p => substituteRowHtml(p)).join("")}
+            </div>
+        </div>
+    `;
+}
+
+function substituteRowHtml(player) {
+    return `
+        <div class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
+            ${player.profileImageUrl
+                ? `<img src="${escapeHtml(player.profileImageUrl)}" class="h-8 w-8 rounded-full object-cover" />`
+                : `<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+                    ${escapeHtml(getInitials(player.fullName))}
+                   </div>`
+            }
+
+            <div class="text-sm font-semibold text-slate-800">
+                ${escapeHtml(player.fullName)}
+            </div>
+
+            ${player.isCaptain
+                ? `<span class="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">C</span>`
+                : ""
+            }
+        </div>
+    `;
+}
+
 function buildMatchesModal() {
     if (!matchesModalOpen) return "";
 
@@ -837,9 +1115,6 @@ function buildMatchesModal() {
                             <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                                 Partidos
                             </div>
-                            <h3 class="mt-1 text-xl font-bold text-slate-900">
-                                Historial y próximos partidos
-                            </h3>
                         </div>
 
                         <button
@@ -1619,6 +1894,12 @@ bindStudentMobileShellEvents({
         }
     });
 
+    document.getElementById("openLineupBtn")?.addEventListener("click", () => {
+    if (selectedMatchLineup) {
+        openLineupModal(selectedMatchLineup);
+    }
+});
+
     document.getElementById("openMatchesModalBtn")?.addEventListener("click", () => {
         matchesModalOpen = true;
         rerender();
@@ -1808,16 +2089,19 @@ document.getElementById("announcementDetailOverlay")?.addEventListener("click", 
             const found = matches.find(x => String(x.id) === String(matchId));
             if (!found) return;
 
-            selectedMatch = found;
-            matchDetailModalOpen = true;
-            rerender();
+selectedMatch = found;
+matchDetailModalOpen = true;
+rerender();
+
+loadMatchLineup(found.id);
         });
     });
 
     document.getElementById("closeMatchDetailBtn")?.addEventListener("click", () => {
-        matchDetailModalOpen = false;
-        selectedMatch = null;
-        rerender();
+matchDetailModalOpen = false;
+selectedMatch = null;
+selectedMatchLineup = null;
+rerender();
     });
 
     initPwaInstall({
@@ -1825,16 +2109,18 @@ document.getElementById("announcementDetailOverlay")?.addEventListener("click", 
 });
 
     document.getElementById("closeMatchDetailSecondaryBtn")?.addEventListener("click", () => {
-        matchDetailModalOpen = false;
-        selectedMatch = null;
-        rerender();
+matchDetailModalOpen = false;
+selectedMatch = null;
+selectedMatchLineup = null;
+rerender();
     });
 
     document.getElementById("matchDetailOverlay")?.addEventListener("click", (event) => {
         if (event.target.id === "matchDetailOverlay") {
-            matchDetailModalOpen = false;
-            selectedMatch = null;
-            rerender();
+matchDetailModalOpen = false;
+selectedMatch = null;
+selectedMatchLineup = null;
+rerender();
         }
     });
 
@@ -1899,15 +2185,15 @@ function hasExpiredMatchLogo(matchesList) {
 }
 
 
-document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState === "visible") {
-        await refreshHomeDynamicData();
-    }
-});
+// document.addEventListener("visibilitychange", async () => {
+//     if (document.visibilityState === "visible") {
+//         await refreshHomeDynamicData();
+//     }
+// });
 
-window.addEventListener("pageshow", async () => {
-    await refreshHomeDynamicData();
-});
+// window.addEventListener("pageshow", async () => {
+//     await refreshHomeDynamicData();
+// });
 
 async function refreshHomeDynamicData() {
     if (!isCurrentHomePage()) return;
@@ -1938,6 +2224,47 @@ async function loadAnnouncements() {
     announcements = Array.isArray(result) ? result : [];
 }
 
+function injectLineupAnimationsCss() {
+    if (document.getElementById("lineupAnimationsCss")) return;
+
+    const style = document.createElement("style");
+    style.id = "lineupAnimationsCss";
+    style.textContent = `
+        @keyframes lineupModalIn {
+            from {
+                opacity: 0;
+                transform: scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes lineupPlayerIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -35%) scale(0.72);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .lineup-modal-in {
+            animation: lineupModalIn 260ms ease-out forwards;
+        }
+
+        .lineup-player-in {
+            opacity: 0;
+            animation: lineupPlayerIn 420ms ease-out forwards;
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
 async function init() {
     try {
         if (!localStorage.getItem("cache_cleaned_v1")) {
@@ -1954,6 +2281,7 @@ async function init() {
     localStorage.setItem("cache_cleaned_v1", "true");
 }
         await loadConfig();
+        injectLineupAnimationsCss();
         const session = requireAuth();
         if (!session) return;
 

@@ -10,6 +10,9 @@ let fieldFormats = [];
 let formations = [];
 let students = [];
 let lineup = null;
+let matchDetail = null;
+let isEditingLineup = true;
+let hasSavedLineup = false;
 
 let selectedFieldFormatId = "";
 let selectedFormationId = "";
@@ -17,6 +20,15 @@ let selectedPosition = null;
 
 function qs(id) {
     return document.getElementById(id);
+}
+
+function formatDateTime(value) {
+    if (!value) return "-";
+
+    return new Intl.DateTimeFormat("es-AR", {
+        dateStyle: "short",
+        timeStyle: "short"
+    }).format(new Date(value));
 }
 
 function escapeHtml(value) {
@@ -31,6 +43,7 @@ function escapeHtml(value) {
 function buildContent() {
     return `
         <section class="space-y-5">
+        <div id="lineupMessage" class="hidden rounded-xl px-4 py-3 text-sm"></div>
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 class="text-xl font-semibold">Organización del partido</h1>
@@ -46,6 +59,20 @@ function buildContent() {
                     >
                         Volver
                     </a>
+
+                    <button
+                        id="editLineupBtn"
+                        class="hidden rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
+                    >
+                        Editar formación
+                    </button>
+
+                    <button
+                        id="resetPositionsBtn"
+                        class="hidden rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-700"
+                    >
+                        Restablecer formación
+                    </button>
 
                     <button
                         id="saveLineupBtn"
@@ -89,6 +116,7 @@ function buildContent() {
                 </aside>
 
                 <main class="rounded-2xl border bg-white p-3 md:p-4">
+                    <div id="matchInfoBox" class="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3"></div>
                     <div id="fieldCanvasWrap"></div>
                 </main>
 
@@ -105,8 +133,106 @@ function buildContent() {
     `;
 }
 
+function renderMatchInfo() {
+    const box = qs("matchInfoBox");
+    if (!box) return;
+
+    if (!matchDetail) {
+        box.innerHTML = `
+            <div class="text-sm text-slate-400">Cargando partido...</div>
+        `;
+        return;
+    }
+
+    box.innerHTML = `
+        <div class="flex items-center justify-between gap-3">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Partido
+                </div>
+                <div class="text-base font-bold text-slate-900">
+                    ${escapeHtml(matchDetail.opponentName || "Partido")}
+                </div>
+                <div class="mt-1 text-xs text-slate-500">
+                    ${formatDateTime(matchDetail.matchDateUtc)}
+                    ${matchDetail.locationName ? ` · ${escapeHtml(matchDetail.locationName)}` : ""}
+                </div>
+            </div>
+
+            ${hasSavedLineup && !isEditingLineup
+                ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    Formación guardada
+                   </span>`
+                : `<span class="rounded-full bg-yellow-50 px-3 py-1 text-xs font-semibold text-yellow-700">
+                    Edición activa
+                   </span>`
+            }
+        </div>
+    `;
+}
+
+function updateEditModeUi() {
+    qs("fieldFormatSelect").disabled = !isEditingLineup;
+    qs("formationSelect").disabled = !isEditingLineup;
+    qs("studentSearchInput").disabled = !isEditingLineup;
+
+    qs("saveLineupBtn").classList.toggle("hidden", !isEditingLineup);
+    qs("editLineupBtn").classList.toggle("hidden", isEditingLineup);
+    qs("resetPositionsBtn").classList.toggle("hidden", !isEditingLineup);
+    renderMatchInfo();
+}
+
+function resetManualPositions() {
+    if (!isEditingLineup) return;
+
+    const formation = getCurrentFormation();
+    if (!formation) return;
+
+    lineup.starters = (lineup.starters || []).map(player => {
+        const originalPosition = (formation.positions || []).find(pos =>
+            pos.positionKey === player.positionKey
+        );
+
+        return {
+            ...player,
+            xPercent: originalPosition?.xPercent ?? player.xPercent,
+            yPercent: originalPosition?.yPercent ?? player.yPercent,
+            isManualPosition: false
+        };
+    });
+
+    renderAll();
+    setLineupMessage("info", "Posiciones restablecidas.");
+}
+
 function getCurrentFormation() {
     return formations.find(x => String(x.id) === String(selectedFormationId)) || null;
+}
+
+function setLineupMessage(type, text) {
+    const el = qs("lineupMessage");
+    if (!el) return;
+
+    el.className = "rounded-xl px-4 py-3 text-sm";
+
+    if (type === "error") {
+        el.classList.add("bg-rose-50", "text-rose-700", "border", "border-rose-200");
+    }
+
+    if (type === "success") {
+        el.classList.add("bg-emerald-50", "text-emerald-700", "border", "border-emerald-200");
+    }
+
+    if (type === "info") {
+        el.classList.add("bg-slate-100", "text-slate-700");
+    }
+
+    el.textContent = text;
+    el.classList.remove("hidden");
+
+    setTimeout(() => {
+        el.classList.add("hidden");
+    }, 3500);
 }
 
 function getAssignedStudentIds() {
@@ -137,6 +263,16 @@ function renderSelectors() {
 }
 
 function renderStudents() {
+
+    if (!isEditingLineup) {
+    qs("studentsList").innerHTML = `
+        <div class="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400">
+            Formación bloqueada. Tocá "Editar formación" para modificar.
+        </div>
+    `;
+    return;
+}
+
     const assignedIds = getAssignedStudentIds();
     const container = qs("studentsList");
 
@@ -200,7 +336,7 @@ function renderField() {
     const positions = formation.positions || [];
 
     qs("fieldCanvasWrap").innerHTML = `
-        <div class="relative mx-auto h-[680px] max-w-[460px] overflow-hidden rounded-[28px] border-4 border-emerald-900 bg-emerald-700 shadow-inner">
+        <div id="fieldCanvas" class="relative mx-auto h-[680px] max-w-[460px] overflow-hidden rounded-[28px] border-4 border-emerald-900 bg-emerald-700 shadow-inner">
             <div class="absolute inset-4 rounded-[24px] border-2 border-white/80"></div>
             <div class="absolute left-4 right-4 top-1/2 border-t-2 border-white/70"></div>
             <div class="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/70"></div>
@@ -212,9 +348,9 @@ function renderField() {
         </div>
     `;
 
-    qs("fieldCanvasWrap").querySelectorAll(".positionSlot").forEach(btn => {
-        btn.addEventListener("click", () => selectPosition(btn.dataset.key));
-    });
+qs("fieldCanvasWrap").querySelectorAll(".positionSlot").forEach(slot => {
+    slot.addEventListener("click", () => selectPosition(slot.dataset.key));
+});
 
     qs("fieldCanvasWrap").querySelectorAll(".removeStarterBtn").forEach(btn => {
         btn.addEventListener("click", event => {
@@ -222,21 +358,105 @@ function renderField() {
             removeStarter(btn.dataset.id);
         });
     });
+
+    qs("fieldCanvasWrap").querySelectorAll(".captainBtn").forEach(btn => {
+    btn.addEventListener("click", event => {
+        event.stopPropagation();
+        setCaptain(btn.dataset.id);
+    });
+});
+bindPlayerDragEvents();
+}
+
+function bindPlayerDragEvents() {
+    if (!isEditingLineup) return;
+
+    const field = qs("fieldCanvas");
+    if (!field) return;
+
+    qs("fieldCanvasWrap").querySelectorAll(".positionSlot").forEach(slot => {
+        const studentId = slot.dataset.studentId;
+        if (!studentId) return;
+
+        slot.addEventListener("pointerdown", event => {
+            if (event.target.closest("button")) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            slot.setPointerCapture(event.pointerId);
+
+            slot.classList.add("z-50", "scale-105");
+
+            const onMove = moveEvent => {
+                const rect = field.getBoundingClientRect();
+
+                let x = ((moveEvent.clientX - rect.left) / rect.width) * 100;
+                let y = ((moveEvent.clientY - rect.top) / rect.height) * 100;
+
+                x = Math.max(8, Math.min(92, x));
+                y = Math.max(6, Math.min(94, y));
+
+                slot.style.left = `${x}%`;
+                slot.style.top = `${y}%`;
+
+                const player = (lineup.starters || []).find(p =>
+                    String(p.studentId) === String(studentId)
+                );
+
+                if (player) {
+                    player.xPercent = Number(x.toFixed(2));
+                    player.yPercent = Number(y.toFixed(2));
+                    player.isManualPosition = true;
+                }
+            };
+
+            const onUp = () => {
+                slot.classList.remove("z-50", "scale-105");
+                slot.removeEventListener("pointermove", onMove);
+                slot.removeEventListener("pointerup", onUp);
+                slot.removeEventListener("pointercancel", onUp);
+            };
+
+            slot.addEventListener("pointermove", onMove);
+            slot.addEventListener("pointerup", onUp);
+            slot.addEventListener("pointercancel", onUp);
+        });
+    });
+}
+
+function setCaptain(studentId) {
+    if (!isEditingLineup) return;
+
+    lineup.starters = (lineup.starters || []).map(x => ({
+        ...x,
+        isCaptain: String(x.studentId) === String(studentId)
+    }));
+
+    lineup.substitutes = (lineup.substitutes || []).map(x => ({
+        ...x,
+        isCaptain: false
+    }));
+
+    renderAll();
 }
 
 function positionHtml(pos) {
     const starter = (lineup?.starters || []).find(x => x.positionKey === pos.positionKey);
     const isSelected = selectedPosition?.positionKey === pos.positionKey;
 
+    const x = starter?.xPercent ?? pos.xPercent;
+    const y = starter?.yPercent ?? pos.yPercent;
+
     return `
-        <button
-            type="button"
+        <div
             data-key="${escapeHtml(pos.positionKey)}"
-            class="positionSlot absolute -translate-x-1/2 -translate-y-1/2 text-center"
-            style="left:${Number(pos.xPercent)}%; top:${Number(pos.yPercent)}%;"
+            data-student-id="${starter ? starter.studentId : ""}"
+            class="positionSlot absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-none text-center"
+            style="left:${Number(x)}%; top:${Number(y)}%;"
         >
             ${starter ? starterBubbleHtml(starter) : emptyPositionHtml(pos, isSelected)}
-        </button>
+        </div>
     `;
 }
 
@@ -245,14 +465,35 @@ function starterBubbleHtml(starter) {
 
     return `
         <div class="relative flex w-[92px] flex-col items-center">
-            <button
-                type="button"
-                data-id="${starter.studentId}"
-                class="removeStarterBtn absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-xs text-white shadow"
-                title="Quitar"
-            >
-                ×
-            </button>
+                ${isEditingLineup
+                    ? `
+                        <button
+                            type="button"
+                            data-id="${starter.studentId}"
+                            class="removeStarterBtn absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-xs text-white shadow"
+                            title="Quitar"
+                        >
+                            ×
+                        </button>
+                    `
+                    : ""
+                }
+
+                ${isEditingLineup
+                    ? `
+                        <button
+                            type="button"
+                            data-id="${starter.studentId}"
+                            class="captainBtn absolute -left-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full ${starter.isCaptain ? "bg-amber-400 text-slate-950" : "bg-white text-slate-700"} text-xs font-black shadow"
+                            title="Marcar capitán"
+                        >
+                            C
+                        </button>
+                    `
+                    : starter.isCaptain
+                        ? `<div class="absolute -left-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-slate-950 shadow">C</div>`
+                        : ""
+                }
 
             ${starter.profileImageUrl || starter.imageUrl
                 ? `<img src="${escapeHtml(starter.profileImageUrl || starter.imageUrl)}" class="h-14 w-14 rounded-full border-2 border-white object-cover shadow" />`
@@ -297,9 +538,12 @@ function renderSubstitutes() {
         return `
             <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-200 p-2">
                 ${studentCardMiniHtml(student)}
-                <button data-id="${x.studentId}" class="removeSubBtn rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600">
-                    Quitar
-                </button>
+                ${isEditingLineup
+                    ? `<button data-id="${x.studentId}" class="removeSubBtn rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600">
+                        Quitar
+                    </button>`
+                    : ""
+                }
             </div>
         `;
     }).join("");
@@ -307,6 +551,10 @@ function renderSubstitutes() {
     container.querySelectorAll(".removeSubBtn").forEach(btn => {
         btn.addEventListener("click", () => removeSubstitute(btn.dataset.id));
     });
+}
+
+async function loadMatchDetail() {
+    matchDetail = await get(`/api/admin/${currentCompany.slug}/matches/${matchId}`);
 }
 
 function studentCardMiniHtml(student) {
@@ -327,18 +575,22 @@ function studentCardMiniHtml(student) {
 
 function renderAll() {
     renderSelectors();
+    renderMatchInfo();
     renderField();
     renderStudents();
     renderSubstitutes();
+    updateEditModeUi();
 }
 
 function selectPosition(positionKey) {
+    if (!isEditingLineup) return;
     const formation = getCurrentFormation();
     selectedPosition = formation?.positions?.find(x => x.positionKey === positionKey) || null;
     renderField();
 }
 
 function assignStudentToSelectedPosition(studentId) {
+    if (!isEditingLineup) return;
     if (!selectedPosition) {
         addSubstitute(studentId);
         return;
@@ -350,21 +602,24 @@ function assignStudentToSelectedPosition(studentId) {
     lineup.starters = (lineup.starters || []).filter(x => x.positionKey !== selectedPosition.positionKey);
     lineup.substitutes = (lineup.substitutes || []).filter(x => String(x.studentId) !== String(studentId));
 
-    lineup.starters.push({
-        studentId: student.studentId,
-        fullName: student.fullName,
-        imageUrl: student.imageUrl,
-        positionKey: selectedPosition.positionKey,
-        positionLabel: selectedPosition.positionLabel,
-        xPercent: selectedPosition.xPercent,
-        yPercent: selectedPosition.yPercent
-    });
+lineup.starters.push({
+    studentId: student.studentId,
+    fullName: student.fullName,
+    imageUrl: student.imageUrl,
+    positionKey: selectedPosition.positionKey,
+    positionLabel: selectedPosition.positionLabel,
+    xPercent: selectedPosition.xPercent,
+    yPercent: selectedPosition.yPercent,
+    isManualPosition: false,
+    isCaptain: false
+});
 
     selectedPosition = null;
     renderAll();
 }
 
 function addSubstitute(studentId) {
+    if (!isEditingLineup) return;
     const student = findStudent(studentId);
     if (!student) return;
 
@@ -383,11 +638,13 @@ function addSubstitute(studentId) {
 }
 
 function removeStarter(studentId) {
+    if (!isEditingLineup) return;
     lineup.starters = (lineup.starters || []).filter(x => String(x.studentId) !== String(studentId));
     renderAll();
 }
 
 function removeSubstitute(studentId) {
+    if (!isEditingLineup) return;
     lineup.substitutes = (lineup.substitutes || []).filter(x => String(x.studentId) !== String(studentId));
     renderAll();
 }
@@ -433,11 +690,47 @@ async function loadLineup() {
         selectedFormationId = lineup.formationTemplateId;
     }
 
+
     lineup.starters = lineup.starters || [];
-    lineup.substitutes = lineup.substitutes || [];
+lineup.substitutes = lineup.substitutes || [];
+
+hasSavedLineup =
+    (lineup.starters?.length || 0) > 0 ||
+    (lineup.substitutes?.length || 0) > 0;
+
+isEditingLineup = !hasSavedLineup;
+}
+
+function validateLineupBeforeSave() {
+    const allPlayers = [
+        ...(lineup.starters || []),
+        ...(lineup.substitutes || [])
+    ];
+
+    const ids = allPlayers.map(x => String(x.studentId));
+    const uniqueIds = new Set(ids);
+
+    if (ids.length !== uniqueIds.size) {
+        return "Hay alumnos duplicados entre titulares y suplentes.";
+    }
+
+    const captainCount = allPlayers.filter(x => x.isCaptain).length;
+
+    if (captainCount > 1) {
+        return "Solo puede haber un capitán.";
+    }
+
+    return null;
 }
 
 async function saveLineup() {
+
+    const validationError = validateLineupBeforeSave();
+
+if (validationError) {
+    setLineupMessage("error", validationError);
+    return;
+}
     const players = [
         ...(lineup.starters || []).map((x, index) => ({
             studentId: x.studentId,
@@ -446,7 +739,9 @@ async function saveLineup() {
             positionLabel: x.positionLabel,
             xPercent: x.xPercent,
             yPercent: x.yPercent,
-            sortOrder: index + 1
+            isManualPosition: !!x.isManualPosition,
+            sortOrder: index + 1,
+            isCaptain: !!x.isCaptain,
         })),
         ...(lineup.substitutes || []).map((x, index) => ({
             studentId: x.studentId,
@@ -455,7 +750,8 @@ async function saveLineup() {
             positionLabel: null,
             xPercent: null,
             yPercent: null,
-            sortOrder: index + 1
+            sortOrder: index + 1,
+            isCaptain: false,
         }))
     ];
 
@@ -467,15 +763,18 @@ async function saveLineup() {
             formationTemplateId: selectedFormationId || null,
             players
         });
+        setLineupMessage("success", "Formación guardada correctamente.");
 
-        qs("saveLineupBtn").textContent = "Guardado";
-        setTimeout(() => {
-            qs("saveLineupBtn").textContent = "Guardar formación";
-            qs("saveLineupBtn").disabled = false;
-        }, 900);
+hasSavedLineup = true;
+isEditingLineup = false;
+
+qs("saveLineupBtn").disabled = false;
+qs("saveLineupBtn").textContent = "Guardar formación";
+
+renderAll();
     } catch (error) {
         console.error(error);
-        alert(error.message || "No se pudo guardar la formación.");
+        setLineupMessage("error", error?.message || "No se pudo guardar la formación.");
         qs("saveLineupBtn").disabled = false;
         qs("saveLineupBtn").textContent = "Guardar formación";
     }
@@ -495,12 +794,18 @@ function bindEvents() {
         renderAll();
     });
 
+    qs("editLineupBtn").addEventListener("click", () => {
+    isEditingLineup = true;
+    renderAll();
+});
+
     qs("formationSelect").addEventListener("change", event => {
         selectedFormationId = event.target.value;
         selectedPosition = null;
         lineup.starters = [];
         renderAll();
     });
+    qs("resetPositionsBtn").addEventListener("click", resetManualPositions);
 
     let searchTimer = null;
     qs("studentSearchInput").addEventListener("input", event => {
@@ -558,6 +863,7 @@ async function init() {
                 currentCompany = company;
 
                 try {
+                    await loadMatchDetail();
                     await loadLineup();
                     await loadFieldFormats();
                     await loadFormations();
@@ -573,10 +879,11 @@ async function init() {
 
         currentCompany = layout.activeCompany;
 
-        await loadLineup();
-        await loadFieldFormats();
-        await loadFormations();
-        await loadStudents();
+await loadMatchDetail();
+await loadLineup();
+await loadFieldFormats();
+await loadFormations();
+await loadStudents();
 
         bindEvents();
         renderAll();

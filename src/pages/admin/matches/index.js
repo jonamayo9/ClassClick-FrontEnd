@@ -65,6 +65,11 @@ function toLocalDateTimeInputValue(dateUtc) {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function isMatchOrganizationEnabled() {
+    return currentCompany?.isMatchOrganizationEnabled === true ||
+           currentCompany?.IsMatchOrganizationEnabled === true;
+}
+
 function buildContent() {
     return `
         <section class="space-y-6">
@@ -317,7 +322,21 @@ function renderTable() {
                         : `<div class="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-400">Sin logo</div>`
                     }
                     <div>
-                        <div class="font-medium">${escapeHtml(item.opponentName)}</div>
+                        <div class="flex items-center gap-2">
+    <span class="font-semibold text-slate-800">${item.opponentName}</span>
+
+        ${isMatchOrganizationEnabled()
+            ? (item.hasLineup
+                ? `<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    Organizado
+                </span>`
+                : `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                    Sin organizar
+                </span>`
+            )
+            : ""
+        }
+</div>
                         ${item.isGlobal
     ? `<div class="text-xs text-slate-400">
             Global
@@ -347,9 +366,14 @@ function renderTable() {
             </td>
             <td class="px-4 py-3 text-right">
                 <div class="flex justify-end gap-2">
-                <button data-id="${item.id}" class="lineupBtn rounded-lg border border-emerald-300 px-3 py-1.5 text-xs text-emerald-700">
-                    Organizar
-                </button>
+                ${isMatchOrganizationEnabled()
+                    ? `
+                        <button data-id="${item.id}" class="lineupBtn rounded-lg border border-emerald-300 px-3 py-1.5 text-xs text-emerald-700">
+                            Organizar
+                        </button>
+                    `
+                    : ""
+                }
                     <button data-id="${item.id}" class="editBtn rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700">
                         Editar
                     </button>
