@@ -1,8 +1,8 @@
-import { loadConfig } from "../../shared/js/config.js";
-import { login } from "../../shared/js/auth.js";
-import { subscribeToPush } from "../../shared/js/push.js";
-import { getSession } from "../../shared/js/session.js";
-import { get } from "../../shared/js/api.js";
+import { loadConfig } from "./src/shared/js/config.js"
+import { login } from "./src/shared/js/auth.js";
+import { subscribeToPush } from "./src/shared/js/push.js";
+import { getSession } from "./src/shared/js/session.js";
+import { get } from "./src/shared/js/api.js";
 
 const form = document.getElementById("loginForm");
 const errorBox = document.getElementById("errorBox");
@@ -24,30 +24,38 @@ function setLoading(isLoading) {
 }
 
 async function ensurePushEnabled(token) {
-  if (!("Notification" in window)) {
-    throw new Error("Este dispositivo o navegador no soporta notificaciones.");
-  }
+  try {
+    if (!("Notification" in window)) {
+      console.warn("Este dispositivo o navegador no soporta notificaciones.");
+      return;
+    }
 
-  if (!("serviceWorker" in navigator)) {
-    throw new Error("Este navegador no soporta service worker.");
-  }
+    if (!("serviceWorker" in navigator)) {
+      console.warn("Este navegador no soporta service worker.");
+      return;
+    }
 
-  if (Notification.permission === "granted") {
+    if (Notification.permission === "granted") {
+      await subscribeToPush(token);
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      console.warn("El usuario bloqueó las notificaciones desde el navegador.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      console.warn("El usuario no aceptó notificaciones.");
+      return;
+    }
+
     await subscribeToPush(token);
-    return;
+  } catch (error) {
+    console.warn("No se pudieron activar las notificaciones.", error);
   }
-
-  if (Notification.permission === "denied") {
-    throw new Error("Tenés que habilitar notificaciones desde la configuración del navegador para poder ingresar.");
-  }
-
-  const permission = await Notification.requestPermission();
-
-  if (permission !== "granted") {
-    throw new Error("Debés aceptar las notificaciones para ingresar.");
-  }
-
-  await subscribeToPush(token);
 }
 
 async function resolveRedirect(result) {
@@ -88,20 +96,28 @@ async function init() {
   const session = getSession();
 
   if (session.token && session.user) {
-    if (session.user.isSuperAdmin) {
-      window.location.replace("/src/pages/superadmin/dashboard/index.html");
-      return;
+    try {
+      if (session.user.isSuperAdmin) {
+        window.location.replace("/src/pages/superadmin/dashboard/index.html");
+        return;
+      }
+
+      if (session.activeRole === "Admin") {
+        window.location.replace("/src/pages/admin/dashboard/index.html");
+        return;
+      }
+
+      if (session.activeRole === "Student") {
+        window.location.replace("/src/pages/student/home/index.html");
+        return;
+      }
+
+      showError("No se pudo identificar el rol del usuario. Cerrá sesión e ingresá nuevamente.");
+    } catch (error) {
+      showError(error.message || "No se pudo validar la sesión actual.");
     }
 
-    if (session.activeRole === "Admin") {
-      window.location.replace("/src/pages/admin/dashboard/index.html");
-      return;
-    }
-
-    if (session.activeRole === "Student") {
-      window.location.replace("/src/pages/student/home/index.html");
-      return;
-    }
+    return;
   }
 
   form.addEventListener("submit", async (event) => {
@@ -121,9 +137,19 @@ async function init() {
       const result = await login(email, password);
       const session = getSession();
 
-      await ensurePushEnabled(session.token);
+      if (!session.token) {
+        throw new Error("El login fue correcto, pero no se recibió token de sesión.");
+      }
 
-      window.location.href = await resolveRedirect(result);
+      ensurePushEnabled(session.token);
+
+      const redirectUrl = await resolveRedirect(result);
+
+      if (!redirectUrl) {
+        throw new Error("No se pudo resolver la pantalla inicial del usuario.");
+      }
+
+      window.location.replace(redirectUrl);
     } catch (error) {
       showError(error.message || "No se pudo iniciar sesión.");
     } finally {
@@ -131,7 +157,6 @@ async function init() {
     }
   });
 }
-
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
@@ -144,5 +169,5 @@ if ("serviceWorker" in navigator) {
 }
 
 init().catch((error) => {
-  showError(error.message || "No se pudo inicializar la pantalla.");
+  showError(error.message || "No se pudo inicializar la pantalla de login.");
 });
