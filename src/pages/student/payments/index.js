@@ -1118,6 +1118,8 @@ async function openTransferModal(chargeId) {
     try {
         if (!transferInfo) {
             transferInfo = await loadTransferInfo();
+
+            if (String(selectedPaymentId) !== String(chargeId)) return;
             rerender();
         }
 
@@ -1125,6 +1127,8 @@ async function openTransferModal(chargeId) {
             post(`/api/student/${companySlug}/charges/${chargeId}/ensure-payment`, {}),
             "No se pudo iniciar el pago. Probá nuevamente."
         );
+
+        if (String(selectedPaymentId) !== String(chargeId)) return;
 
         const paymentId = ensured?.paymentId;
 
@@ -1135,6 +1139,8 @@ async function openTransferModal(chargeId) {
         selectedPaymentId = paymentId;
         rerender();
     } catch (error) {
+        if (String(selectedPaymentId) !== String(chargeId)) return;
+
         closeTransferModal();
         setUiMessage("error", error?.message || "No se pudo iniciar el pago.");
         rerender();
@@ -1146,6 +1152,7 @@ function closeTransferModal() {
     selectedTransferItem = null;
     aliasCopied = false;
     uploadingProof = false;
+    isUploadingProof = false;
     rerender();
 }
 
