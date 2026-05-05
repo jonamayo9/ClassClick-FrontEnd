@@ -347,6 +347,9 @@ function renderTable() {
             </td>
             <td class="px-4 py-3 text-right">
                 <div class="flex justify-end gap-2">
+                <button data-id="${item.id}" class="lineupBtn rounded-lg border border-emerald-300 px-3 py-1.5 text-xs text-emerald-700">
+                    Organizar
+                </button>
                     <button data-id="${item.id}" class="editBtn rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700">
                         Editar
                     </button>
@@ -365,6 +368,15 @@ function renderTable() {
     tbody.querySelectorAll(".deleteBtn").forEach(btn => {
         btn.addEventListener("click", () => removeMatch(btn.dataset.id));
     });
+    tbody.querySelectorAll(".lineupBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const matchId = btn.dataset.id;
+
+sessionStorage.setItem("selectedMatchLineupId", matchId);
+
+window.location.assign("/src/pages/admin/matches/lineup/index.html");
+    });
+});
 }
 
 function resetForm() {
