@@ -1,8 +1,8 @@
-import { loadConfig } from "./src/shared/js/config.js"
-import { login } from "./src/shared/js/auth.js";
-import { subscribeToPush } from "./src/shared/js/push.js";
-import { getSession } from "./src/shared/js/session.js";
-import { get } from "./src/shared/js/api.js";
+import { loadConfig } from "../../../src/shared/js/config.js";
+import { login } from "../../../src/shared/js/auth.js";
+import { subscribeToPush } from "../../../src/shared/js/push.js";
+import { getSession } from "../../../src/shared/js/session.js";
+import { get } from "../../../src/shared/js/api.js";
 
 const form = document.getElementById("loginForm");
 const errorBox = document.getElementById("errorBox");
