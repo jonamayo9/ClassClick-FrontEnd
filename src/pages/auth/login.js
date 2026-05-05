@@ -91,6 +91,10 @@ async function resolveRedirect(result) {
 }
 
 async function init() {
+  if (window.location.search.includes("password=")) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   await loadConfig();
 
   const session = getSession();
