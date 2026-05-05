@@ -9,7 +9,7 @@ import {
   clearSession
 } from "./storage.js";
 
-const LOGIN_URL = "/src/pages/auth/login/login.html";
+const LOGIN_URL = "/src/pages/auth/login.html";
 
 let refreshPromise = null;
 
