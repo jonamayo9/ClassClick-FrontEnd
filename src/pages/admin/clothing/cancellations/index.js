@@ -81,7 +81,7 @@ function buildContent() {
 }
 
 function goBackToClothing() {
-    window.location.href = "/src/pages/admin/Clothing/index.html";
+    window.location.href = "/src/pages/admin/clothing/index.html";
 }
 
 function renderRows() {
