@@ -56,7 +56,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Categorías",
                     description: "Creá categorías y subcategorías para organizar los productos.",
-                    href: "/src/pages/admin/Clothing/Categories/index.html",
+                    href: "/src/pages/admin/clothing/categories/index.html",
                     emoji: "🏷️",
                     enabled: true
                 })}
@@ -72,7 +72,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Pedidos",
                     description: "Revisá reservas, aprobá pedidos y marcá entregas.",
-                    href: "/src/pages/admin/Clothing/Orders/index.html",
+                    href: "/src/pages/admin/clothing/orders/index.html",
                     emoji: "🧾",
                     enabled: true
                 })}
@@ -80,7 +80,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Comprobantes",
                     description: "Validá comprobantes manuales enviados por alumnos.",
-                    href: "/src/pages/admin/Clothing/PaymentProofs/index.html",
+                    href: "/src/pages/admin/clothing/paymentProofs/index.html",
                     emoji: "💳",
                     enabled: true
                 })}
@@ -88,7 +88,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Cancelaciones",
                     description: "Aprobá o rechazá solicitudes de cancelación y devoluciones.",
-                    href: "/src/pages/admin/Clothing/Cancellations/index.html",
+                    href: "/src/pages/admin/clothing/cancellations/index.html",
                     emoji: "↩️",
                     enabled: true
                 })}
@@ -96,7 +96,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Stock",
                     description: "Controlá disponibilidad por producto o variante.",
-                    href: "/src/pages/admin/Clothing/Stock/index.html",
+                    href: "/src/pages/admin/clothing/stock/index.html",
                     emoji: "📦",
                     enabled: true
                 })}

@@ -40,7 +40,7 @@ function getMenu(activeKey, activeCompany = null) {
     {
       key: "clothing",
       label: "Indumentaria",
-      href: "/src/pages/admin/Clothing/index.html",
+      href: "/src/pages/admin/clothing/index.html",
       enabled: !!activeCompany?.isClothingEnabled
     },
     { key: "company-settings", label: "Mi empresa", href: "/src/pages/admin/company-settings/index.html", enabled: true },
