@@ -18,6 +18,7 @@ function normalizeCompany(item) {
     logoUrl: item.logoUrl ?? "",
     isActive: item.isActive ?? true,
     roles: Array.isArray(item.roles) ? item.roles : [],
+    isClothingEnabled: item.isClothingEnabled === true,
     isMatchOrganizationEnabled: item.isMatchOrganizationEnabled === true,
   };
 }
