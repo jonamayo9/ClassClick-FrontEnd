@@ -133,7 +133,7 @@ if (!hasModule(activeCompany, "clothing")) {
                 </p>
 
                 <a
-                    href="/src/pages/admin/home/index.html"
+                    href="/src/pages/admin/dashboard/index.html"
                     class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
                 >
                     Volver al inicio

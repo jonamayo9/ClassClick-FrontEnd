@@ -1338,7 +1338,7 @@ company = layout.activeCompany;
 
 if (!hasModule(company, "clothing")) {
     qs("app").innerHTML = renderAdminLayout({
-        activeKey: "home",
+        activeKey: "dashboard",
         pageTitle: "Módulo no disponible",
         contentHtml: `
             <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
@@ -1349,6 +1349,13 @@ if (!hasModule(company, "clothing")) {
                 <p class="mt-2 text-sm text-slate-600">
                     Este módulo no está disponible para la empresa activa.
                 </p>
+
+                <a
+                    href="/src/pages/admin/dashboard/index.html"
+                    class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+                >
+                    Volver al dashboard
+                </a>
             </section>
         `
     });
