@@ -1326,42 +1326,48 @@ function syncProductImagesInput() {
 async function init() {
     await loadConfig();
     requireAuth();
+
     qs("app").innerHTML = renderAdminLayout({
         activeKey: "clothing",
         pageTitle: "Productos de indumentaria",
         contentHtml: buildContent()
     });
 
-const layout = await setupAdminLayout();
+    const layout = await setupAdminLayout();
 
-company = layout.activeCompany;
+    company = layout.activeCompany;
 
-if (!hasModule(company, "clothing")) {
-    qs("app").innerHTML = renderAdminLayout({
-        activeKey: "clothing",
-        pageTitle: "Módulo no disponible",
-        contentHtml: `
-            <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
-                <h1 class="text-xl font-black text-slate-900">
-                    Indumentaria no está habilitado
-                </h1>
+    if (!company?.slug) {
+        showErrorModal("No se pudo resolver la empresa activa.");
+        return;
+    }
 
-                <p class="mt-2 text-sm text-slate-600">
-                    Este módulo no está disponible para la empresa activa.
-                </p>
+    if (!hasModule(company, "clothing")) {
+        qs("app").innerHTML = renderAdminLayout({
+            activeKey: "clothing",
+            pageTitle: "Módulo no disponible",
+            contentHtml: `
+                <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                    <h1 class="text-xl font-black text-slate-900">
+                        Indumentaria no está habilitado
+                    </h1>
 
-                <a
-                    href="/src/pages/admin/dashboard/index.html"
-                    class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-                >
-                    Volver al dashboard
-                </a>
-            </section>
-        `
-    });
+                    <p class="mt-2 text-sm text-slate-600">
+                        Este módulo no está disponible para la empresa activa.
+                    </p>
 
-    return;
-}
+                    <a
+                        href="/src/pages/admin/dashboard/index.html"
+                        class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+                    >
+                        Volver al dashboard
+                    </a>
+                </section>
+            `
+        });
+
+        return;
+    }
 
     qs("addVariantBtn").addEventListener("click", () => {
         productVariants.push({
@@ -1377,28 +1383,28 @@ if (!hasModule(company, "clothing")) {
     qs("productForm").addEventListener("submit", saveProduct);
     qs("resetProductBtn").addEventListener("click", resetProductForm);
 
-qs("productImages").addEventListener("change", event => {
-    const selectedFiles = [...(event.target.files || [])];
+    qs("productImages").addEventListener("change", event => {
+        const selectedFiles = [...(event.target.files || [])];
 
-    selectedFiles.forEach(file => {
-        const alreadyExists = pendingCreateImages.some(existing =>
-            existing.name === file.name &&
-            existing.size === file.size &&
-            existing.lastModified === file.lastModified
-        );
+        selectedFiles.forEach(file => {
+            const alreadyExists = pendingCreateImages.some(existing =>
+                existing.name === file.name &&
+                existing.size === file.size &&
+                existing.lastModified === file.lastModified
+            );
 
-        if (!alreadyExists) {
-            pendingCreateImages.push(file);
-        }
+            if (!alreadyExists) {
+                pendingCreateImages.push(file);
+            }
+        });
+
+        qs("productImagesInfo").textContent = pendingCreateImages.length
+            ? `${pendingCreateImages.length} imagen(es) seleccionada(s).`
+            : "Podés seleccionar una o más imágenes.";
+
+        syncProductImagesInput();
+        renderPendingImagesPreview();
     });
-
-    qs("productImagesInfo").textContent = pendingCreateImages.length
-        ? `${pendingCreateImages.length} imagen(es) seleccionada(s).`
-        : "Podés seleccionar una o más imágenes.";
-
-    syncProductImagesInput();
-    renderPendingImagesPreview();
-});
 
     qs("productParentCategoryId").addEventListener("change", () => {
         renderChildSelect(qs("productParentCategoryId").value, "productChildCategoryId");
@@ -1408,15 +1414,15 @@ qs("productImages").addEventListener("change", event => {
     qs("productAllowsPersonalization").addEventListener("change", togglePersonalizationBox);
 
     qs("productHasVariants").addEventListener("change", () => {
-    const enabled = qs("productHasVariants").checked;
+        const enabled = qs("productHasVariants").checked;
 
-    qs("variantsBox").classList.toggle("hidden", !enabled);
+        qs("variantsBox").classList.toggle("hidden", !enabled);
 
-    if (!enabled) {
-        productVariants = [];
-        renderVariants();
-    }
-});
+        if (!enabled) {
+            productVariants = [];
+            renderVariants();
+        }
+    });
 
     qs("productSearchInput").addEventListener("input", () => {
         currentPage = 1;
@@ -1437,16 +1443,16 @@ qs("productImages").addEventListener("change", event => {
     qs("productsPrevBtn").addEventListener("click", goPrevPage);
     qs("productsNextBtn").addEventListener("click", goNextPage);
 
-try {
-    await loadCategories();
-    await loadProducts();
+    try {
+        await loadCategories();
+        await loadProducts();
 
-    toggleDepositBox();
-    togglePersonalizationBox();
-} catch (error) {
-    showErrorModal(error?.message || "No se pudieron cargar los productos.");
-    return;
-}
+        toggleDepositBox();
+        togglePersonalizationBox();
+    } catch (error) {
+        showErrorModal(error?.message || "No se pudieron cargar los productos.");
+        return;
+    }
 }
 
 init();
