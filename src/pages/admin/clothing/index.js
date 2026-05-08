@@ -121,6 +121,7 @@ async function init() {
 
     const { activeCompany } = await setupAdminLayout();
 
+    alert("Aca llego ");
     if (!hasModule(activeCompany, "clothing")) {
         qs("app").innerHTML = renderAdminLayout({
             activeKey: "clothing",
