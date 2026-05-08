@@ -3,6 +3,8 @@ import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
 import { hasModule } from "../../../shared/js/modules.js";
 
+let company = null;
+
 function qs(id) {
     return document.getElementById(id);
 }
@@ -159,10 +161,13 @@ async function init() {
             contentHtml: buildContent()
         });
 
-        debugBox("renderAdminLayout OK");
+const layout = await setupAdminLayout();
 
-        const layout = await setupAdminLayout();
-        debugBox("setupAdminLayout OK", layout);
+debugBox("setupAdminLayout OK", layout);
+
+company = layout.activeCompany;
+
+debugBox("activeCompany", company);
 
         company = layout.activeCompany;
         debugBox("activeCompany", company);
