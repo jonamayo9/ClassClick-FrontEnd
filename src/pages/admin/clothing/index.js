@@ -42,42 +42,6 @@ function buildModuleCard({ title, description, href, emoji, enabled }) {
     `;
 }
 
-const DEBUG_PRODUCTS = new URLSearchParams(window.location.search).get("debug") === "1";
-
-function debugProducts(step, data = null) {
-    if (!DEBUG_PRODUCTS) return;
-
-    console.log("[PRODUCTS DEBUG]", step, data);
-
-    let box = document.getElementById("debugProductsBox");
-
-    if (!box) {
-        box = document.createElement("pre");
-        box.id = "debugProductsBox";
-        box.style.cssText = `
-            position: fixed;
-            left: 12px;
-            bottom: 12px;
-            z-index: 99999;
-            max-width: 90vw;
-            max-height: 45vh;
-            overflow: auto;
-            background: #020617;
-            color: #22c55e;
-            padding: 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            white-space: pre-wrap;
-        `;
-        document.body.appendChild(box);
-    }
-
-    box.textContent += `\n[${new Date().toLocaleTimeString()}] ${step}`;
-
-    if (data) {
-        box.textContent += `\n${JSON.stringify(data, null, 2)}`;
-    }
-}
 
 function buildContent() {
     return `
@@ -99,17 +63,15 @@ function buildContent() {
                     href: "/src/pages/admin/clothing/categories/index.html",
                     emoji: "🏷️",
                     enabled: true
+                })}                
+
+                ${buildModuleCard({
+                    title: "Productos",
+                    description: "Cargá prendas, precios, variantes, talles e imágenes.",
+                    href: "/src/pages/admin/clothing/products/index.html",
+                    emoji: "👕",
+                    enabled: true
                 })}
-
-                
-
-${buildModuleCard({
-    title: "Productos",
-    description: "Cargá prendas, precios, variantes, talles e imágenes.",
-    href: "javascript:window.location.href='/src/pages/admin/clothing/products/index.html?debug=1'",
-    emoji: "👕",
-    enabled: true
-})}
 
                 ${buildModuleCard({
                     title: "Pedidos",
