@@ -1338,7 +1338,7 @@ company = layout.activeCompany;
 
 if (!hasModule(company, "clothing")) {
     qs("app").innerHTML = renderAdminLayout({
-        activeKey: "dashboard",
+        activeKey: "clothing",
         pageTitle: "Módulo no disponible",
         contentHtml: `
             <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
@@ -1437,11 +1437,16 @@ qs("productImages").addEventListener("change", event => {
     qs("productsPrevBtn").addEventListener("click", goPrevPage);
     qs("productsNextBtn").addEventListener("click", goNextPage);
 
+try {
     await loadCategories();
     await loadProducts();
 
     toggleDepositBox();
     togglePersonalizationBox();
+} catch (error) {
+    showErrorModal(error?.message || "No se pudieron cargar los productos.");
+    return;
+}
 }
 
 init();
