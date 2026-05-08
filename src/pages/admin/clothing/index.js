@@ -120,7 +120,7 @@ async function init() {
 
 if (!hasModule(activeCompany, "clothing")) {
     qs("app").innerHTML = renderAdminLayout({
-        activeKey: "home",
+        activeKey: "clothing",
         pageTitle: "Módulo no disponible",
         contentHtml: `
             <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
