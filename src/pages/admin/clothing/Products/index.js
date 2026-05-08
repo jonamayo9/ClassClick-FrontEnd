@@ -1323,135 +1323,210 @@ function syncProductImagesInput() {
     input.files = dataTransfer.files;
 }
 
-async function init() {
-    await loadConfig();
-    requireAuth();
+function debugBox(step, data = null) {
+    const boxId = "debugProductsBox";
+    let box = document.getElementById(boxId);
 
-    qs("app").innerHTML = renderAdminLayout({
-        activeKey: "clothing",
-        pageTitle: "Productos de indumentaria",
-        contentHtml: buildContent()
-    });
-
-    const layout = await setupAdminLayout();
-
-    company = layout.activeCompany;
-
-    if (!company?.slug) {
-        showErrorModal("No se pudo resolver la empresa activa.");
-        return;
+    if (!box) {
+        box = document.createElement("pre");
+        box.id = boxId;
+        box.style.cssText = `
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 99999;
+            max-width: 90vw;
+            max-height: 45vh;
+            overflow: auto;
+            background: #020617;
+            color: #22c55e;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            white-space: pre-wrap;
+        `;
+        document.body.appendChild(box);
     }
 
-    if (!hasModule(company, "clothing")) {
+    box.textContent += `\n[${new Date().toLocaleTimeString()}] ${step}`;
+
+    if (data) {
+        box.textContent += `\n${JSON.stringify(data, null, 2)}`;
+    }
+
+    console.log("[PRODUCTS DEBUG]", step, data);
+}
+
+async function init() {
+    try {
+        debugBox("INIT START", {
+            href: window.location.href,
+            path: window.location.pathname
+        });
+
+        await loadConfig();
+        debugBox("loadConfig OK");
+
+        requireAuth();
+        debugBox("requireAuth OK");
+
         qs("app").innerHTML = renderAdminLayout({
             activeKey: "clothing",
-            pageTitle: "Módulo no disponible",
-            contentHtml: `
-                <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
-                    <h1 class="text-xl font-black text-slate-900">
-                        Indumentaria no está habilitado
-                    </h1>
-
-                    <p class="mt-2 text-sm text-slate-600">
-                        Este módulo no está disponible para la empresa activa.
-                    </p>
-
-                    <a
-                        href="/src/pages/admin/dashboard/index.html"
-                        class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-                    >
-                        Volver al dashboard
-                    </a>
-                </section>
-            `
+            pageTitle: "Productos de indumentaria",
+            contentHtml: buildContent()
         });
 
-        return;
-    }
+        debugBox("renderAdminLayout OK");
 
-    qs("addVariantBtn").addEventListener("click", () => {
-        productVariants.push({
-            name: "",
-            tracksStock: true,
-            stockQuantity: 0
+        const layout = await setupAdminLayout();
+        debugBox("setupAdminLayout OK", layout);
+
+        company = layout.activeCompany;
+        debugBox("activeCompany", company);
+
+        if (!company?.slug) {
+            debugBox("ERROR: company slug vacío", company);
+            showErrorModal("No se pudo resolver la empresa activa.");
+            return;
+        }
+
+        const clothingEnabled = hasModule(company, "clothing");
+        debugBox("hasModule clothing", {
+            clothingEnabled,
+            modules: company.modules,
+            isClothingEnabled: company.isClothingEnabled
         });
 
-        renderVariants();
-    });
+        if (!clothingEnabled) {
+            debugBox("STOP: clothing deshabilitado");
 
-    qs("backToClothingBtn").addEventListener("click", goBackToClothing);
-    qs("productForm").addEventListener("submit", saveProduct);
-    qs("resetProductBtn").addEventListener("click", resetProductForm);
+            qs("app").innerHTML = renderAdminLayout({
+                activeKey: "clothing",
+                pageTitle: "Módulo no disponible",
+                contentHtml: `
+                    <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                        <h1 class="text-xl font-black text-slate-900">
+                            Indumentaria no está habilitado
+                        </h1>
 
-    qs("productImages").addEventListener("change", event => {
-        const selectedFiles = [...(event.target.files || [])];
+                        <p class="mt-2 text-sm text-slate-600">
+                            Este módulo no está disponible para la empresa activa.
+                        </p>
 
-        selectedFiles.forEach(file => {
-            const alreadyExists = pendingCreateImages.some(existing =>
-                existing.name === file.name &&
-                existing.size === file.size &&
-                existing.lastModified === file.lastModified
-            );
+                        <a
+                            href="/src/pages/admin/dashboard/index.html"
+                            class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+                        >
+                            Volver al dashboard
+                        </a>
+                    </section>
+                `
+            });
 
-            if (!alreadyExists) {
-                pendingCreateImages.push(file);
+            return;
+        }
+
+        debugBox("bind events START");
+
+        qs("addVariantBtn").addEventListener("click", () => {
+            productVariants.push({
+                name: "",
+                tracksStock: true,
+                stockQuantity: 0
+            });
+
+            renderVariants();
+        });
+
+        qs("backToClothingBtn").addEventListener("click", goBackToClothing);
+        qs("productForm").addEventListener("submit", saveProduct);
+        qs("resetProductBtn").addEventListener("click", resetProductForm);
+
+        qs("productImages").addEventListener("change", event => {
+            const selectedFiles = [...(event.target.files || [])];
+
+            selectedFiles.forEach(file => {
+                const alreadyExists = pendingCreateImages.some(existing =>
+                    existing.name === file.name &&
+                    existing.size === file.size &&
+                    existing.lastModified === file.lastModified
+                );
+
+                if (!alreadyExists) {
+                    pendingCreateImages.push(file);
+                }
+            });
+
+            qs("productImagesInfo").textContent = pendingCreateImages.length
+                ? `${pendingCreateImages.length} imagen(es) seleccionada(s).`
+                : "Podés seleccionar una o más imágenes.";
+
+            syncProductImagesInput();
+            renderPendingImagesPreview();
+        });
+
+        qs("productParentCategoryId").addEventListener("change", () => {
+            renderChildSelect(qs("productParentCategoryId").value, "productChildCategoryId");
+        });
+
+        qs("productRequiresDeposit").addEventListener("change", toggleDepositBox);
+        qs("productAllowsPersonalization").addEventListener("change", togglePersonalizationBox);
+
+        qs("productHasVariants").addEventListener("change", () => {
+            const enabled = qs("productHasVariants").checked;
+
+            qs("variantsBox").classList.toggle("hidden", !enabled);
+
+            if (!enabled) {
+                productVariants = [];
+                renderVariants();
             }
         });
 
-        qs("productImagesInfo").textContent = pendingCreateImages.length
-            ? `${pendingCreateImages.length} imagen(es) seleccionada(s).`
-            : "Podés seleccionar una o más imágenes.";
+        qs("productSearchInput").addEventListener("input", () => {
+            currentPage = 1;
+            renderProductsList();
+        });
 
-        syncProductImagesInput();
-        renderPendingImagesPreview();
-    });
+        qs("filterParentCategoryId").addEventListener("change", () => {
+            currentPage = 1;
+            renderChildSelect(qs("filterParentCategoryId").value, "filterChildCategoryId", "", "Todas");
+            renderProductsList();
+        });
 
-    qs("productParentCategoryId").addEventListener("change", () => {
-        renderChildSelect(qs("productParentCategoryId").value, "productChildCategoryId");
-    });
+        qs("filterChildCategoryId").addEventListener("change", () => {
+            currentPage = 1;
+            renderProductsList();
+        });
 
-    qs("productRequiresDeposit").addEventListener("change", toggleDepositBox);
-    qs("productAllowsPersonalization").addEventListener("change", togglePersonalizationBox);
+        qs("productsPrevBtn").addEventListener("click", goPrevPage);
+        qs("productsNextBtn").addEventListener("click", goNextPage);
 
-    qs("productHasVariants").addEventListener("change", () => {
-        const enabled = qs("productHasVariants").checked;
+        debugBox("bind events OK");
 
-        qs("variantsBox").classList.toggle("hidden", !enabled);
-
-        if (!enabled) {
-            productVariants = [];
-            renderVariants();
-        }
-    });
-
-    qs("productSearchInput").addEventListener("input", () => {
-        currentPage = 1;
-        renderProductsList();
-    });
-
-    qs("filterParentCategoryId").addEventListener("change", () => {
-        currentPage = 1;
-        renderChildSelect(qs("filterParentCategoryId").value, "filterChildCategoryId", "", "Todas");
-        renderProductsList();
-    });
-
-    qs("filterChildCategoryId").addEventListener("change", () => {
-        currentPage = 1;
-        renderProductsList();
-    });
-
-    qs("productsPrevBtn").addEventListener("click", goPrevPage);
-    qs("productsNextBtn").addEventListener("click", goNextPage);
-
-    try {
+        debugBox("loadCategories START");
         await loadCategories();
+        debugBox("loadCategories OK", {
+            count: categories.length
+        });
+
+        debugBox("loadProducts START");
         await loadProducts();
+        debugBox("loadProducts OK", {
+            count: products.length
+        });
 
         toggleDepositBox();
         togglePersonalizationBox();
+
+        debugBox("INIT FINISHED OK");
     } catch (error) {
+        debugBox("INIT ERROR", {
+            message: error?.message,
+            stack: error?.stack
+        });
+
         showErrorModal(error?.message || "No se pudieron cargar los productos.");
-        return;
     }
 }
 
