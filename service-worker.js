@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v13-payments-stable";
+const CACHE_VERSION = "v14-no-admin-auth-cache";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -26,19 +26,22 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (
-    url.pathname.includes("/src/pages/student/payments/") ||
-    url.pathname.includes("/shared/js/") ||
-    url.pathname.includes("/src/pages/student/payments/index.js")
-  ) {
+  const noCachePaths = [
+    "/src/pages/admin/",
+    "/src/pages/auth/",
+    "/src/pages/student/",
+    "/shared/js/",
+    "/public/config.json",
+    "/index.html"
+  ];
+
+  if (noCachePaths.some((path) => url.pathname.startsWith(path) || url.pathname === path)) {
     event.respondWith(fetch(event.request));
     return;
   }
 
   if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match("/index.html"))
-    );
+    event.respondWith(fetch(event.request));
     return;
   }
 

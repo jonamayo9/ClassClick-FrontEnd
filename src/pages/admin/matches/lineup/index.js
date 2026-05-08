@@ -2,6 +2,7 @@ import { get, post } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
 import { requireAuth } from "../../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../../shared/js/modules.js";
 
 let currentCompany = null;
 let matchId = null;
@@ -832,7 +833,6 @@ function showLineupError(error) {
 async function init() {
     try {
         await loadConfig();
-
         const session = requireAuth();
         if (!session) return;
 
@@ -878,6 +878,11 @@ async function init() {
         });
 
         currentCompany = layout.activeCompany;
+
+    if (!hasModule(currentCompany, "matches")) {
+        window.location.replace("/src/pages/admin/students/index.html");
+        return;
+    }
 
 await loadMatchDetail();
 await loadLineup();

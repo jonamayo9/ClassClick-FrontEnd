@@ -2,6 +2,7 @@ import { get, post, put, del } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
 import { requireAuth } from "../../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../../shared/js/modules.js";
 
 let company = null;
 let categories = [];
@@ -509,7 +510,6 @@ async function deleteCategory(categoryId) {
 async function init() {
     await loadConfig();
     requireAuth();
-
     const app = qs("app");
 
     app.innerHTML = renderAdminLayout({
@@ -528,6 +528,10 @@ async function init() {
 
     company = layout.activeCompany;
 
+    if (!hasModule(company, "clothing")) {
+      window.location.replace("/src/pages/admin/students/index.html");
+      return;
+    }
     qs("categoryForm").addEventListener("submit", saveCategory);
     qs("cancelCategoryEditBtn").addEventListener("click", resetCategoryForm);
     qs("backToClothingBtn").addEventListener("click", goBackToClothing);

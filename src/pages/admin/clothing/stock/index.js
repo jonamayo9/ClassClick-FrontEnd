@@ -2,6 +2,7 @@ import { get, patch } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
 import { requireAuth } from "../../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../../shared/js/modules.js";
 
 let company = null;
 let products = [];
@@ -514,7 +515,6 @@ async function loadProducts() {
 async function init() {
     await loadConfig();
     requireAuth();
-
     qs("app").innerHTML = renderAdminLayout({
         activeKey: "clothing",
         pageTitle: "Stock",
@@ -530,6 +530,11 @@ async function init() {
     });
 
     company = layout.activeCompany;
+
+    if (!hasModule(company, "clothing")) {
+      window.location.replace("/src/pages/admin/students/index.html");
+      return;
+    }
 
     qs("backToClothingBtn").addEventListener("click", goBackToClothing);
 

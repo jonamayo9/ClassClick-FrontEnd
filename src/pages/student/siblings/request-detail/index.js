@@ -394,10 +394,23 @@ function buildSidebar() {
             <nav class="space-y-2 px-4 py-4">
                 ${navLink("Inicio", "/src/pages/student/home/index.html")}
                 ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-                ${navLink("Pagos", "/src/pages/student/payments/index.html")}
-                ${navLink("Documentos", "/src/pages/student/documents/index.html")}
                 ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-                ${navLink("Hermanos", "/src/pages/student/siblings/index.html", true)}
+                ${company?.modules?.payments === true
+                    ? navLink("Pagos", "/src/pages/student/payments/index.html")
+                    : ""
+                }
+                ${company?.modules?.documents === true
+                    ? navLink("Documentos", "/src/pages/student/documents/index.html")
+                    : ""
+                }
+                ${company?.modules?.payments === true
+                    ? navLink("Hermanos", "/src/pages/student/siblings/index.html", true)
+                    : ""
+                }
+                ${company?.modules?.clothing === true
+                    ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+                    : ""
+                }
             </nav>
         </aside>
     `;
@@ -434,7 +447,8 @@ function buildMobileMenu() {
         mobileMenuOpen,
         studentFullName: getStudentFullName(),
         studentEmail: getStudentEmail(),
-        activeItem: "siblings"
+        activeItem: "siblings",
+        modules: company?.modules || {}
     });
 }
 
@@ -444,7 +458,8 @@ function buildMobileBottomNav() {
         homeHref: "/src/pages/student/home/index.html",
         profileHref: "/src/pages/student/profile/index.html",
         carnetHref: "javascript:void(0)",
-        paymentsHref: "/src/pages/student/payments/index.html"
+        paymentsHref: "/src/pages/student/payments/index.html",
+        modules: company?.modules || {}
     });
 }
 
@@ -1196,6 +1211,11 @@ if (company) {
 
         if (!company) {
             throw new Error("No se encontró la empresa activa del alumno.");
+        }
+
+        if (company?.modules?.payments !== true) {
+            window.location.href = "/src/pages/student/home/index.html";
+            return;
         }
 
         await Promise.all([

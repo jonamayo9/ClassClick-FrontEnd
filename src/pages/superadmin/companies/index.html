@@ -9,16 +9,16 @@
 <body class="min-h-screen bg-slate-100">
   <div class="min-h-screen">
     <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <div>
           <h1 class="text-xl font-bold text-slate-900">ClassClick</h1>
           <p class="text-sm text-slate-500">SuperAdmin / Empresas</p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <a
             href="/src/pages/superadmin/dashboard/index.html"
-            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50">
             Volver
           </a>
 
@@ -44,12 +44,12 @@
         <button
           id="newCompanyButton"
           type="button"
-          class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
+          class="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:w-auto">
           Nueva empresa
         </button>
       </div>
 
-      <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="card p-5">
           <p class="text-sm text-slate-500">Total empresas</p>
           <p id="totalCompaniesCount" class="mt-2 text-3xl font-bold text-slate-900">0</p>
@@ -66,7 +66,7 @@
         </div>
       </div>
 
-      <div class="card p-5">
+      <div class="card p-4 sm:p-5">
         <div class="mb-5">
           <label for="searchInput" class="label">Buscar</label>
           <input
@@ -113,6 +113,8 @@
             </table>
           </div>
         </div>
+
+        <div id="mobileCompaniesList" class="mt-4 grid gap-3 md:hidden"></div>
       </div>
     </main>
   </div>
@@ -120,10 +122,10 @@
   <div id="companyModal" class="fixed inset-0 z-50 hidden">
     <div class="absolute inset-0 bg-slate-900/60"></div>
 
-    <div class="absolute inset-0 overflow-y-auto p-4">
-      <div class="mx-auto flex min-h-full max-w-4xl items-center justify-center">
-        <div class="w-full rounded-2xl bg-white shadow-2xl">
-          <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+    <div class="absolute inset-0 overflow-y-auto p-3 sm:p-4">
+      <div class="mx-auto flex min-h-full max-w-4xl items-start justify-center py-4 sm:items-center">
+        <div class="w-full overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
             <div>
               <h3 id="companyModalTitle" class="text-lg font-bold text-slate-900">Nueva empresa</h3>
               <p class="mt-1 text-sm text-slate-500">Completá los datos de la empresa.</p>
@@ -132,12 +134,12 @@
             <button
               id="closeCompanyModalButton"
               type="button"
-              class="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+              class="shrink-0 rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
               ✕
             </button>
           </div>
 
-          <form id="companyForm" class="p-5">
+          <form id="companyForm" class="p-4 sm:p-5">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div class="md:col-span-2">
                 <label class="label" for="nameInput">Nombre *</label>
@@ -233,56 +235,89 @@
             </div>
 
             <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <h3 class="mb-3 text-sm font-bold text-slate-900">Indumentaria</h3>
+              <div class="mb-3">
+                <h3 class="text-sm font-bold text-slate-900">Módulos habilitados</h3>
+                <p class="mt-1 text-xs text-slate-500">
+                  Activá solo los módulos que esta empresa va a usar.
+                </p>
+              </div>
 
-              <label class="flex items-center justify-between rounded-xl bg-white px-3 py-3">
-                <span class="text-sm font-medium text-slate-700">Habilitar módulo</span>
-                <input id="clothingEnabledInput" type="checkbox" class="h-5 w-5" />
-              </label>
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Cuotas</span>
+                  <input id="modulePaymentsInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
 
-              <label class="mt-2 flex items-center justify-between rounded-xl bg-white px-3 py-3">
-                <span class="text-sm font-medium text-slate-700">Permitir comprobantes manuales</span>
-                <input id="clothingManualProofInput" type="checkbox" class="h-5 w-5" checked />
-              </label>
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Documentos</span>
+                  <input id="moduleDocumentsInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
 
-              <label class="mt-2 flex items-center justify-between rounded-xl bg-white px-3 py-3">
-                <span class="text-sm font-medium text-slate-700">Permitir MercadoPago</span>
-                <input id="clothingMercadoPagoInput" type="checkbox" class="h-5 w-5" />
-              </label>
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Novedades</span>
+                  <input id="moduleNewsInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
+
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Sponsors</span>
+                  <input id="moduleSponsorsInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
+
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Partidos</span>
+                  <input id="moduleMatchesInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
+
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Indumentaria</span>
+                  <input id="moduleClothingInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
+
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                  <span class="text-sm font-medium text-slate-700">Torneos</span>
+                  <input id="moduleTournamentsInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
+
+                <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3 sm:col-span-2">
+                  <span class="text-sm font-medium text-slate-700">Notificaciones</span>
+                  <input id="moduleNotificationsInput" type="checkbox" class="h-5 w-5 shrink-0" />
+                </label>
+              </div>
             </div>
 
             <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <h3 class="mb-3 text-sm font-bold text-slate-900">Partidos</h3>
+              <div class="mb-3">
+                <h3 class="text-sm font-bold text-slate-900">Configuración de indumentaria</h3>
+                <p class="mt-1 text-xs text-slate-500">
+                  Estas opciones aplican solo si el módulo de indumentaria está habilitado.
+                </p>
+              </div>
 
-              <label class="flex items-center justify-between rounded-xl bg-white px-3 py-3">
-                <span class="text-sm font-medium text-slate-700">
-                  Habilitar organización de partidos
-                </span>
-                <input
-                  id="matchOrganizationEnabledInput"
-                  type="checkbox"
-                  class="h-5 w-5"
-                />
+              <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                <span class="text-sm font-medium text-slate-700">Permitir comprobantes manuales</span>
+                <input id="clothingManualProofInput" type="checkbox" class="h-5 w-5 shrink-0" checked />
               </label>
 
-              <p class="mt-2 text-xs text-slate-500">
-                Permite organizar titulares, suplentes, capitán y formación visual.
-              </p>
+              <label class="mt-2 flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+                <span class="text-sm font-medium text-slate-700">Permitir MercadoPago</span>
+                <input id="clothingMercadoPagoInput" type="checkbox" class="h-5 w-5 shrink-0" />
+              </label>
             </div>
 
             <div id="companyFormError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
             <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 id="cancelCompanyModalButton"
                 type="button"
-                class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:py-2">
                 Cancelar
               </button>
 
               <button
                 id="saveCompanyButton"
                 type="submit"
-                class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2">
                 Guardar empresa
               </button>
             </div>
@@ -308,14 +343,14 @@
           <button
             id="cancelStatusModalButton"
             type="button"
-            class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:py-2">
             Cancelar
           </button>
 
           <button
             id="confirmStatusModalButton"
             type="button"
-            class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+            class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2">
             Confirmar
           </button>
         </div>
@@ -323,7 +358,6 @@
     </div>
   </div>
 
-  <!-- Dropdown global de acciones -->
   <div
     id="actionsDropdown"
     class="fixed z-50 hidden min-w-[180px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">

@@ -25,6 +25,7 @@ import {
     getMatches,
     setMatches
 } from "../../../shared/js/storage.js";
+import { hasModule } from "../../../shared/js/modules.js";
 
 
 let isRefreshingOpponentLogos = false;
@@ -92,6 +93,10 @@ function hasCompany() {
 
 function hasStudent() {
     return !!student;
+}
+
+function canUse(moduleCode) {
+    return hasModule(company, moduleCode);
 }
 
 function getCompanyName() {
@@ -379,11 +384,13 @@ function buildSidebar() {
             <nav class="flex-1 space-y-2 px-4 py-4">
                 ${navLink("Inicio", "/src/pages/student/home/index.html", true)}
                 ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-                ${navLink("Pagos", "/src/pages/student/payments/index.html")}
-                ${navLink("Documentos", "/src/pages/student/documents/index.html")}
+
+                ${canUse("payments") ? navLink("Pagos", "/src/pages/student/payments/index.html") : ""}
+                ${canUse("documents") ? navLink("Documentos", "/src/pages/student/documents/index.html") : ""}
                 ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-                ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
-                ${company?.isClothingEnabled === true
+                ${canUse("payments") ? navLink("Hermanos", "/src/pages/student/siblings/index.html") : ""}
+
+                ${canUse("clothing")
                     ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
                     : ""
                 }
@@ -445,7 +452,7 @@ function buildMobileMenu() {
         studentFullName: getStudentFullName(),
         studentEmail: getStudentEmail(),
         activeItem: "home",
-        isClothingEnabled: company?.isClothingEnabled === true
+        modules: company?.modules || {}
     });
 }
 
@@ -454,7 +461,8 @@ function buildMobileBottomNav() {
         activeItem: "home",
         homeHref: "/src/pages/student/home/index.html",
         profileHref: "/src/pages/student/profile/index.html",
-        paymentsHref: "/src/pages/student/payments/index.html"
+        paymentsHref: "/src/pages/student/payments/index.html",
+        modules: company?.modules || {}
     });
 }
 
@@ -536,6 +544,15 @@ function buildStudentCard() {
 }
 
 function buildQuickAccess() {
+    const cards = [
+        quickAccessCard("📚", "Cursos", "/src/pages/student/courses/index.html"),
+        canUse("payments") ? quickAccessCard("💳", "Pagos", "/src/pages/student/payments/index.html") : "",
+        quickAccessCard("👤", "Perfil", "/src/pages/student/profile/index.html"),
+        canUse("payments") ? quickAccessCard("👨‍👩‍👧", "Hermanos", "/src/pages/student/siblings/index.html") : "",
+        canUse("documents") ? quickAccessCard("📄", "Documentos", "/src/pages/student/documents/index.html") : "",
+        canUse("clothing") ? quickAccessCard("👕", "Indumentaria", "/src/pages/student/clothing/catalog/index.html") : ""
+    ].filter(Boolean);
+
     return `
         <section class="hidden md:block space-y-4">
             <div>
@@ -544,10 +561,7 @@ function buildQuickAccess() {
             </div>
 
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                ${quickAccessCard("📚", "Cursos", "/src/pages/student/courses/index.html")}
-                ${quickAccessCard("💳", "Pagos", "/src/pages/student/payments/index.html")}
-                ${quickAccessCard("👤", "Perfil", "/src/pages/student/profile/index.html")}
-                ${quickAccessCard("👨‍👩‍👧", "Hermanos", "/src/pages/student/siblings/index.html")}
+                ${cards.join("")}
             </div>
         </section>
     `;
@@ -1737,9 +1751,9 @@ function buildHomeContent() {
             ${buildTopBar()}
             ${buildStudentCard()}
             ${buildQuickAccess()}
-            ${buildFeaturedMatch()}
-            ${buildNews()}
-            ${buildSponsors()}
+            ${canUse("matches") ? buildFeaturedMatch() : ""}
+            ${canUse("news") ? buildNews() : ""}
+            ${canUse("sponsors") ? buildSponsors() : ""}
         </div>
     `;
 }
@@ -2200,11 +2214,11 @@ async function refreshHomeDynamicData() {
     if (!companySlug) return;
 
     try {
-        await Promise.all([
-            loadMatches(),
-            loadAnnouncements(),
-            loadSponsors()
-        ]);
+await Promise.all([
+    canUse("matches") ? loadMatches() : Promise.resolve(),
+    canUse("news") ? loadAnnouncements() : Promise.resolve(),
+    canUse("sponsors") ? loadSponsors() : Promise.resolve()
+]);
 
         rerender();
     } catch (error) {
@@ -2309,9 +2323,9 @@ if (company) {
 
 const [profile] = await Promise.all([
     loadStudentProfile(),
-    loadMatches(),
-    loadAnnouncements(),
-    loadSponsors()
+    canUse("matches") ? loadMatches() : Promise.resolve(),
+    canUse("news") ? loadAnnouncements() : Promise.resolve(),
+    canUse("sponsors") ? loadSponsors() : Promise.resolve()
 ]);
 
         student = profile;

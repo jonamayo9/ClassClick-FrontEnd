@@ -3,6 +3,7 @@ import {
   resolveActiveAdminCompany,
   changeActiveAdminCompany
 } from "./admin-company.js";
+import { hasModule } from "./modules.js";
 
 let currentActiveKey = "";
 
@@ -25,24 +26,20 @@ function fillAdminMenus(activeKey, activeCompany) {
 
 function getMenu(activeKey, activeCompany = null) {
   const items = [
-    { key: "dashboard", label: "Dashboard", href: "/src/pages/admin/dashboard/index.html", enabled: true },
+    {key: "dashboard", label: "Dashboard", href: "/src/pages/admin/dashboard/index.html", enabled: hasModule(activeCompany, "payments")
+},
     { key: "students", label: "Alumnos", href: "/src/pages/admin/students/index.html", enabled: true },
-    { key: "records", label: "Legajos", href: "/src/pages/admin/records/index.html", enabled: true },
+    { key: "records", label: "Legajos", href: "/src/pages/admin/records/index.html", enabled: hasModule(activeCompany, "documents") },
     { key: "teachers", label: "Profesores", href: "/src/pages/admin/teachers/index.html", enabled: true },
     { key: "courses", label: "Cursos", href: "/src/pages/admin/courses/index.html", enabled: true },
-    { key: "monthly-charges", label: "Cuotas", href: "/src/pages/admin/monthly-charges/index.html", enabled: true },
-    { key: "payments", label: "Pagos", href: "/src/pages/admin/payments/index.html", enabled: true },
-    { key: "siblings", label: "Hermanos", href: "/src/pages/admin/siblings/index.html", enabled: true },
-    { key: "pricing", label: "Configuración de pagos", href: "/src/pages/admin/pricing/index.html", enabled: true },
-    { key: "matches", label: "Partidos", href: "/src/pages/admin/matches/index.html", enabled: true },
-    { key: "announcements", label: "Novedades", href: "/src/pages/admin/announcements/index.html", enabled: true },
-    { key: "sponsors", label: "Sponsors", href: "/src/pages/admin/sponsors/index.html", enabled: true },
-    {
-      key: "clothing",
-      label: "Indumentaria",
-      href: "/src/pages/admin/clothing/index.html",
-      enabled: !!activeCompany?.isClothingEnabled
-    },
+    { key: "monthly-charges", label: "Cuotas", href: "/src/pages/admin/monthly-charges/index.html", enabled: hasModule(activeCompany, "payments") },
+    { key: "payments", label: "Pagos", href: "/src/pages/admin/payments/index.html", enabled: hasModule(activeCompany, "payments") },
+    { key: "siblings", label: "Hermanos", href: "/src/pages/admin/siblings/index.html", enabled: hasModule(activeCompany, "payments") },
+    { key: "pricing", label: "Configuración de pagos", href: "/src/pages/admin/pricing/index.html", enabled: hasModule(activeCompany, "payments") },
+    { key: "matches", label: "Partidos", href: "/src/pages/admin/matches/index.html", enabled: hasModule(activeCompany, "matches") },
+    { key: "announcements", label: "Novedades", href: "/src/pages/admin/announcements/index.html", enabled: hasModule(activeCompany, "news") },
+    { key: "sponsors", label: "Sponsors", href: "/src/pages/admin/sponsors/index.html", enabled: hasModule(activeCompany, "sponsors")},
+    { key: "clothing", label: "Indumentaria", href: "/src/pages/admin/clothing/index.html", enabled: hasModule(activeCompany, "clothing")},
     { key: "company-settings", label: "Mi empresa", href: "/src/pages/admin/company-settings/index.html", enabled: true },
     { key: "profile", label: "Mi perfil", href: "/src/pages/admin/profile/index.html", enabled: true }
   ];
@@ -268,6 +265,18 @@ logoutButton.addEventListener("click", async () => {
   }
 
   const { companies, activeCompany } = await resolveActiveAdminCompany();
+
+  if (
+  currentActiveKey === "dashboard" &&
+  activeCompany &&
+  !hasModule(activeCompany, "payments")
+) {
+  window.location.replace("/src/pages/admin/students/index.html");
+  return {
+    companies,
+    activeCompany
+  };
+}
 
   fillAdminMenus(currentActiveKey, activeCompany);
 

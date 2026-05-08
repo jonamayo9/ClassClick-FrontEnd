@@ -113,7 +113,7 @@ root.dataset.notificationsBellInitialized = "true";
 
       <div
         id="${rootId}Panel"
-        class="absolute right-0 z-[120] mt-3 hidden w-[92vw] max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+         class="fixed left-1/2 top-20 z-[120] hidden w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl md:absolute md:left-auto md:right-0 md:top-[calc(100%+12px)] md:w-[92vw] md:max-w-sm md:translate-x-0">
         <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <div>
             <p class="text-sm font-semibold text-slate-900">Notificaciones</p>

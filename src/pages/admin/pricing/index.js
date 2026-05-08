@@ -2,6 +2,7 @@ import { get, post, put, del } from "../../../shared/js/api.js";
 import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../shared/js/modules.js";
 
 const LATE_FEE_RECURRENCE = {
     ONE_TIME: 1,
@@ -1728,7 +1729,6 @@ async function deleteSibling(id) {
 async function init() {
     await loadConfig();
     requireAuth();
-
     const app = qs("app");
 
     app.innerHTML = renderAdminLayout({
@@ -1751,6 +1751,10 @@ async function init() {
     });
 
     company = layout.activeCompany;
+      if (!hasModule(company, "payments")) {
+          window.location.replace("/src/pages/admin/students/index.html");
+          return;
+      }
 
     qs("settingsForm").addEventListener("submit", saveSettings);
     qs("pricingForm").addEventListener("submit", savePricing);

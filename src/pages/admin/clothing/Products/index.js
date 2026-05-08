@@ -2,6 +2,7 @@ import { get, post, put, del, postForm } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
 import { requireAuth } from "../../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../../shared/js/modules.js";
 
 let company = null;
 let products = [];
@@ -1325,33 +1326,45 @@ function syncProductImagesInput() {
 async function init() {
     await loadConfig();
     requireAuth();
-
     qs("app").innerHTML = renderAdminLayout({
         activeKey: "clothing",
         pageTitle: "Productos de indumentaria",
         contentHtml: buildContent()
     });
 
-    const layout = await setupAdminLayout({
-        onCompanyChanged: async selectedCompany => {
-            company = selectedCompany;
-            resetProductForm();
-            await loadCategories();
-            await loadProducts();
-        }
+const layout = await setupAdminLayout();
+
+company = layout.activeCompany;
+
+if (!hasModule(company, "clothing")) {
+    qs("app").innerHTML = renderAdminLayout({
+        activeKey: "home",
+        pageTitle: "Módulo no disponible",
+        contentHtml: `
+            <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                <h1 class="text-xl font-black text-slate-900">
+                    Indumentaria no está habilitado
+                </h1>
+
+                <p class="mt-2 text-sm text-slate-600">
+                    Este módulo no está disponible para la empresa activa.
+                </p>
+            </section>
+        `
     });
 
-qs("addVariantBtn").addEventListener("click", () => {
-    productVariants.push({
-        name: "",
-        tracksStock: true,
-        stockQuantity: 0
+    return;
+}
+
+    qs("addVariantBtn").addEventListener("click", () => {
+        productVariants.push({
+            name: "",
+            tracksStock: true,
+            stockQuantity: 0
+        });
+
+        renderVariants();
     });
-
-    renderVariants();
-});
-
-    company = layout.activeCompany;
 
     qs("backToClothingBtn").addEventListener("click", goBackToClothing);
     qs("productForm").addEventListener("submit", saveProduct);

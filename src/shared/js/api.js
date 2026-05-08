@@ -16,6 +16,10 @@ let refreshPromise = null;
 function redirectToLogin() {
   clearSession();
 
+  if (window.location.pathname === LOGIN_URL) {
+    return;
+  }
+
   if (window.location.pathname.includes("/src/pages/student/payments/")) {
     throw new Error("Tu sesión expiró. Cerrá sesión e ingresá nuevamente.");
   }

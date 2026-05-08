@@ -1,6 +1,7 @@
 import { get, postForm } from "../../../../../shared/js/api.js";
 import { loadConfig } from "../../../../../shared/js/config.js";
 import { requireAuth } from "../../../../../shared/js/session.js";
+import { getActiveCompany } from "../../../../../shared/js/storage.js";
 
 let companySlug = null;
 let orderId = null;
@@ -140,12 +141,12 @@ function buildContent() {
                                 <p class="font-black text-slate-900">${item.productName}</p>
                                 ${item.variantName ? `<p class="text-xs text-slate-500">Variante: ${item.variantName}</p>` : ""}
                                 ${
-    item.personalizationText
-        ? `<p class="text-xs font-bold text-sky-700">
-             ${escapeHtml(item.personalizationLabel || "Personalización")}: ${escapeHtml(item.personalizationText)}
-           </p>`
-        : ""
-}
+                                    item.personalizationText
+                                        ? `<p class="text-xs font-bold text-sky-700">
+                                            ${escapeHtml(item.personalizationLabel || "Personalización")}: ${escapeHtml(item.personalizationText)}
+                                        </p>`
+                                        : ""
+                                }
                                 <div class="mt-2 flex justify-between text-sm">
                                     <span class="text-slate-500">${item.quantity} × ${money(item.unitPrice)}</span>
                                     <span class="font-black">${money(item.subtotal)}</span>
@@ -258,6 +259,12 @@ async function init() {
         if (!session) return;
 
         companySlug = session.activeCompanySlug;
+        const company = getActiveCompany(companySlug);
+
+        if (company?.modules?.clothing !== true) {
+            window.location.href = "/src/pages/student/home/index.html";
+            return;
+        }
         orderId = getQueryParam("id") || sessionStorage.getItem("lastClothingOrderId");
 
         if (!orderId) {

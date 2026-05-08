@@ -48,16 +48,24 @@ const logoFileInput = document.getElementById("logoFileInput");
 const logoPreviewWrapper = document.getElementById("logoPreviewWrapper");
 const logoPreviewImage = document.getElementById("logoPreviewImage");
 const isActiveInput = document.getElementById("isActiveInput");
-const clothingEnabledInput = document.getElementById("clothingEnabledInput");
 const clothingManualProofInput = document.getElementById("clothingManualProofInput");
 const clothingMercadoPagoInput = document.getElementById("clothingMercadoPagoInput");
-const matchOrganizationEnabledInput = document.getElementById("matchOrganizationEnabledInput");
 const statusModal = document.getElementById("statusModal");
 const statusModalTitle = document.getElementById("statusModalTitle");
 const statusModalText = document.getElementById("statusModalText");
 const statusModalError = document.getElementById("statusModalError");
 const cancelStatusModalButton = document.getElementById("cancelStatusModalButton");
 const confirmStatusModalButton = document.getElementById("confirmStatusModalButton");
+
+const modulePaymentsInput = document.getElementById("modulePaymentsInput");
+const moduleDocumentsInput = document.getElementById("moduleDocumentsInput");
+const moduleNewsInput = document.getElementById("moduleNewsInput");
+const moduleMatchesInput = document.getElementById("moduleMatchesInput");
+const moduleClothingInput = document.getElementById("moduleClothingInput");
+const moduleTournamentsInput = document.getElementById("moduleTournamentsInput");
+const moduleNotificationsInput = document.getElementById("moduleNotificationsInput");
+const mobileCompaniesList = document.getElementById("mobileCompaniesList");
+const moduleSponsorsInput = document.getElementById("moduleSponsorsInput");
 
 const actionsDropdown = document.getElementById("actionsDropdown");
 const actionsEditButton = document.getElementById("actionsEditButton");
@@ -118,14 +126,22 @@ function updateCounters(items) {
 }
 
 function renderCompanies(items) {
+  if (mobileCompaniesList) {
+  mobileCompaniesList.innerHTML = "";
+}
   companiesTableBody.innerHTML = "";
   updateCounters(allCompanies);
 
-  if (!items.length) {
-    tableWrapper.classList.add("hidden");
-    emptyState.classList.remove("hidden");
-    return;
+if (!items.length) {
+  tableWrapper.classList.add("hidden");
+  emptyState.classList.remove("hidden");
+
+  if (mobileCompaniesList) {
+    mobileCompaniesList.innerHTML = "";
   }
+
+  return;
+}
 
   emptyState.classList.add("hidden");
   tableWrapper.classList.remove("hidden");
@@ -158,6 +174,62 @@ function renderCompanies(items) {
       </td>
     </tr>
   `).join("");
+
+  if (mobileCompaniesList) {
+  mobileCompaniesList.innerHTML = items.map((company) => `
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="flex items-start gap-3">
+        ${company.logoUrl
+          ? `<img src="${escapeHtml(company.logoUrl)}" alt="${escapeHtml(company.name)}" class="h-12 w-12 rounded-xl border border-slate-200 bg-white object-contain p-1" />`
+          : `<div class="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-semibold text-slate-400">LOGO</div>`
+        }
+
+        <div class="min-w-0 flex-1">
+          <div class="font-semibold text-slate-900">${escapeHtml(company.name)}</div>
+          <div class="mt-0.5 text-xs text-slate-500">${escapeHtml(company.slug)}</div>
+          <div class="mt-2">${getStatusBadge(company.isActive)}</div>
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-600">
+        <div>
+          <span class="block text-slate-400">Email</span>
+          <span class="break-all">${escapeHtml(company.email || "-")}</span>
+        </div>
+        <div>
+          <span class="block text-slate-400">Teléfono</span>
+          <span>${escapeHtml(company.phone || "-")}</span>
+        </div>
+        <div>
+          <span class="block text-slate-400">Admins</span>
+          <span>${escapeHtml(company.adminsCount ?? 0)}</span>
+        </div>
+        <div>
+          <span class="block text-slate-400">Alta</span>
+          <span>${formatDate(company.createdAtUtc)}</span>
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          data-action="edit"
+          data-id="${escapeHtml(company.id)}"
+          class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+          Editar
+        </button>
+
+        <button
+          type="button"
+          data-action="toggle-status"
+          data-id="${escapeHtml(company.id)}"
+          class="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white">
+          ${company.isActive ? "Desactivar" : "Activar"}
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
 }
 
 function filterCompanies(term) {
@@ -187,6 +259,10 @@ function showLoading() {
   errorState.classList.add("hidden");
   emptyState.classList.add("hidden");
   tableWrapper.classList.add("hidden");
+
+  if (mobileCompaniesList) {
+    mobileCompaniesList.innerHTML = "";
+  }
 }
 
 function hideLoading() {
@@ -267,15 +343,51 @@ function setLogoPreview(url, isObjectUrl = false) {
   logoPreviewWrapper.classList.remove("hidden");
 }
 
+function resetModulesForm() {
+  if (modulePaymentsInput) modulePaymentsInput.checked = true;
+  if (moduleDocumentsInput) moduleDocumentsInput.checked = true;
+  if (moduleNewsInput) moduleNewsInput.checked = true;
+  if (moduleMatchesInput) moduleMatchesInput.checked = false;
+  if (moduleClothingInput) moduleClothingInput.checked = false;
+  if (moduleTournamentsInput) moduleTournamentsInput.checked = false;
+  if (moduleNotificationsInput) moduleNotificationsInput.checked = true;
+  if (moduleSponsorsInput) moduleSponsorsInput.checked = false;
+}
+
 function resetClothingSettingsForm() {
-  if (clothingEnabledInput) clothingEnabledInput.checked = false;
   if (clothingManualProofInput) clothingManualProofInput.checked = true;
   if (clothingMercadoPagoInput) clothingMercadoPagoInput.checked = false;
 }
 
+function buildModulesPayload() {
+  return {
+    modules: {
+      payments: modulePaymentsInput?.checked === true,
+      documents: moduleDocumentsInput?.checked === true,
+      news: moduleNewsInput?.checked === true,
+      matches: moduleMatchesInput?.checked === true,
+      clothing: moduleClothingInput?.checked === true,
+      tournaments: moduleTournamentsInput?.checked === true,
+      notifications: moduleNotificationsInput?.checked === true,
+      sponsors: moduleSponsorsInput?.checked === true,
+    }
+  };
+}
+
+async function loadCompanyModules(companyId) {
+  return await get(`/api/superadmin/companies/${companyId}/clothing/modules`);
+}
+
+async function saveCompanyModules(companyId) {
+  return await put(
+    `/api/superadmin/companies/${companyId}/clothing/modules`,
+    buildModulesPayload()
+  );
+}
+
 function buildClothingSettingsPayload() {
   return {
-    isEnabled: clothingEnabledInput?.checked === true,
+    isEnabled: moduleClothingInput?.checked === true,
     allowsManualProof: clothingManualProofInput?.checked === true,
     allowsMercadoPago: clothingMercadoPagoInput?.checked === true
   };
@@ -303,10 +415,8 @@ function resetCompanyForm() {
   }
 
   setLogoPreview("");
+  resetModulesForm();
   resetClothingSettingsForm();
-  if (matchOrganizationEnabledInput) {
-  matchOrganizationEnabledInput.checked = false;
-}
 }
 
 function buildCompanyPayload() {
@@ -324,7 +434,7 @@ function buildCompanyPayload() {
     postalCode: postalCodeInput.value.trim(),
     country: countryInput.value.trim(),
     isActive: isActiveInput.value === "true",
-    isMatchOrganizationEnabled: matchOrganizationEnabledInput?.checked === true
+    isMatchOrganizationEnabled: moduleMatchesInput?.checked === true
   };
 }
 
@@ -348,6 +458,7 @@ function openCreateCompanyModal() {
   companyModalTitle.textContent = "Nueva empresa";
   isActiveWrapper.classList.add("hidden");
 
+  resetModulesForm();
   resetClothingSettingsForm();
 
   setSaveCompanyLoading(false);
@@ -379,17 +490,30 @@ function openEditCompanyModal(companyId) {
   countryInput.value = company.country ?? "";
   isActiveInput.value = company.isActive ? "true" : "false";
   slugInput.dataset.touched = "true";
-  if (matchOrganizationEnabledInput) {
-  matchOrganizationEnabledInput.checked = company.isMatchOrganizationEnabled === true;
-}
 
   if (company.logoUrl) {
     setLogoPreview(company.logoUrl);
   }
 
+  loadCompanyModules(companyId)
+  .then((response) => {
+    const modules = response?.modules || {};
+
+    if (modulePaymentsInput) modulePaymentsInput.checked = modules.payments === true;
+    if (moduleDocumentsInput) moduleDocumentsInput.checked = modules.documents === true;
+    if (moduleNewsInput) moduleNewsInput.checked = modules.news === true;
+    if (moduleMatchesInput) moduleMatchesInput.checked = modules.matches === true;
+    if (moduleClothingInput) moduleClothingInput.checked = modules.clothing === true;
+    if (moduleTournamentsInput) moduleTournamentsInput.checked = modules.tournaments === true;
+    if (moduleNotificationsInput) moduleNotificationsInput.checked = modules.notifications === true;
+    if (moduleSponsorsInput) moduleSponsorsInput.checked = modules.sponsors === true;
+  })
+  .catch(() => {
+    resetModulesForm();
+  });
+
   loadClothingSettings(companyId)
   .then((settings) => {
-    if (clothingEnabledInput) clothingEnabledInput.checked = settings.isEnabled === true;
     if (clothingManualProofInput) clothingManualProofInput.checked = settings.allowsManualProof === true;
     if (clothingMercadoPagoInput) clothingMercadoPagoInput.checked = settings.allowsMercadoPago === true;
   })
@@ -516,8 +640,9 @@ async function onSubmitCompanyForm(event) {
     }
 
     if (companyResponse?.id) {
-  await saveClothingSettings(companyResponse.id);
-}
+      await saveCompanyModules(companyResponse.id);
+      await saveClothingSettings(companyResponse.id);
+    }
 
     setSaveCompanyLoading(false);
     closeCompanyModal();
@@ -595,6 +720,8 @@ function bindEvents() {
   searchInput?.addEventListener("input", (event) => {
     filterCompanies(event.target.value);
   });
+
+  mobileCompaniesList?.addEventListener("click", onCompaniesTableClick);
 
   companiesTableBody?.addEventListener("click", onCompaniesTableClick);
 

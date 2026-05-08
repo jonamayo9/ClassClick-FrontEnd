@@ -954,13 +954,48 @@ function buildSidebar() {
             </div>
 
             <nav class="flex-1 space-y-2 px-4 py-4">
-                <a href="/src/pages/student/home/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Inicio</a>
-                <a href="/src/pages/student/courses/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Cursos</a>
-                <a href="/src/pages/student/payments/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Pagos</a>
-                <a href="/src/pages/student/documents/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Documentos</a>
-                <a href="/src/pages/student/profile/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Perfil</a>
-                <a href="/src/pages/student/siblings/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Hermanos</a>
-                <a href="/src/pages/student/clothing/catalog/index.html" class="flex items-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm">Indumentaria</a>
+                <a href="/src/pages/student/home/index.html"
+                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    Inicio
+                </a>
+
+                <a href="/src/pages/student/courses/index.html"
+                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    Cursos
+                </a>
+
+                ${company?.modules?.payments === true ? `
+                    <a href="/src/pages/student/payments/index.html"
+                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                        Pagos
+                    </a>
+                ` : ""}
+
+                ${company?.modules?.documents === true ? `
+                    <a href="/src/pages/student/documents/index.html"
+                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                        Documentos
+                    </a>
+                ` : ""}
+
+                <a href="/src/pages/student/profile/index.html"
+                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    Perfil
+                </a>
+
+                ${company?.modules?.payments === true ? `
+                    <a href="/src/pages/student/siblings/index.html"
+                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                        Hermanos
+                    </a>
+                ` : ""}
+
+                ${company?.modules?.clothing === true ? `
+                    <a href="/src/pages/student/clothing/catalog/index.html"
+                    class="flex items-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm">
+                        Indumentaria
+                    </a>
+                ` : ""}
             </nav>
 
             <div class="mt-auto border-t border-slate-200 px-4 py-4">
@@ -995,7 +1030,8 @@ function render() {
                 mobileMenuOpen,
                 studentFullName: getStudentFullName(),
                 studentEmail: getStudentEmail(),
-                activeItem: "clothing"
+                activeItem: "clothing",
+                modules: company?.modules || {}
             })}
 
             <div class="flex min-h-screen">
@@ -1015,7 +1051,11 @@ function render() {
             ${buildDetailModal()}
 
             ${detailProductId || cartOpen ? "" : buildStudentMobileBottomNav({
-                activeItem: "clothing"
+                activeItem: "clothing",
+                homeHref: "/src/pages/student/home/index.html",
+                profileHref: "/src/pages/student/profile/index.html",
+                paymentsHref: "/src/pages/student/payments/index.html",
+                modules: company?.modules || {}
             })}
         </div>
     `;
@@ -1174,6 +1214,11 @@ async function init() {
 
         if (!company) {
             throw new Error("Empresa no encontrada");
+        }
+
+        if (company?.modules?.clothing !== true) {
+            window.location.href = "/src/pages/student/home/index.html";
+            return;
         }
 
         products = await loadProducts();

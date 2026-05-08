@@ -283,19 +283,41 @@ function buildSidebar() {
                 }
             </div>
 
-            <nav class="flex-1 space-y-2 px-4 py-4">
-                ${navLink("Inicio", "/src/pages/student/home/index.html")}
-                ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-                ${navLink("Pagos", "/src/pages/student/payments/index.html")}
-                ${navLink("Documentos", "/src/pages/student/documents/index.html")}
-                ${navLink("Perfil", "/src/pages/student/profile/index.html", true)}
-                ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
-                ${
-                    company?.isClothingEnabled === true
-                        ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
-                        : ""
-                }
-            </nav>
+<nav class="flex-1 space-y-2 px-4 py-4">
+    ${navLink("Inicio", "/src/pages/student/home/index.html")}
+
+    ${
+        company?.modules?.courses !== false
+            ? navLink("Cursos", "/src/pages/student/courses/index.html")
+            : ""
+    }
+
+    ${
+        company?.modules?.payments === true
+            ? navLink("Pagos", "/src/pages/student/payments/index.html")
+            : ""
+    }
+
+    ${
+        company?.modules?.documents === true
+            ? navLink("Documentos", "/src/pages/student/documents/index.html")
+            : ""
+    }
+
+    ${navLink("Perfil", "/src/pages/student/profile/index.html", true)}
+
+    ${
+        company?.modules?.siblings !== false
+            ? navLink("Hermanos", "/src/pages/student/siblings/index.html")
+            : ""
+    }
+
+    ${
+        company?.modules?.clothing === true
+            ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
+            : ""
+    }
+</nav>
             <div class="mt-auto border-t border-slate-200 px-4 py-4">
                 <button
                     id="logoutBtn"
@@ -343,17 +365,17 @@ function buildMobileMenu() {
         studentFullName: getFullName(),
         studentEmail: profile?.email || "",
         activeItem: "profile",
-        isClothingEnabled: company?.isClothingEnabled === true
+        modules: company?.modules || {}
     });
 }
-
 function buildMobileBottomNav() {
     return buildStudentMobileBottomNav({
         activeItem: "profile",
         homeHref: "/src/pages/student/home/index.html",
         profileHref: "/src/pages/student/profile/index.html",
         carnetHref: "javascript:void(0)",
-        paymentsHref: "/src/pages/student/payments/index.html"
+        paymentsHref: "/src/pages/student/payments/index.html",
+        modules: company?.modules || {}
     });
 }
 

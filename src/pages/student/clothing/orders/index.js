@@ -438,12 +438,12 @@ function buildModal() {
                                             <p class="font-black text-slate-900">${escapeHtml(item.productName)}</p>
                                             ${item.variantName ? `<p class="text-xs font-bold text-slate-400">Variante: ${escapeHtml(item.variantName)}</p>` : ""}
                                             ${
-    item.personalizationText
-        ? `<p class="text-xs font-bold text-sky-700">
-            ${escapeHtml(item.personalizationLabel || "Personalización")}: ${escapeHtml(item.personalizationText)}
-           </p>`
-        : ""
-}
+                                                item.personalizationText
+                                                    ? `<p class="text-xs font-bold text-sky-700">
+                                                        ${escapeHtml(item.personalizationLabel || "Personalización")}: ${escapeHtml(item.personalizationText)}
+                                                    </p>`
+                                                    : ""
+                                            }
                                             <p class="mt-1 text-sm text-slate-500">${item.quantity} × ${money(item.unitPrice)}</p>
                                         </div>
 
@@ -733,21 +733,26 @@ async function init() {
 
         let cachedCompany = getActiveCompany(companySlug);
 
-let me = getMe();
+        let me = getMe();
 
-const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
-const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
+        const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
+        const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
 
-if (!me || isSasUrlExpired(logoUrl)) {
-    me = await get("/api/admin/me");
-    setMe(me);
-}
+        if (!me || isSasUrlExpired(logoUrl)) {
+            me = await get("/api/admin/me");
+            setMe(me);
+        }
 
-company = (me.companies || []).find(x => x.companySlug === companySlug) || cachedCompany || null;
+        company = (me.companies || []).find(x => x.companySlug === companySlug) || cachedCompany || null;
 
-if (company) {
-    setActiveCompany(companySlug, company);
-}
+        if (company) {
+            setActiveCompany(companySlug, company);
+        }
+
+        if (company?.modules?.clothing !== true) {
+            window.location.href = "/src/pages/student/home/index.html";
+            return;
+        }
 
         orders = await loadOrders();
 

@@ -1,6 +1,7 @@
 import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../shared/js/modules.js";
 
 function qs(id) {
     return document.getElementById(id);
@@ -115,13 +116,33 @@ async function init() {
         contentHtml: buildContent()
     });
 
-    const layout = await setupAdminLayout();
-    const company = layout.activeCompany;
+    const { activeCompany } = await setupAdminLayout();
 
-    if (!company?.isClothingEnabled) {
-        window.location.replace("/src/pages/admin/dashboard/index.html");
-        return;
-    }
+if (!hasModule(activeCompany, "clothing")) {
+    qs("app").innerHTML = renderAdminLayout({
+        activeKey: "home",
+        pageTitle: "Módulo no disponible",
+        contentHtml: `
+            <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                <h1 class="text-xl font-black text-slate-900">
+                    Indumentaria no está habilitado
+                </h1>
+
+                <p class="mt-2 text-sm text-slate-600">
+                    Este módulo no está disponible para la empresa activa.
+                </p>
+
+                <a
+                    href="/src/pages/admin/home/index.html"
+                    class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+                >
+                    Volver al inicio
+                </a>
+            </section>
+        `
+    });
+
+    return;
 }
-
+}
 init();

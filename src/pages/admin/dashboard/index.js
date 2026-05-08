@@ -3,6 +3,7 @@ import { get } from "../../../shared/js/api.js";
 import { getUser, getActiveRole, getToken } from "../../../shared/js/storage.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../shared/js/modules.js";
 
 const state = {
   activeCompany: null,
@@ -650,8 +651,14 @@ async function init() {
   });
 
   state.activeCompany = activeCompany;
+
+    if (!hasModule(state.activeCompany, "payments")) {
+    window.location.replace("/src/pages/admin/students/index.html");
+    return;
+  }
   await loadDashboard(activeCompany);
 }
+
 
 init().catch((error) => {
   const app = document.getElementById("app");

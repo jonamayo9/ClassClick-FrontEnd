@@ -243,14 +243,35 @@ function buildSidebar() {
             <div class="flex min-h-0 flex-1 flex-col">
 <nav class="space-y-2 px-4 py-4">
     ${buildSidebarLink("Inicio", "/src/pages/student/home/index.html")}
-    ${buildSidebarLink("Cursos", "/src/pages/student/courses/index.html")}
-    ${buildSidebarLink("Pagos", "/src/pages/student/payments/index.html", true)}
-    ${buildSidebarLink("Documentos", "/src/pages/student/documents/index.html")}
-    ${buildSidebarLink("Perfil", "/src/pages/student/profile/index.html")}
-    ${buildSidebarLink("Hermanos", "/src/pages/student/siblings/index.html")}
 
     ${
-        company?.isClothingEnabled === true
+        company?.modules?.courses !== false
+            ? buildSidebarLink("Cursos", "/src/pages/student/courses/index.html")
+            : ""
+    }
+
+    ${
+        company?.modules?.payments === true
+            ? buildSidebarLink("Pagos", "/src/pages/student/payments/index.html", true)
+            : ""
+    }
+
+    ${
+        company?.modules?.documents === true
+            ? buildSidebarLink("Documentos", "/src/pages/student/documents/index.html")
+            : ""
+    }
+
+    ${buildSidebarLink("Perfil", "/src/pages/student/profile/index.html")}
+
+    ${
+        company?.modules?.siblings !== false
+            ? buildSidebarLink("Hermanos", "/src/pages/student/siblings/index.html")
+            : ""
+    }
+
+    ${
+        company?.modules?.clothing === true
             ? buildSidebarLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
             : ""
     }
@@ -902,7 +923,7 @@ function buildMobileMenu() {
         activeItem: "payments",
         studentFullName: getStudentFullName(),
         studentEmail: getStudentEmail(),
-        isClothingEnabled: company?.isClothingEnabled === true
+        modules: company?.modules || {}
     });
 }
 
@@ -929,7 +950,8 @@ function render() {
                 activeItem: "payments",
                 homeHref: "/src/pages/student/home/index.html",
                 profileHref: "/src/pages/student/profile/index.html",
-                paymentsHref: "/src/pages/student/payments/index.html"
+                paymentsHref: "/src/pages/student/payments/index.html",
+                modules: company?.modules || {}
             })}
 
             ${buildTransferModal()}

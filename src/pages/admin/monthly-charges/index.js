@@ -2,6 +2,7 @@ import { get, post, put } from "../../../shared/js/api.js";
 import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
+import { hasModule } from "../../../shared/js/modules.js";
 
 let company = null;
 
@@ -1677,7 +1678,6 @@ document.getElementById("generateSelectedStudents")?.addEventListener("click", e
 
 async function init() {
     await loadConfig();
-
     requireAuth();
 
     const app = document.getElementById("app");
@@ -1697,6 +1697,11 @@ async function init() {
     });
 
     company = layout.activeCompany;
+
+    if (!hasModule(company, "payments")) {
+        window.location.replace("/src/pages/admin/students/index.html");
+        return;
+    }
 
     bindEvents();
 

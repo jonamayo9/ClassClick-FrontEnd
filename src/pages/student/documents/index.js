@@ -233,7 +233,8 @@ function buildMobileBottomNav() {
         homeHref: "/src/pages/student/home/index.html",
         profileHref: "/src/pages/student/profile/index.html",
         carnetHref: "javascript:void(0)",
-        paymentsHref: "/src/pages/student/payments/index.html"
+        paymentsHref: "/src/pages/student/payments/index.html",
+        modules: company?.modules || {}
     });
 }
 
@@ -606,7 +607,7 @@ function buildMobileMenu() {
         studentFullName: getStudentFullName(),
         studentEmail: getStudentEmail(),
         activeItem: "documents",
-        isClothingEnabled: company?.isClothingEnabled === true
+        modules: company?.modules || {}
     });
 }
 
@@ -901,24 +902,29 @@ async function init() {
 
         companySlug = session.activeCompanySlug;
 
-let me = getMe();
+        let me = getMe();
 
-const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
-const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
+        const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
+        const logoUrl = companyFromMe?.logoUrl || companyFromMe?.LogoUrl;
 
-if (!me || isSasUrlExpired(logoUrl)) {
-    me = await get("/api/admin/me");
-    setMe(me);
-}
+        if (!me || isSasUrlExpired(logoUrl)) {
+            me = await get("/api/admin/me");
+            setMe(me);
+        }
 
-company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
+        company = (me.companies || []).find(x => x.companySlug === companySlug) || null;
 
-if (company) {
-    setActiveCompany(companySlug, company);
-}
+        if (company) {
+            setActiveCompany(companySlug, company);
+        }
 
         if (!company) {
             throw new Error("No se encontró la empresa activa del alumno.");
+        }
+
+        if (company?.modules?.documents !== true) {
+            window.location.href = "/src/pages/student/home/index.html";
+            return;
         }
 
         student = await loadStudentProfile();

@@ -1,3 +1,5 @@
+import { hasModule } from "./modules.js";
+
 export function escapeStudentShellHtml(value) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -78,9 +80,10 @@ export function buildStudentMobileMenu({
     studentName,
     studentEmail,
     activeItem = "home",
-    isClothingEnabled = false
+    modules = {}
 }) {
     const resolvedStudentName = studentFullName || studentName || "—";
+    const company = { modules };
 
     return `
         <div
@@ -137,27 +140,31 @@ export function buildStudentMobileMenu({
                         activeItem === "courses" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
                     }">Cursos</a>
 
-                    <a href="/src/pages/student/payments/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                        activeItem === "payments" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
-                    }">Pagos</a>
+                    ${hasModule(company, "payments") ? `
+                        <a href="/src/pages/student/payments/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
+                            activeItem === "payments" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        }">Pagos</a>
+                    ` : ""}
 
-                    <a href="/src/pages/student/documents/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                        activeItem === "documents" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
-                    }">Documentos</a>
+                    ${hasModule(company, "documents") ? `
+                        <a href="/src/pages/student/documents/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
+                            activeItem === "documents" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        }">Documentos</a>
+                    ` : ""}
 
                     <a href="/src/pages/student/profile/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
                         activeItem === "profile" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
                     }">Perfil</a>
 
-                    <a href="/src/pages/student/siblings/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                        activeItem === "siblings" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
-                    }">Hermanos</a>
-                    ${isClothingEnabled ? `
+                    ${hasModule(company, "payments") ? `
+                        <a href="/src/pages/student/siblings/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
+                            activeItem === "siblings" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        }">Hermanos</a>
+                    ` : ""}
+                    ${hasModule(company, "clothing") ? `
                         <a href="/src/pages/student/clothing/catalog/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
                             activeItem === "clothing" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
-                        }">
-                            Indumentaria
-                        </a>
+                        }">Indumentaria</a>
                     ` : ""}
                 </nav>
 
@@ -180,8 +187,12 @@ export function buildStudentMobileBottomNav({
     homeHref = "/src/pages/student/home/index.html",
     profileHref = "/src/pages/student/profile/index.html",
     carnetHref = "javascript:void(0)",
-    paymentsHref = "/src/pages/student/payments/index.html"
+    paymentsHref = "/src/pages/student/payments/index.html",
+    modules = {}
 }) {
+
+    const company = { modules };
+const showPayments = hasModule(company, "payments");
 
     const getNavItemClass = (isActive) =>
         isActive
@@ -237,7 +248,7 @@ export function buildStudentMobileBottomNav({
 
             <nav class="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 bg-white px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)]">
 
-                <div class="grid grid-cols-5 items-end gap-1">
+                <div class="grid ${showPayments ? "grid-cols-5 items-end" : "grid-cols-4 items-center"} gap-1">
 
                     <!-- inicio -->
                     <a
@@ -258,30 +269,43 @@ export function buildStudentMobileBottomNav({
                     </a>
 
                     <!-- carnet -->
-                    <button
-                        data-student-shell-open-carnet
-                        type="button"
-                        class="flex flex-col items-center justify-center"
-                    >
-                        <span class="-mt-10 flex h-[78px] w-[78px] items-center justify-center rounded-full border-4 border-white bg-slate-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.24)]">
-                            <span class="h-9 w-9">
-                                ${iconCard}
+                    ${showPayments ? `
+                        <button
+                            data-student-shell-open-carnet
+                            type="button"
+                            class="flex flex-col items-center justify-center"
+                        >
+                            <span class="-mt-10 flex h-[78px] w-[78px] items-center justify-center rounded-full border-4 border-white bg-slate-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.24)]">
+                                <span class="h-9 w-9">
+                                    ${iconCard}
+                                </span>
                             </span>
-                        </span>
 
-                        <span class="mt-1 text-[11px] font-semibold text-slate-900">
-                            Carnet
-                        </span>
-                    </button>
+                            <span class="mt-1 text-[11px] font-semibold text-slate-900">
+                                Carnet
+                            </span>
+                        </button>
+                    ` : `
+                        <button
+                            data-student-shell-open-carnet
+                            type="button"
+                            class="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 ${getNavItemClass(activeItem === "carnet")}"
+                        >
+                            ${icon(iconCard)}
+                            <span class="text-[11px] font-medium">Carnet</span>
+                        </button>
+                    `}
 
                     <!-- pagos -->
-                    <a
-                        href="${paymentsHref}"
-                        class="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 ${getNavItemClass(activeItem === "payments")}"
-                    >
-                        ${icon(iconTicket)}
-                        <span class="text-[11px] font-medium">Pago</span>
-                    </a>
+                    ${showPayments ? `
+                        <a
+                            href="${paymentsHref}"
+                            class="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 ${getNavItemClass(activeItem === "payments")}"
+                        >
+                            ${icon(iconTicket)}
+                            <span class="text-[11px] font-medium">Pago</span>
+                        </a>
+                    ` : ""}
 
                     <!-- menu -->
                     <button

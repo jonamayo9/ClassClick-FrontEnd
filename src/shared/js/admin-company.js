@@ -18,6 +18,12 @@ function normalizeCompany(item) {
     logoUrl: item.logoUrl ?? "",
     isActive: item.isActive ?? true,
     roles: Array.isArray(item.roles) ? item.roles : [],
+    role: item.role ?? "",
+
+    type: item.type ?? "Generic",
+    modules: item.modules ?? {},
+
+    // Compatibilidad vieja
     isClothingEnabled: item.isClothingEnabled === true,
     isMatchOrganizationEnabled: item.isMatchOrganizationEnabled === true,
   };
