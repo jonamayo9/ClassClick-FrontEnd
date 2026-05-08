@@ -266,8 +266,10 @@ logoutButton.addEventListener("click", async () => {
 
   const { companies, activeCompany } = await resolveActiveAdminCompany();
 
-  if (
-  currentActiveKey === "dashboard" &&
+const currentPath = window.location.pathname;
+
+if (
+  currentPath.includes("/src/pages/admin/dashboard/") &&
   activeCompany &&
   !hasModule(activeCompany, "payments")
 ) {
