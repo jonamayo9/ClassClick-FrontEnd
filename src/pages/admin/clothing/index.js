@@ -157,28 +157,28 @@ async function init() {
 
         qs("app").innerHTML = renderAdminLayout({
             activeKey: "clothing",
-            pageTitle: "Productos de indumentaria",
+            pageTitle: "Indumentaria",
             contentHtml: buildContent()
         });
 
-const layout = await setupAdminLayout();
+        debugBox("renderAdminLayout OK");
 
-debugBox("setupAdminLayout OK", layout);
+        const layout = await setupAdminLayout();
 
-company = layout.activeCompany;
-
-debugBox("activeCompany", company);
+        debugBox("setupAdminLayout OK", layout);
 
         company = layout.activeCompany;
+
         debugBox("activeCompany", company);
 
         if (!company?.slug) {
             debugBox("ERROR: company slug vacío", company);
-            showErrorModal("No se pudo resolver la empresa activa.");
+            qs("app").innerHTML = `<div class="p-6">No se pudo resolver la empresa activa.</div>`;
             return;
         }
 
         const clothingEnabled = hasModule(company, "clothing");
+
         debugBox("hasModule clothing", {
             clothingEnabled,
             modules: company.modules,
@@ -214,99 +214,6 @@ debugBox("activeCompany", company);
             return;
         }
 
-        debugBox("bind events START");
-
-        qs("addVariantBtn").addEventListener("click", () => {
-            productVariants.push({
-                name: "",
-                tracksStock: true,
-                stockQuantity: 0
-            });
-
-            renderVariants();
-        });
-
-        qs("backToClothingBtn").addEventListener("click", goBackToClothing);
-        qs("productForm").addEventListener("submit", saveProduct);
-        qs("resetProductBtn").addEventListener("click", resetProductForm);
-
-        qs("productImages").addEventListener("change", event => {
-            const selectedFiles = [...(event.target.files || [])];
-
-            selectedFiles.forEach(file => {
-                const alreadyExists = pendingCreateImages.some(existing =>
-                    existing.name === file.name &&
-                    existing.size === file.size &&
-                    existing.lastModified === file.lastModified
-                );
-
-                if (!alreadyExists) {
-                    pendingCreateImages.push(file);
-                }
-            });
-
-            qs("productImagesInfo").textContent = pendingCreateImages.length
-                ? `${pendingCreateImages.length} imagen(es) seleccionada(s).`
-                : "Podés seleccionar una o más imágenes.";
-
-            syncProductImagesInput();
-            renderPendingImagesPreview();
-        });
-
-        qs("productParentCategoryId").addEventListener("change", () => {
-            renderChildSelect(qs("productParentCategoryId").value, "productChildCategoryId");
-        });
-
-        qs("productRequiresDeposit").addEventListener("change", toggleDepositBox);
-        qs("productAllowsPersonalization").addEventListener("change", togglePersonalizationBox);
-
-        qs("productHasVariants").addEventListener("change", () => {
-            const enabled = qs("productHasVariants").checked;
-
-            qs("variantsBox").classList.toggle("hidden", !enabled);
-
-            if (!enabled) {
-                productVariants = [];
-                renderVariants();
-            }
-        });
-
-        qs("productSearchInput").addEventListener("input", () => {
-            currentPage = 1;
-            renderProductsList();
-        });
-
-        qs("filterParentCategoryId").addEventListener("change", () => {
-            currentPage = 1;
-            renderChildSelect(qs("filterParentCategoryId").value, "filterChildCategoryId", "", "Todas");
-            renderProductsList();
-        });
-
-        qs("filterChildCategoryId").addEventListener("change", () => {
-            currentPage = 1;
-            renderProductsList();
-        });
-
-        qs("productsPrevBtn").addEventListener("click", goPrevPage);
-        qs("productsNextBtn").addEventListener("click", goNextPage);
-
-        debugBox("bind events OK");
-
-        debugBox("loadCategories START");
-        await loadCategories();
-        debugBox("loadCategories OK", {
-            count: categories.length
-        });
-
-        debugBox("loadProducts START");
-        await loadProducts();
-        debugBox("loadProducts OK", {
-            count: products.length
-        });
-
-        toggleDepositBox();
-        togglePersonalizationBox();
-
         debugBox("INIT FINISHED OK");
     } catch (error) {
         debugBox("INIT ERROR", {
@@ -314,7 +221,13 @@ debugBox("activeCompany", company);
             stack: error?.stack
         });
 
-        showErrorModal(error?.message || "No se pudieron cargar los productos.");
+        qs("app").innerHTML = `
+            <div style="padding:24px;font-family:Arial">
+                <h1>Error cargando Indumentaria</h1>
+                <p>${error?.message || "Error desconocido"}</p>
+            </div>
+        `;
     }
 }
+
 init();
