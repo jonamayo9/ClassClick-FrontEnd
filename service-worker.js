@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v14-no-admin-auth-cache";
+const CACHE_VERSION = "v14-products-fix";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
