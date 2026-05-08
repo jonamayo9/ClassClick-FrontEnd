@@ -42,6 +42,43 @@ function buildModuleCard({ title, description, href, emoji, enabled }) {
     `;
 }
 
+const DEBUG_PRODUCTS = new URLSearchParams(window.location.search).get("debug") === "1";
+
+function debugProducts(step, data = null) {
+    if (!DEBUG_PRODUCTS) return;
+
+    console.log("[PRODUCTS DEBUG]", step, data);
+
+    let box = document.getElementById("debugProductsBox");
+
+    if (!box) {
+        box = document.createElement("pre");
+        box.id = "debugProductsBox";
+        box.style.cssText = `
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 99999;
+            max-width: 90vw;
+            max-height: 45vh;
+            overflow: auto;
+            background: #020617;
+            color: #22c55e;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            white-space: pre-wrap;
+        `;
+        document.body.appendChild(box);
+    }
+
+    box.textContent += `\n[${new Date().toLocaleTimeString()}] ${step}`;
+
+    if (data) {
+        box.textContent += `\n${JSON.stringify(data, null, 2)}`;
+    }
+}
+
 function buildContent() {
     return `
         <section class="space-y-6">
@@ -64,13 +101,15 @@ function buildContent() {
                     enabled: true
                 })}
 
-                ${buildModuleCard({
-                    title: "Productos",
-                    description: "Cargá prendas, precios, variantes, talles e imágenes.",
-                    href: "/src/pages/admin/clothing/products/index.html",
-                    emoji: "👕",
-                    enabled: true
-                })}
+                
+
+${buildModuleCard({
+    title: "Productos",
+    description: "Cargá prendas, precios, variantes, talles e imágenes.",
+    href: "/src/pages/admin/clothing/products/index.html?debug=1",
+    emoji: "👕",
+    enabled: true
+})}
 
                 ${buildModuleCard({
                     title: "Pedidos",
@@ -108,126 +147,45 @@ function buildContent() {
     `;
 }
 
-function debugBox(step, data = null) {
-    const boxId = "debugProductsBox";
-    let box = document.getElementById(boxId);
-
-    if (!box) {
-        box = document.createElement("pre");
-        box.id = boxId;
-        box.style.cssText = `
-            position: fixed;
-            left: 12px;
-            bottom: 12px;
-            z-index: 99999;
-            max-width: 90vw;
-            max-height: 45vh;
-            overflow: auto;
-            background: #020617;
-            color: #22c55e;
-            padding: 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            white-space: pre-wrap;
-        `;
-        document.body.appendChild(box);
-    }
-
-    box.textContent += `\n[${new Date().toLocaleTimeString()}] ${step}`;
-
-    if (data) {
-        box.textContent += `\n${JSON.stringify(data, null, 2)}`;
-    }
-
-    console.log("[PRODUCTS DEBUG]", step, data);
-}
-
 async function init() {
-    try {
-        debugBox("INIT START", {
-            href: window.location.href,
-            path: window.location.pathname
-        });
+    await loadConfig();
+    requireAuth();
 
-        await loadConfig();
-        debugBox("loadConfig OK");
+    qs("app").innerHTML = renderAdminLayout({
+        activeKey: "clothing",
+        pageTitle: "Indumentaria",
+        contentHtml: buildContent()
+    });
 
-        requireAuth();
-        debugBox("requireAuth OK");
+    const { activeCompany } = await setupAdminLayout();
 
+    if (!hasModule(activeCompany, "clothing")) {
         qs("app").innerHTML = renderAdminLayout({
             activeKey: "clothing",
-            pageTitle: "Indumentaria",
-            contentHtml: buildContent()
+            pageTitle: "Módulo no disponible",
+            contentHtml: `
+                <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                    <h1 class="text-xl font-black text-slate-900">
+                        Indumentaria no está habilitado
+                    </h1>
+
+                    <p class="mt-2 text-sm text-slate-600">
+                        Este módulo no está disponible para la empresa activa.
+                    </p>
+
+                    <a
+                        href="/src/pages/admin/dashboard/index.html"
+                        class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
+                    >
+                        Volver al inicio
+                    </a>
+                </section>
+            `
         });
 
-        debugBox("renderAdminLayout OK");
-
-        const layout = await setupAdminLayout();
-
-        debugBox("setupAdminLayout OK", layout);
-
-        company = layout.activeCompany;
-
-        debugBox("activeCompany", company);
-
-        if (!company?.slug) {
-            debugBox("ERROR: company slug vacío", company);
-            qs("app").innerHTML = `<div class="p-6">No se pudo resolver la empresa activa.</div>`;
-            return;
-        }
-
-        const clothingEnabled = hasModule(company, "clothing");
-
-        debugBox("hasModule clothing", {
-            clothingEnabled,
-            modules: company.modules,
-            isClothingEnabled: company.isClothingEnabled
-        });
-
-        if (!clothingEnabled) {
-            debugBox("STOP: clothing deshabilitado");
-
-            qs("app").innerHTML = renderAdminLayout({
-                activeKey: "clothing",
-                pageTitle: "Módulo no disponible",
-                contentHtml: `
-                    <section class="rounded-3xl border border-amber-200 bg-amber-50 p-6">
-                        <h1 class="text-xl font-black text-slate-900">
-                            Indumentaria no está habilitado
-                        </h1>
-
-                        <p class="mt-2 text-sm text-slate-600">
-                            Este módulo no está disponible para la empresa activa.
-                        </p>
-
-                        <a
-                            href="/src/pages/admin/dashboard/index.html"
-                            class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-                        >
-                            Volver al dashboard
-                        </a>
-                    </section>
-                `
-            });
-
-            return;
-        }
-
-        debugBox("INIT FINISHED OK");
-    } catch (error) {
-        debugBox("INIT ERROR", {
-            message: error?.message,
-            stack: error?.stack
-        });
-
-        qs("app").innerHTML = `
-            <div style="padding:24px;font-family:Arial">
-                <h1>Error cargando Indumentaria</h1>
-                <p>${error?.message || "Error desconocido"}</p>
-            </div>
-        `;
+        return;
     }
 }
 
 init();
+
