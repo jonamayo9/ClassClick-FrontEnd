@@ -68,7 +68,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Productos",
                     description: "Cargá prendas, precios, variantes, talles e imágenes.",
-                    href: "/src/pages/admin/clothing/products/index.html",
+                    href: "/src/pages/admin/clothing/products-admin/index.html",
                     emoji: "👕",
                     enabled: true
                 })}
