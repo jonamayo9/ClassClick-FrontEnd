@@ -16,6 +16,8 @@ let pendingCreateImages = [];
 let currentPage = 1;
 const PAGE_SIZE = 10;
 
+sessionStorage.setItem("debug_products_loaded", new Date().toISOString());
+
 function qs(id) {
     return document.getElementById(id);
 }
@@ -1325,19 +1327,36 @@ function syncProductImagesInput() {
 
 
 async function init() {
-    await loadConfig();
-    const session = requireAuth();
-if (!session) return;
+    sessionStorage.setItem("debug_products_step", "1 antes loadConfig");
 
-qs("app").innerHTML = renderAdminLayout({
-    activeKey: "clothing",
-    pageTitle: "Productos de indumentaria",
-    contentHtml: buildContent()
-});
+    await loadConfig();
+
+    sessionStorage.setItem("debug_products_step", "2 antes requireAuth");
+
+    const session = requireAuth();
+    if (!session) {
+        sessionStorage.setItem("debug_products_step", "3 requireAuth falló");
+        return;
+    }
+
+    sessionStorage.setItem("debug_products_step", "4 antes render layout");
+
+    qs("app").innerHTML = renderAdminLayout({
+        activeKey: "clothing",
+        pageTitle: "Productos de indumentaria",
+        contentHtml: buildContent()
+    });
+
+    sessionStorage.setItem("debug_products_step", "5 antes setupAdminLayout");
 
     const layout = await setupAdminLayout();
 
+    sessionStorage.setItem("debug_products_step", "6 después setupAdminLayout");
+
     company = layout.activeCompany;
+
+    sessionStorage.setItem("debug_products_company", JSON.stringify(company));
+
 
     if (!company?.slug) {
         showErrorModal("No se pudo resolver la empresa activa.");
