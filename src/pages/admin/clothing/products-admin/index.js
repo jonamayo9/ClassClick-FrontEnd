@@ -16,8 +16,6 @@ let pendingCreateImages = [];
 let currentPage = 1;
 const PAGE_SIZE = 10;
 
-sessionStorage.setItem("debug_products_loaded", new Date().toISOString());
-
 function qs(id) {
     return document.getElementById(id);
 }
@@ -1338,8 +1336,24 @@ qs("app").innerHTML = renderAdminLayout({
     contentHtml: buildContent()
 });
 
-    const layout = await setupAdminLayout();
-    company = layout.activeCompany;
+const layout = await setupAdminLayout({
+    onCompanyChanged: async (selectedCompany) => {
+        company = selectedCompany;
+        currentPage = 1;
+
+        pendingCreateImages = [];
+        productVariants = [];
+
+        await loadCategories();
+        resetProductForm();
+        await loadProducts();
+
+        toggleDepositBox();
+        togglePersonalizationBox();
+    }
+});
+
+company = layout.activeCompany;
 
     if (!company?.slug) {
         showErrorModal("No se pudo resolver la empresa activa.");
