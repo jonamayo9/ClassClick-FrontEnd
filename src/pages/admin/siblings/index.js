@@ -1830,10 +1830,12 @@ async function init() {
     });
 
     await applyCompanyContext(layout.activeCompany);
-      if (!hasModule(company, "payments")) {
-      window.location.replace("/src/pages/admin/students/index.html");
-      return;
-  }
+
+    if (!hasModule(currentCompany, "siblings")) {
+    window.location.replace("/src/pages/admin/students/index.html");
+    return;
+    }
+
 }
 
 init();
