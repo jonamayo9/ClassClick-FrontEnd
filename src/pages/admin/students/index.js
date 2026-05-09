@@ -463,11 +463,11 @@ function resetStudentForm() {
 }
 
 function renderStats() {
-    qs("statStudents").textContent = String(totalCount);
-    qs("statActiveStudents").textContent = String(students.filter(x => x.isActive).length);
-    qs("statRegisteredStudents").textContent = String(students.filter(x => x.isRegistrationCompleted).length);
-    qs("statPendingStudents").textContent = String(students.filter(x => !x.isRegistrationCompleted).length);
-}
+  qs("statStudents").textContent = String(studentStats.total);
+  qs("statActiveStudents").textContent = String(studentStats.active);
+  qs("statRegisteredStudents").textContent = String(studentStats.registered);
+  qs("statPendingStudents").textContent = String(studentStats.pending);
+}   
 
 function renderPagination() {
     const container = qs("studentsPagination");

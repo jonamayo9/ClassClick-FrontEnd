@@ -1003,8 +1003,9 @@ function buildEditModal(product) {
         });
     });
 
-    let editVariants = Array.isArray(product.variants)
+let editVariants = Array.isArray(product.variants)
     ? product.variants.map(v => ({
+        id: v.id,
         name: v.name || "",
         tracksStock: v.tracksStock === true,
         stockQuantity: v.tracksStock ? Number(v.stockQuantity ?? 0) : null
@@ -1062,9 +1063,10 @@ function renderEditVariants() {
 
 qs("editAddVariantBtn").addEventListener("click", () => {
     editVariants.push({
+        id: null,
         name: "",
-        tracksStock: false,
-        stockQuantity: null
+        tracksStock: true,
+        stockQuantity: 0
     });
 
     renderEditVariants();
@@ -1084,6 +1086,7 @@ async function saveEditProduct(productId) {
     const cleanVariants = editVariants
         .filter(v => v.name.trim())
         .map(v => ({
+            id: v.id || null,
             name: v.name.trim(),
             tracksStock: v.tracksStock === true,
             stockQuantity: v.tracksStock ? Number(v.stockQuantity ?? 0) : null
