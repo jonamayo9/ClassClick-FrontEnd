@@ -29,11 +29,15 @@ export function getApiBaseUrl() {
 
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (event) => {
-        if (event.data?.type === "CLASSCLICK_FORCE_RELOAD") {
-            if (sessionStorage.getItem("sw_reloaded_v11") !== "true") {
-                sessionStorage.setItem("sw_reloaded_v11", "true");
-                window.location.reload();
+        if (event.data?.type === "CLASSCLICK_SW_UPDATED") {
+            const key = `sw_updated_${event.data.version}`;
+
+            if (sessionStorage.getItem(key) === "true") {
+                return;
             }
+
+            sessionStorage.setItem(key, "true");
+            window.location.reload();
         }
     });
 
