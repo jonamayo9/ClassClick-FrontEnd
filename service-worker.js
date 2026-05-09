@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v14-products-fix";
+const CACHE_VERSION = "v15-products-fix";
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
 
 self.addEventListener("install", () => {
@@ -22,29 +22,31 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Nunca tocar API
   if (url.pathname.startsWith("/api")) {
     return;
   }
 
-  const noCachePaths = [
-    "/src/pages/admin/",
-    "/src/pages/auth/",
-    "/src/pages/student/",
-    "/shared/js/",
-    "/public/config.json",
-    "/index.html"
-  ];
-
-  if (noCachePaths.some((path) => url.pathname.startsWith(path) || url.pathname === path)) {
-    event.respondWith(fetch(event.request));
+  // Nunca cachear páginas ni JS/CSS de la app
+  if (
+    url.pathname.startsWith("/src/") ||
+    url.pathname.startsWith("/shared/") ||
+    url.pathname === "/index.html" ||
+    url.pathname === "/" ||
+    url.pathname === "/public/config.json" ||
+    event.request.mode === "navigate" ||
+    event.request.destination === "script" ||
+    event.request.destination === "style"
+  ) {
+    event.respondWith(
+      fetch(event.request, {
+        cache: "no-store"
+      })
+    );
     return;
   }
 
-  if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
+  // Solo cachear imágenes locales
   if (event.request.destination === "image") {
     event.respondWith(
       caches.open(IMAGE_CACHE).then(async (cache) => {
@@ -60,15 +62,6 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
     );
-    return;
-  }
-
-  if (
-    event.request.destination === "script" ||
-    event.request.destination === "style"
-  ) {
-    event.respondWith(fetch(event.request));
-    return;
   }
 });
 
