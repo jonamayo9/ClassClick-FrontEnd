@@ -448,7 +448,7 @@ function getCreatePayload() {
 
         tracksStock: false,
         stockQuantity: null,
-
+        allowsFullPayment: true,
         hasVariants: hasVariants,
 
         isActive: qs("productIsActive").checked,
@@ -1104,7 +1104,7 @@ async function saveEditProduct(productId) {
         depositAmount: qs("editRequiresDeposit").checked
             ? Number(qs("editDepositAmount").value || 0)
             : null,
-
+        allowsFullPayment: true,
         tracksStock: hasVariants ? false : product.tracksStock,
         stockQuantity: hasVariants ? null : product.stockQuantity,
 
