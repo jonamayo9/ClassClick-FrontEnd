@@ -297,28 +297,38 @@ if (
 
       selector.disabled = false;
 
-      selector.addEventListener("change", async (event) => {
-        const nextSlug = event.target.value;
-        const selected = changeActiveAdminCompany(companies, nextSlug);
+      let lastCompanySlug = activeCompany?.slug || "";
 
-        if (!selected) return;
+selector.addEventListener("change", async (event) => {
+  const nextSlug = event.target.value;
 
-        fillBrand("adminSidebarBrand", selected);
-        fillBrand("adminMobileBrand", selected);
-        fillBrand("adminMobileDrawerBrand", selected);
+  // evita reload fantasma
+  if (nextSlug === lastCompanySlug) {
+    return;
+  }
 
-        if (activeCompanyText) {
-          activeCompanyText.textContent = `${selected.name} · ${selected.slug}`;
-        }
+  lastCompanySlug = nextSlug;
 
-        if (typeof onCompanyChanged === "function") {
-          await onCompanyChanged(selected);
-        } else {
-          window.location.reload();
-        }
+  const selected = changeActiveAdminCompany(companies, nextSlug);
 
-        closeMobileMenu();
-      });
+  if (!selected) return;
+
+  fillBrand("adminSidebarBrand", selected);
+  fillBrand("adminMobileBrand", selected);
+  fillBrand("adminMobileDrawerBrand", selected);
+
+  if (activeCompanyText) {
+    activeCompanyText.textContent = `${selected.name} · ${selected.slug}`;
+  }
+
+  if (typeof onCompanyChanged === "function") {
+    await onCompanyChanged(selected);
+  } else {
+    window.location.reload();
+  }
+
+  closeMobileMenu();
+});
     }
   }
 
