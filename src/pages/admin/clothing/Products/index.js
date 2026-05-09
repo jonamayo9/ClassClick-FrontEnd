@@ -1326,7 +1326,8 @@ function syncProductImagesInput() {
 
 async function init() {
     await loadConfig();
-    requireAuth();
+    const session = requireAuth();
+if (!session) return;
 
 qs("app").innerHTML = renderAdminLayout({
     activeKey: "clothing",

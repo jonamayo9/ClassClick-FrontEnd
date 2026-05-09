@@ -26,12 +26,12 @@ export function requireAuth() {
   const session = getSession();
 
   if (!session?.token || !session?.user) {
-    console.warn("Sesión inválida, redirigiendo a login");
+    console.warn("Sesión inválida en:", window.location.pathname);
 
-    // ⚠️ Evita loop si ya estás en login
-    if (!window.location.pathname.includes("/auth/login")) {
-      clearSession();
-      window.location.replace(LOGIN_URL);
+    clearSession();
+
+    if (window.location.pathname !== "/index.html") {
+      window.location.replace("/index.html");
     }
 
     return null;
