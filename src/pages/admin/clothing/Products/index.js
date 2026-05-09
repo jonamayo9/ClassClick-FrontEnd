@@ -2,7 +2,7 @@ import { get, post, put, del, postForm } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin-layout.js";
 import { hasModule } from "../../../../shared/js/modules.js";
-import { getSession, requireAuth } from "../../../../shared/js/session.js";
+import { requireAuth } from "../../../../shared/js/session.js";
 
 let company = null;
 let products = [];
@@ -1327,19 +1327,8 @@ function syncProductImagesInput() {
 
 
 async function init() {
-    sessionStorage.setItem("debug_products_step", "1 antes loadConfig");
-
     await loadConfig();
-
-    sessionStorage.setItem("debug_products_step", "2 antes requireAuth");
-
-    const session = requireAuth();
-    if (!session) {
-        sessionStorage.setItem("debug_products_step", "3 requireAuth falló");
-        return;
-    }
-
-    sessionStorage.setItem("debug_products_step", "4 antes render layout");
+    requireAuth();
 
     qs("app").innerHTML = renderAdminLayout({
         activeKey: "clothing",
@@ -1347,16 +1336,8 @@ async function init() {
         contentHtml: buildContent()
     });
 
-    sessionStorage.setItem("debug_products_step", "5 antes setupAdminLayout");
-
     const layout = await setupAdminLayout();
-
-    sessionStorage.setItem("debug_products_step", "6 después setupAdminLayout");
-
     company = layout.activeCompany;
-
-    sessionStorage.setItem("debug_products_company", JSON.stringify(company));
-
 
     if (!company?.slug) {
         showErrorModal("No se pudo resolver la empresa activa.");
@@ -1372,21 +1353,12 @@ async function init() {
                     <h1 class="text-xl font-black text-slate-900">
                         Indumentaria no está habilitado
                     </h1>
-
                     <p class="mt-2 text-sm text-slate-600">
                         Este módulo no está disponible para la empresa activa.
                     </p>
-
-                    <a
-                        href="/src/pages/admin/dashboard/index.html"
-                        class="mt-5 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-                    >
-                        Volver al dashboard
-                    </a>
                 </section>
             `
         });
-
         return;
     }
 
@@ -1436,7 +1408,6 @@ async function init() {
 
     qs("productHasVariants").addEventListener("change", () => {
         const enabled = qs("productHasVariants").checked;
-
         qs("variantsBox").classList.toggle("hidden", !enabled);
 
         if (!enabled) {
@@ -1472,7 +1443,6 @@ async function init() {
         togglePersonalizationBox();
     } catch (error) {
         showErrorModal(error?.message || "No se pudieron cargar los productos.");
-        return;
     }
 }
 

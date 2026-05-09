@@ -84,7 +84,7 @@ function buildContent() {
                 ${buildModuleCard({
                     title: "Comprobantes",
                     description: "Validá comprobantes manuales enviados por alumnos.",
-                    href: "/src/pages/admin/clothing/products/index.html",
+                    href: "/src/pages/admin/clothing/paymentProofs/index.html",
                     emoji: "💳",
                     enabled: true
                 })}
