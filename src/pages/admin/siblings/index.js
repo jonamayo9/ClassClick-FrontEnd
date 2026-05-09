@@ -1831,8 +1831,8 @@ async function init() {
 
     await applyCompanyContext(layout.activeCompany);
 
-    if (!hasModule(currentCompany, "siblings")) {
-    window.location.replace("/src/pages/admin/students/index.html");
+    if (!hasModule(currentCompany, "payments")) {
+        window.location.replace("/src/pages/admin/students/index.html");
     return;
     }
 
