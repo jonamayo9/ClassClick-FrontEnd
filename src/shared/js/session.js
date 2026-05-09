@@ -26,7 +26,14 @@ export function requireAuth() {
   const session = getSession();
 
   if (!session?.token || !session?.user) {
-    console.warn("Sesión inválida en:", window.location.pathname);
+    sessionStorage.setItem("auth_debug_last_invalid", JSON.stringify({
+      path: window.location.pathname,
+      hasToken: !!session?.token,
+      hasUser: !!session?.user,
+      tokenLength: session?.token?.length || 0,
+      user: session?.user,
+      date: new Date().toISOString()
+    }));
 
     clearSession();
 

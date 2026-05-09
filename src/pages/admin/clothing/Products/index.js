@@ -1327,14 +1327,16 @@ function syncProductImagesInput() {
 
 
 async function init() {
-    await loadConfig();
-    requireAuth();
+await loadConfig();
 
-    qs("app").innerHTML = renderAdminLayout({
-        activeKey: "clothing",
-        pageTitle: "Productos de indumentaria",
-        contentHtml: buildContent()
-    });
+const session = requireAuth();
+if (!session) return;
+
+qs("app").innerHTML = renderAdminLayout({
+    activeKey: "clothing",
+    pageTitle: "Productos de indumentaria",
+    contentHtml: buildContent()
+});
 
     const layout = await setupAdminLayout();
     company = layout.activeCompany;
