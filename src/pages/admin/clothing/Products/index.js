@@ -1,8 +1,8 @@
 import { get, post, put, del, postForm } from "../../../../shared/js/api.js";
 import { loadConfig } from "../../../../shared/js/config.js";
-import { requireAuth } from "../../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../../shared/js/admin-layout.js";
 import { hasModule } from "../../../../shared/js/modules.js";
+import { getSession, requireAuth } from "../../../../shared/js/session.js";
 
 let company = null;
 let products = [];
