@@ -1,6 +1,7 @@
 import { loadConfig } from "../../../shared/js/config.js";
 import { requireAuth, logoutAndRedirect } from "../../../shared/js/session.js";
 import { apiFetch } from "../../../shared/js/api.js";
+import { getToken } from "../../../shared/js/storage.js";
 import { getSuperAdminCompanies } from "../../../shared/js/superadmin-company-service.js";
 
 const logoutButton = document.getElementById("logoutButton");
@@ -48,6 +49,14 @@ const extraUserPriceInput = document.getElementById("extraUserPriceInput");
 const extraFixedAmountInput = document.getElementById("extraFixedAmountInput");
 const billingDayInput = document.getElementById("billingDayInput");
 const notifyDaysBeforeInput = document.getElementById("notifyDaysBeforeInput");
+
+const viewBillingDetailsButton = document.getElementById("viewBillingDetailsButton");
+const downloadBillingPdfButton = document.getElementById("downloadBillingPdfButton");
+
+const billingDetailsSection = document.getElementById("billingDetailsSection");
+const billingDetailsSummary = document.getElementById("billingDetailsSummary");
+const billingDetailsEmpty = document.getElementById("billingDetailsEmpty");
+const billingDetailsTable = document.getElementById("billingDetailsTable");
 
 let allCompanies = [];
 let filteredCompanies = [];
@@ -106,6 +115,118 @@ function setSaveLoading(value) {
 
 function getSelectedCompany() {
   return allCompanies.find((company) => String(company.id) === String(selectedCompanyId));
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("es-AR").format(date);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function loadBillingDetails() {
+  if (!selectedCompanyId) {
+    showError("Seleccioná una empresa.");
+    return;
+  }
+
+  try {
+    const data = await apiFetch(`/api/superadmin/billing/${selectedCompanyId}/overview/details`);
+
+    billingDetailsSection.classList.remove("hidden");
+
+    billingDetailsSummary.textContent =
+      `Período ${String(data.month).padStart(2, "0")}/${data.year} · Máximo mensual: ${data.maxStudentsInMonth} · Extras: ${data.extraUsers} · Total: ${formatMoney(data.totalAmount)}`;
+
+    const users = data.users || data.Users || [];
+
+    if (!users.length) {
+      billingDetailsEmpty.classList.remove("hidden");
+      billingDetailsTable.innerHTML = "";
+      return;
+    }
+
+    billingDetailsEmpty.classList.add("hidden");
+
+    billingDetailsTable.innerHTML = users.map(user => `
+      <tr class="border-b border-slate-100">
+        <td class="px-3 py-3 text-slate-700">${escapeHtml(user.dni || "-")}</td>
+        <td class="px-3 py-3 font-medium text-slate-900">${escapeHtml(user.fullName || "-")}</td>
+        <td class="px-3 py-3 text-slate-700">${escapeHtml(user.email || "-")}</td>
+        <td class="px-3 py-3 text-slate-700">${formatDate(user.createdAtUtc)}</td>
+        <td class="px-3 py-3 text-slate-700">${formatDate(user.deletedAtUtc)}</td>
+      </tr>
+    `).join("");
+  } catch (error) {
+    showError(error?.message || "No se pudo cargar el detalle mensual.");
+  }
+}
+
+async function downloadBillingPdf() {
+  if (!selectedCompanyId) {
+    showError("Seleccioná una empresa.");
+    return;
+  }
+
+  try {
+    downloadBillingPdfButton.disabled = true;
+    downloadBillingPdfButton.textContent = "Generando PDF...";
+
+const token = getToken();
+
+if (!token) {
+  throw new Error("No se encontró el token de autenticación.");
+}
+
+      const config = await fetch("/public/config.json", { cache: "no-store" }).then(r => r.json());
+      const apiBaseUrl = config.apiBaseUrl || config.API_BASE_URL || "";
+
+      const response = await fetch(
+        `${apiBaseUrl}/api/superadmin/billing/${selectedCompanyId}/monthly-report/pdf`,
+        {
+          method: "GET",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        }
+      );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "No se pudo generar el PDF.");
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const company = getSelectedCompany();
+    const fileName = `facturacion-${company?.slug || "empresa"}.pdf`;
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    showError(error?.message || "No se pudo descargar el PDF.");
+  } finally {
+    downloadBillingPdfButton.disabled = false;
+    downloadBillingPdfButton.textContent = "Descargar reporte PDF";
+  }
 }
 
 function renderCompanySelect() {
@@ -267,6 +388,8 @@ async function loadOverview() {
 
 async function loadSelectedCompanyData() {
   hideMessages();
+  billingDetailsSection?.classList.add("hidden");
+  billingDetailsTable.innerHTML = "";
   renderSelectedCompany();
   await loadBillingConfig();
   await loadOverview();
@@ -343,6 +466,8 @@ function bindEvents() {
 
   closeBillingModalButton?.addEventListener("click", closeBillingModal);
   cancelBillingModalButton?.addEventListener("click", closeBillingModal);
+  viewBillingDetailsButton?.addEventListener("click", loadBillingDetails);
+downloadBillingPdfButton?.addEventListener("click", downloadBillingPdf);
 
   billingModal?.addEventListener("click", (event) => {
     if (event.target === billingModal) {

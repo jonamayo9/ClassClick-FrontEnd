@@ -82,14 +82,6 @@ function buildContent() {
                 })}
 
                 ${buildModuleCard({
-                    title: "Comprobantes",
-                    description: "Validá comprobantes manuales enviados por alumnos.",
-                    href: "/src/pages/admin/clothing/paymentProofs/index.html",
-                    emoji: "💳",
-                    enabled: true
-                })}
-
-                ${buildModuleCard({
                     title: "Cancelaciones",
                     description: "Aprobá o rechazá solicitudes de cancelación y devoluciones.",
                     href: "/src/pages/admin/clothing/cancellations/index.html",
@@ -102,6 +94,14 @@ function buildContent() {
                     description: "Controlá disponibilidad por producto o variante.",
                     href: "/src/pages/admin/clothing/stock/index.html",
                     emoji: "📦",
+                    enabled: true
+                })}
+
+                ${buildModuleCard({
+                    title: "Configuración",
+                    description: "Configurá el alias y titular para pagos de indumentaria.",
+                    href: "/src/pages/admin/clothing/settings/index.html",
+                    emoji: "⚙️",
                     enabled: true
                 })}
             </section>

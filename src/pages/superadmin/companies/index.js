@@ -50,6 +50,8 @@ const logoPreviewImage = document.getElementById("logoPreviewImage");
 const isActiveInput = document.getElementById("isActiveInput");
 const clothingManualProofInput = document.getElementById("clothingManualProofInput");
 const clothingMercadoPagoInput = document.getElementById("clothingMercadoPagoInput");
+const clothingPaymentAliasInput = document.getElementById("clothingPaymentAliasInput");
+const clothingPaymentAliasHolderInput = document.getElementById("clothingPaymentAliasHolderInput");
 const statusModal = document.getElementById("statusModal");
 const statusModalTitle = document.getElementById("statusModalTitle");
 const statusModalText = document.getElementById("statusModalText");
@@ -357,6 +359,8 @@ function resetModulesForm() {
 function resetClothingSettingsForm() {
   if (clothingManualProofInput) clothingManualProofInput.checked = true;
   if (clothingMercadoPagoInput) clothingMercadoPagoInput.checked = false;
+  if (clothingPaymentAliasInput) clothingPaymentAliasInput.value = "";
+if (clothingPaymentAliasHolderInput) clothingPaymentAliasHolderInput.value = "";
 }
 
 function buildModulesPayload() {
@@ -389,7 +393,13 @@ function buildClothingSettingsPayload() {
   return {
     isEnabled: moduleClothingInput?.checked === true,
     allowsManualProof: clothingManualProofInput?.checked === true,
-    allowsMercadoPago: clothingMercadoPagoInput?.checked === true
+    allowsMercadoPago: clothingMercadoPagoInput?.checked === true,
+
+    paymentAlias:
+      clothingPaymentAliasInput?.value?.trim() || null,
+
+    paymentAliasHolder:
+      clothingPaymentAliasHolderInput?.value?.trim() || null
   };
 }
 
@@ -516,6 +526,13 @@ function openEditCompanyModal(companyId) {
   .then((settings) => {
     if (clothingManualProofInput) clothingManualProofInput.checked = settings.allowsManualProof === true;
     if (clothingMercadoPagoInput) clothingMercadoPagoInput.checked = settings.allowsMercadoPago === true;
+    if (clothingPaymentAliasInput) {
+      clothingPaymentAliasInput.value = settings.paymentAlias || "";
+    }
+
+    if (clothingPaymentAliasHolderInput) {
+      clothingPaymentAliasHolderInput.value = settings.paymentAliasHolder || "";
+    }
   })
   .catch(() => {
     resetClothingSettingsForm();

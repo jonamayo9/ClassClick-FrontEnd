@@ -43,7 +43,6 @@
 
       <section class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
         <div class="space-y-5">
-
           <div class="card p-5">
             <div class="mb-4">
               <h3 class="text-lg font-semibold text-slate-900">Buscar empresa</h3>
@@ -52,11 +51,7 @@
               </p>
             </div>
 
-            <input
-              id="companySearchInput"
-              type="text"
-              class="input mb-3"
-              placeholder="Buscar por nombre o slug" />
+            <input id="companySearchInput" type="text" class="input mb-3" placeholder="Buscar por nombre o slug" />
 
             <select id="companySelect" class="input">
               <option value="">Cargando empresas...</option>
@@ -67,14 +62,10 @@
             <div class="mb-5 flex items-start justify-between gap-4">
               <div>
                 <h3 class="text-lg font-semibold text-slate-900">Configuración actual</h3>
-                <p id="configStatusText" class="mt-1 text-sm text-slate-500">
-                  -
-                </p>
+                <p id="configStatusText" class="mt-1 text-sm text-slate-500">-</p>
               </div>
 
-              <button
-                id="openBillingModalButton"
-                type="button"
+              <button id="openBillingModalButton" type="button"
                 class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
                 Nueva facturación
               </button>
@@ -134,7 +125,7 @@
 
             <div class="space-y-3">
               <div class="rounded-2xl bg-slate-50 p-4">
-                <p class="text-sm text-slate-500">Alumnos activos actuales</p>
+                <p class="text-sm text-slate-500">Usuarios actuales</p>
                 <p id="currentStudentsText" class="mt-1 text-3xl font-bold text-slate-900">-</p>
               </div>
 
@@ -159,9 +150,51 @@
                 <p class="text-sm font-medium text-emerald-700">Total estimado a cobrar</p>
                 <p id="totalAmountText" class="mt-1 text-3xl font-bold text-emerald-900">$0</p>
               </div>
+
+              <div class="grid grid-cols-1 gap-3 pt-2">
+                <button id="viewBillingDetailsButton" type="button"
+                  class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60">
+                  Ver detalle mensual
+                </button>
+
+                <button id="downloadBillingPdfButton" type="button"
+                  class="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+                  Descargar reporte PDF
+                </button>
+              </div>
             </div>
           </div>
         </aside>
+      </section>
+
+      <section id="billingDetailsSection" class="mt-5 hidden">
+        <div class="card p-5">
+          <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-slate-900">Detalle mensual facturado</h3>
+              <p id="billingDetailsSummary" class="mt-1 text-sm text-slate-500">-</p>
+            </div>
+          </div>
+
+          <div id="billingDetailsEmpty" class="hidden rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+            No hay usuarios para mostrar.
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-200 text-left text-slate-500">
+                  <th class="px-3 py-3 font-medium">DNI</th>
+                  <th class="px-3 py-3 font-medium">Nombre</th>
+                  <th class="px-3 py-3 font-medium">Email</th>
+                  <th class="px-3 py-3 font-medium">Alta</th>
+                  <th class="px-3 py-3 font-medium">Baja</th>
+                </tr>
+              </thead>
+              <tbody id="billingDetailsTable"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
     </main>
   </div>

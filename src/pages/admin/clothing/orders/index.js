@@ -77,15 +77,36 @@ function orderStatusText(value) {
     return String(value ?? "-");
 }
 
-function paymentStatusText(value) {
+function paymentStatusText(value, order = null) {
     const key = normalize(value);
 
-    if (value === 0 || key === "none") return "Sin pago";
-    if (value === 1 || key === "depositpending") return "Seña pendiente";
-    if (value === 2 || key === "depositpaid") return "Seña pagada";
-    if (value === 3 || key === "fullpending") return "Pago pendiente";
-    if (value === 4 || key === "fullpaid") return "Pago completo";
-    if (value === 5 || key === "rejected") return "Pago rechazado";
+    if (value === 0 || key === "none") {
+        return "Sin pago";
+    }
+
+    if (value === 1 || key === "depositpending") {
+        return order?.hasPendingPaymentProof
+            ? "Seña en revisión"
+            : "Seña pendiente";
+    }
+
+    if (value === 2 || key === "depositpaid") {
+        return "Seña aprobada";
+    }
+
+    if (value === 3 || key === "fullpending") {
+        return order?.hasPendingPaymentProof
+            ? "Pago en revisión"
+            : "Pago pendiente";
+    }
+
+    if (value === 4 || key === "fullpaid") {
+        return "Pago completo";
+    }
+
+    if (value === 5 || key === "rejected") {
+        return "Pago rechazado";
+    }
 
     return String(value ?? "-");
 }
@@ -101,30 +122,35 @@ function paymentMethodText(value) {
     return String(value ?? "-");
 }
 
-function statusBadge(value) {
-    const key = normalize(value);
+function statusBadge(order) {
+    const status = Number(order.status);
+    const paymentStatus = Number(order.paymentStatus);
 
-    if (value === 1 || key === "pending") {
+    if (status === 1 && paymentStatus === 2) {
+        return `<span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">En curso</span>`;
+    }
+
+    if (status === 1) {
         return `<span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Pendiente</span>`;
     }
 
-    if (value === 2 || key === "approved") {
-        return `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Aprobado</span>`;
+    if (status === 2) {
+        return `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Pago completo</span>`;
     }
 
-    if (value === 3 || key === "rejected") {
+    if (status === 3) {
         return `<span class="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">Rechazado</span>`;
     }
 
-    if (value === 4 || key === "delivered") {
+    if (status === 4) {
         return `<span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Entregado</span>`;
     }
 
-    if (value === 5 || key === "cancelled") {
+    if (status === 5) {
         return `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">Cancelado</span>`;
     }
 
-    return `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">${escapeHtml(value)}</span>`;
+    return `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">Sin estado</span>`;
 }
 
 function buildPeriodOptions() {
@@ -268,9 +294,9 @@ function buildContent() {
                                 <select id="orderPaymentFilter"
                                     class="h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm shadow-sm outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-100">
                                     <option value="">Todos</option>
-                                    <option value="depositpending">Seña pendiente</option>
+                                    <option value="depositpending">Seña pendiente / revisión</option>
                                     <option value="depositpaid">Seña pagada</option>
-                                    <option value="fullpending">Pago pendiente</option>
+                                    <option value="fullpending">Pago pendiente / revisión</option>
                                     <option value="fullpaid">Pago completo</option>
                                     <option value="rejected">Pago rechazado</option>
                                 </select>
@@ -434,7 +460,7 @@ function renderOrdersRows() {
             </td>
 
             <td class="px-4 py-3">
-                <div class="font-bold text-slate-700">${paymentStatusText(order.paymentStatus)}</div>
+                <div class="font-bold text-slate-700">${paymentStatusText(order.paymentStatus, order)}</div>
                 <div class="text-xs text-slate-400">${paymentMethodText(order.paymentMethod)}</div>
             </td>
 
@@ -444,7 +470,7 @@ function renderOrdersRows() {
             </td>
 
             <td class="px-4 py-3">
-                ${statusBadge(order.status)}
+                ${statusBadge(order)}
             </td>
 
             <td class="px-4 py-3 text-right">
@@ -549,7 +575,7 @@ async function openOrderModal(orderId) {
 
     setModal(`
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-            <div class="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="max-h-[95vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-6">
                 <div class="mb-5 flex items-start justify-between gap-4">
                     <div>
                         <h3 class="text-xl font-black text-slate-900">Detalle del pedido</h3>
@@ -563,15 +589,15 @@ async function openOrderModal(orderId) {
                     </button>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-4">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="rounded-2xl bg-slate-50 p-4">
                         <p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Estado</p>
-                        <div class="mt-2">${statusBadge(order.status)}</div>
+                        <div class="mt-2">${statusBadge(order)}</div>
                     </div>
 
                     <div class="rounded-2xl bg-slate-50 p-4">
                         <p class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Pago</p>
-                        <p class="mt-2 text-sm font-black text-slate-900">${paymentStatusText(order.paymentStatus)}</p>
+                        <p class="mt-2 text-sm font-black text-slate-900">${paymentStatusText(order.paymentStatus, order)}</p>
                     </div>
 
                     <div class="rounded-2xl bg-slate-50 p-4">
@@ -586,44 +612,46 @@ async function openOrderModal(orderId) {
                 </div>
 
                 <div class="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                    <table class="min-w-full divide-y divide-slate-100 text-sm">
-                        <thead class="bg-slate-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Producto</th>
-                                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Variante</th>
-                                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Personalización</th>
-                                <th class="px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-500">Cantidad</th>
-                                <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-[0.14em] text-slate-500">Subtotal</th>
-                            </tr>
-                        </thead>
-
-                        <tbody class="divide-y divide-slate-100 bg-white">
-                            ${(order.items || []).map(item => `
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-100 text-sm">
+                            <thead class="bg-slate-50">
                                 <tr>
-                                    <td class="px-4 py-3 font-bold text-slate-900">${escapeHtml(item.productName || "-")}</td>
-                                    <td class="px-4 py-3 text-slate-600">${escapeHtml(item.variantName || "-")}</td>
-<td class="px-4 py-3">
-    ${
-        item.personalizationText
-            ? `
-                <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-2">
-                    <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-500">
-                        ${escapeHtml(item.personalizationLabel || "Personalización")}
-                    </p>
-                    <p class="text-sm font-black text-indigo-900">
-                        ${escapeHtml(item.personalizationText)}
-                    </p>
-                </div>
-            `
-            : `<span class="text-slate-400">-</span>`
-    }
-</td>
-                                    <td class="px-4 py-3 text-center text-slate-600">${item.quantity}</td>
-                                    <td class="px-4 py-3 text-right font-black text-slate-900">${money(item.subtotal)}</td>
+                                    <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Producto</th>
+                                    <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Variante</th>
+                                    <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Personalización</th>
+                                    <th class="px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-500">Cantidad</th>
+                                    <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-[0.14em] text-slate-500">Subtotal</th>
                                 </tr>
-                            `).join("")}
-                        </tbody>
-                    </table>
+                            </thead>
+
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                ${(order.items || []).map(item => `
+                                    <tr>
+                                        <td class="px-4 py-3 font-bold text-slate-900">${escapeHtml(item.productName || "-")}</td>
+                                        <td class="px-4 py-3 text-slate-600">${escapeHtml(item.variantName || "-")}</td>
+                                        <td class="px-4 py-3">
+                                            ${
+                                                item.personalizationText
+                                                    ? `
+                                                        <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-2">
+                                                            <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-500">
+                                                                ${escapeHtml(item.personalizationLabel || "Personalización")}
+                                                            </p>
+                                                            <p class="text-sm font-black text-indigo-900">
+                                                                ${escapeHtml(item.personalizationText)}
+                                                            </p>
+                                                        </div>
+                                                    `
+                                                    : `<span class="text-slate-400">-</span>`
+                                            }
+                                        </td>
+                                        <td class="px-4 py-3 text-center text-slate-600">${item.quantity}</td>
+                                        <td class="px-4 py-3 text-right font-black text-slate-900">${money(item.subtotal)}</td>
+                                    </tr>
+                                `).join("")}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <section class="mt-6 rounded-3xl border border-slate-200 p-5">
@@ -650,9 +678,9 @@ async function openOrderModal(orderId) {
                                                     ${proof.reviewNote ? `<p class="mt-2 text-xs font-bold text-slate-500">Nota: ${escapeHtml(proof.reviewNote)}</p>` : ""}
                                                 </div>
 
-                                                <div class="flex flex-wrap gap-2">
+                                                <div class="flex flex-wrap gap-2 max-sm:flex-col">
                                                     <button type="button" data-view-proof="${proof.id}"
-                                                        class="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                                                        class="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 max-sm:w-full max-sm:justify-center">
                                                         Ver comprobante
                                                     </button>
 
@@ -660,12 +688,12 @@ async function openOrderModal(orderId) {
                                                         Number(proof.status) === 1
                                                             ? `
                                                                 <button type="button" data-approve-proof="${proof.id}"
-                                                                    class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white">
+                                                                    class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white max-sm:w-full max-sm:justify-center">
                                                                     Aprobar comprobante
                                                                 </button>
 
                                                                 <button type="button" data-reject-proof="${proof.id}"
-                                                                    class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700">
+                                                                    class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700 max-sm:w-full max-sm:justify-center">
                                                                     Rechazar
                                                                 </button>
                                                             `
@@ -712,11 +740,11 @@ async function openOrderModal(orderId) {
         });
     });
 
-    document.querySelectorAll("[data-approve-proof]").forEach(button => {
-        button.addEventListener("click", async () => {
-            await approveProof(button.dataset.approveProof, order.id);
-        });
+document.querySelectorAll("[data-approve-proof]").forEach(button => {
+    button.addEventListener("click", () => {
+        openApproveProofModal(button.dataset.approveProof, order.id);
     });
+});
 
     document.querySelectorAll("[data-reject-proof]").forEach(button => {
         button.addEventListener("click", () => {
@@ -760,10 +788,35 @@ async function openProofViewer(proofId) {
     try {
         const proof = await get(`/api/admin/${company.slug}/clothing/payment-proofs/${proofId}`);
 
+        const fileUrl = proof.fileUrl || "";
+        const lowerUrl = fileUrl.toLowerCase();
+
+        const isPdf =
+            proof.isPdf === true ||
+            lowerUrl.includes(".pdf") ||
+            lowerUrl.includes("contenttype=application%2Fpdf");
+
+        const viewerHtml = isPdf
+            ? `
+                <iframe
+                    src="${escapeHtml(fileUrl)}"
+                    class="h-[72vh] w-full rounded-2xl border border-slate-200 bg-white"
+                ></iframe>
+            `
+            : `
+                <div class="flex h-[72vh] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-3">
+                    <img
+                        src="${escapeHtml(fileUrl)}"
+                        alt="Comprobante"
+                        class="max-h-full max-w-full object-contain"
+                    />
+                </div>
+            `;
+
         setModal(`
-            <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-                <div class="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-3xl bg-white shadow-2xl">
-                    <div class="flex items-center justify-between border-b border-slate-200 p-4">
+            <div class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm">
+                <div class="flex max-h-[94vh] w-full max-w-5xl flex-col rounded-3xl bg-white shadow-2xl">
+                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
                         <div>
                             <h3 class="text-lg font-black text-slate-900">Comprobante</h3>
                             <p class="text-xs text-slate-500">${proofTypeText(proof.type)} · ${proofStatusText(proof.status)}</p>
@@ -775,26 +828,60 @@ async function openProofViewer(proofId) {
                         </button>
                     </div>
 
-                    <div class="min-h-[70vh] flex-1 bg-slate-100 p-3">
-                        <iframe
-                            src="${proof.fileUrl}"
-                            class="h-[72vh] w-full rounded-2xl border border-slate-200 bg-white"
-                        ></iframe>
+                    <div class="flex-1 bg-slate-100 p-3">
+                        ${viewerHtml}
                     </div>
                 </div>
             </div>
         `);
 
-        qs("closeProofViewerBtn").addEventListener("click", closeModal);
+        qs("closeProofViewerBtn").addEventListener("click", () => openOrderModal(proof.orderId));
     } catch (error) {
         showErrorModal(error?.message || "No se pudo abrir el comprobante.");
     }
 }
 
-async function approveProof(proofId, orderId) {
+function openApproveProofModal(proofId, orderId) {
+    setModal(`
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+                <h3 class="text-xl font-black text-slate-900">Aprobar comprobante</h3>
+                <p class="mt-2 text-sm text-slate-500">Podés agregar una nota para el alumno.</p>
+
+                <textarea id="approveProofNote" rows="4"
+                    class="mt-4 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                    placeholder="Ej: Comprobante aprobado"></textarea>
+
+                <div class="mt-6 flex gap-3 max-sm:flex-col">
+                    <button id="approveProofCancelBtn" type="button"
+                        class="flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700">
+                        Cancelar
+                    </button>
+
+                    <button id="approveProofConfirmBtn" type="button"
+                        class="flex-1 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">
+                        Aprobar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `);
+
+    qs("approveProofCancelBtn").addEventListener("click", () => openOrderModal(orderId));
+
+    qs("approveProofConfirmBtn").addEventListener("click", async () => {
+        await approveProof(
+            proofId,
+            orderId,
+            qs("approveProofNote").value.trim()
+        );
+    });
+}
+
+async function approveProof(proofId, orderId, note) {
     try {
         await post(`/api/admin/${company.slug}/clothing/payment-proofs/${proofId}/approve`, {
-            reviewNote: "Comprobante aprobado"
+            reviewNote: note || "Comprobante aprobado"
         });
 
         await loadOrders();
@@ -901,7 +988,7 @@ async function buildExportRows() {
                     "Alumno": order.studentName || "",
                     "DNI": order.studentDni || "",
                     "Estado pedido": orderStatusText(order.status),
-                    "Estado pago": paymentStatusText(order.paymentStatus),
+                    "Estado pago": paymentStatusText(order.paymentStatus, order),
                     "Método pago": paymentMethodText(order.paymentMethod),
                     "Total": Number(order.totalAmount || 0),
                     "Seña": Number(order.depositAmount || 0),

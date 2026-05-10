@@ -11,6 +11,7 @@ let error = "";
 let proofFile = null;
 let uploading = false;
 let uiMessage = "";
+let clothingSettings = null;
 
 function qs(id) {
     return document.getElementById(id);
@@ -108,6 +109,52 @@ function buildContent() {
                         Subí el comprobante correspondiente al pago de la ${payText}: <b>${money(amountToPay())}</b>
                     </p>
 
+                    ${clothingSettings?.paymentAlias ? `
+<div class="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        
+        <div class="min-w-0">
+            <p class="text-xs font-black uppercase tracking-[0.16em] text-violet-700">
+                Alias para transferir
+            </p>
+
+            <p class="mt-2 break-all text-2xl font-black text-slate-900">
+                ${escapeHtml(clothingSettings.paymentAlias)}
+            </p>
+
+            ${clothingSettings.paymentAliasHolder ? `
+                <p class="mt-1 text-sm font-bold text-slate-500">
+                    ${escapeHtml(clothingSettings.paymentAliasHolder)}
+                </p>
+            ` : ""}
+        </div>
+
+        <button
+            id="copyClothingAliasBtn"
+            type="button"
+            class="w-full shrink-0 rounded-2xl border border-violet-400 bg-white px-5 py-4 text-sm font-black text-violet-700 shadow-sm transition hover:bg-violet-100 sm:w-auto"
+        >
+            <span class="flex items-center justify-center gap-2">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                >
+                    <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+
+                <span>Copiar alias</span>
+            </span>
+        </button>
+
+    </div>
+</div>
+                    ` : ""}
+
                     <input
                         id="proofInput"
                         type="file"
@@ -197,6 +244,12 @@ function bindEvents() {
 
     qs("uploadProofBtn")?.addEventListener("click", uploadProof);
 
+    qs("copyClothingAliasBtn")?.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(clothingSettings.paymentAlias);
+    uiMessage = "Alias copiado correctamente.";
+    rerender();
+    });
+
     qs("myOrdersBtn")?.addEventListener("click", () => {
         window.location.href = "/src/pages/student/clothing/orders/index.html";
     });
@@ -204,6 +257,14 @@ function bindEvents() {
     qs("backBtn")?.addEventListener("click", () => {
         window.location.href = "/src/pages/student/clothing/catalog/index.html";
     });
+}
+
+async function loadClothingSettings() {
+    try {
+        clothingSettings = await get(`/api/student/${companySlug}/clothing/settings`);
+    } catch {
+        clothingSettings = null;
+    }
 }
 
 async function uploadProof() {
@@ -265,6 +326,9 @@ async function init() {
             window.location.href = "/src/pages/student/home/index.html";
             return;
         }
+
+        await loadClothingSettings();
+
         orderId = getQueryParam("id") || sessionStorage.getItem("lastClothingOrderId");
 
         if (!orderId) {

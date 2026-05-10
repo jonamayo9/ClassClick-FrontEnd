@@ -22,6 +22,7 @@ let proofFile = null;
 let uploadingProof = false;
 let uiMessage = "";
 let company = null;
+let clothingSettings = null;
 
 function qs(id) {
     return document.getElementById(id);
@@ -69,15 +70,34 @@ function getPaymentOptionLabel(order) {
     return Number(order.paymentOption) === 1 ? "Seña" : "Total";
 }
 
-function getPaymentStatusLabel(status) {
-    switch (Number(status)) {
-        case 0: return "Sin pago";
-        case 1: return "Seña pendiente";
-        case 2: return "Seña pagada";
-        case 3: return "Pago total pendiente";
-        case 4: return "Pago total aprobado";
-        case 5: return "Pago rechazado";
-        default: return "Pago pendiente";
+function getPaymentStatusLabel(order) {
+    const status = Number(order.paymentStatus);
+
+    switch (status) {
+        case 0:
+            return "Sin pago";
+
+        case 1:
+            return order.hasPendingPaymentProof
+                ? "Seña en revisión"
+                : "Seña pendiente";
+
+        case 2:
+            return "Seña aprobada";
+
+        case 3:
+            return order.hasPendingPaymentProof
+                ? "Pago en revisión"
+                : "Pago total pendiente";
+
+        case 4:
+            return "Pago aprobado";
+
+        case 5:
+            return "Pago rechazado";
+
+        default:
+            return "Pago pendiente";
     }
 }
 
@@ -197,7 +217,7 @@ function buildEmpty() {
 
 function buildOrderCard(order) {
     const statusLabel = getOrderStatusLabel(order.status);
-    const paymentLabel = getPaymentStatusLabel(order.paymentStatus);
+    const paymentLabel = getPaymentStatusLabel(order);
     const amountToPay = getAmountToPay(order);
 
     return `
@@ -299,6 +319,14 @@ function getProofStatusClass(status) {
     }
 }
 
+async function loadClothingSettings() {
+    try {
+        clothingSettings = await get(`/api/student/${companySlug}/clothing/settings`);
+    } catch {
+        clothingSettings = null;
+    }
+}
+
 function getSelectedViewerProof() {
     return selectedOrderProofs.find(x => x.fileUrl === proofViewerUrl) || null;
 }
@@ -391,7 +419,7 @@ function buildModal() {
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <p class="text-xs font-bold text-slate-400">Pago</p>
                             <p class="mt-1 inline-block rounded-full px-3 py-1 text-xs font-black ${getPaymentStatusClass(order.paymentStatus)}">
-                                ${getPaymentStatusLabel(order.paymentStatus)}
+                                ${getPaymentStatusLabel(order)}
                             </p>
                         </div>
                     </div>
@@ -497,9 +525,55 @@ function buildModal() {
                             ? `
                             <section class="rounded-2xl bg-orange-50 p-4">
                                 <h3 class="font-black text-orange-900">Cargar comprobante</h3>
-                                <p class="mt-1 text-sm text-orange-700">
-                                    Subí el comprobante del pago de la ${payText}: <b>${money(amountToPay)}</b>
-                                </p>
+<p class="mt-1 text-sm text-orange-700">
+    Subí el comprobante del pago de la ${payText}: <b>${money(amountToPay)}</b>
+</p>
+
+${clothingSettings?.paymentAlias ? `
+<div class="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        
+        <div class="min-w-0">
+            <p class="text-xs font-black uppercase tracking-[0.16em] text-violet-700">
+                Alias para transferir
+            </p>
+
+            <p class="mt-2 break-all text-2xl font-black text-slate-900">
+                ${escapeHtml(clothingSettings.paymentAlias)}
+            </p>
+
+            ${clothingSettings.paymentAliasHolder ? `
+                <p class="mt-1 text-sm font-bold text-slate-500">
+                    ${escapeHtml(clothingSettings.paymentAliasHolder)}
+                </p>
+            ` : ""}
+        </div>
+
+        <button
+            id="copyClothingAliasBtn"
+            type="button"
+            class="w-full shrink-0 rounded-2xl border border-violet-400 bg-white px-5 py-4 text-sm font-black text-violet-700 shadow-sm transition hover:bg-violet-100 sm:w-auto"
+        >
+            <span class="flex items-center justify-center gap-2">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                >
+                    <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+
+                <span>Copiar alias</span>
+            </span>
+        </button>
+
+    </div>
+</div>
+` : ""}
 
                                 <input
                                     id="proofInput"
@@ -539,14 +613,17 @@ ${
 function buildContent() {
     if (!orders.length) return buildEmpty();
 
-const pendingOrders = orders.filter(o => {
-    return canUploadProof(o) || o.hasPendingPaymentProof;
-});
+const pendingOrders = orders.filter(o =>
+    Number(o.status) !== 4 &&
+    Number(o.status) !== 5 &&
+    Number(o.status) !== 3
+);
 
-const completedOrders = orders.filter(o => {
-    return !canUploadProof(o) && !o.hasPendingPaymentProof;
-});
-
+const completedOrders = orders.filter(o =>
+    Number(o.status) === 4 ||
+    Number(o.status) === 5 ||
+    Number(o.status) === 3
+);
     return `
         <div class="min-h-screen bg-slate-100 p-5 pb-[180px]">
             <div class="mx-auto max-w-xl space-y-4">
@@ -577,7 +654,7 @@ const completedOrders = orders.filter(o => {
 
                 <section>
     <h2 class="text-sm font-black text-slate-500 uppercase tracking-[0.2em]">
-        Pendientes
+        En curso
     </h2>
 
     <div class="mt-3 space-y-4">
@@ -658,6 +735,12 @@ btn.addEventListener("click", async () => {
     });
 
     qs("uploadProofBtn")?.addEventListener("click", uploadProof);
+
+    qs("copyClothingAliasBtn")?.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(clothingSettings.paymentAlias);
+        uiMessage = "Alias copiado correctamente.";
+        rerender();
+    });
 
     document.querySelectorAll("[data-view-proof]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -753,6 +836,8 @@ async function init() {
             window.location.href = "/src/pages/student/home/index.html";
             return;
         }
+
+        await loadClothingSettings();
 
         orders = await loadOrders();
 

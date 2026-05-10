@@ -17,6 +17,13 @@ let pageSize = 20;
 let totalCount = 0;
 let totalPages = 1;
 
+let studentStats = {
+    total: 0,
+    active: 0,
+    registered: 0,
+    pending: 0
+};
+
 let editingStudentId = null;
 let togglingStudentId = null;
 let resettingStudentId = null;
@@ -1213,6 +1220,25 @@ async function loadStudents() {
     currentPage = result.page ?? result.Page ?? currentPage;
     pageSize = result.pageSize ?? result.PageSize ?? pageSize;
 
+    studentStats = {
+    total: result.totalStudents
+        ?? result.total
+        ?? totalCount
+        ?? 0,
+
+    active: result.activeStudents
+        ?? result.active
+        ?? 0,
+
+    registered: result.registeredStudents
+        ?? result.registered
+        ?? 0,
+
+    pending: result.pendingStudents
+        ?? result.pending
+        ?? 0
+};
+
     renderStudentsTable();
     renderStats();
     renderPagination();
@@ -1250,6 +1276,8 @@ async function saveStudent(event) {
         }
 
         resetStudentForm();
+
+        currentPage = 1;
         await loadStudents();
     } catch (error) {
         console.error(error);
