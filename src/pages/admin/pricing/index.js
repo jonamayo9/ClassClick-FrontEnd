@@ -68,18 +68,22 @@ function formatDate(date) {
 }
 
 function recurrenceLabel(value) {
-    switch (Number(value)) {
-        case LATE_FEE_RECURRENCE.ONE_TIME:
-            return "Única";
-        case LATE_FEE_RECURRENCE.DAILY:
-            return "Diaria";
-        case LATE_FEE_RECURRENCE.WEEKLY:
-            return "Semanal";
-        default:
-            return "-";
-    }
-}
+    const text = String(value ?? "").toLowerCase();
 
+    if (text === "onetime" || Number(value) === LATE_FEE_RECURRENCE.ONE_TIME) {
+        return "Única";
+    }
+
+    if (text === "daily" || Number(value) === LATE_FEE_RECURRENCE.DAILY) {
+        return "Diaria";
+    }
+
+    if (text === "weekly" || Number(value) === LATE_FEE_RECURRENCE.WEEKLY) {
+        return "Semanal";
+    }
+
+    return "-";
+}
 function buildContent() {
     return `
         <section class="space-y-6">
@@ -1181,7 +1185,7 @@ function openLateFeeEdit(id) {
     qs("lateFeeName").value = item.name || "";
     qs("lateFeeCourseId").value = item.courseId || "";
     qs("lateFeeDueDay").value = item.dueDayOfMonth ?? "";
-    qs("lateFeeRecurrenceType").value = String(item.recurrenceType ?? LATE_FEE_RECURRENCE.ONE_TIME);
+    qs("lateFeeRecurrenceType").value = String(normalizeRecurrenceType(item.recurrenceType));
     qs("lateFeePercentIncrease").value = item.percentIncrease ?? 0;
     qs("lateFeeFixedIncrease").value = item.fixedIncrease ?? 0;
     qs("lateFeeIsActive").checked = !!item.isActive;
@@ -1190,6 +1194,17 @@ function openLateFeeEdit(id) {
 
     window.scrollTo({ top: 0, behavior: "smooth" });
     qs("lateFeeName").focus();
+}
+
+function normalizeRecurrenceType(value) {
+    const text = String(value ?? "").toLowerCase();
+
+    if (text === "onetime") return LATE_FEE_RECURRENCE.ONE_TIME;
+    if (text === "daily") return LATE_FEE_RECURRENCE.DAILY;
+    if (text === "weekly") return LATE_FEE_RECURRENCE.WEEKLY;
+
+    const number = Number(value);
+    return number > 0 ? number : LATE_FEE_RECURRENCE.ONE_TIME;
 }
 
 function openSiblingEdit(id) {
