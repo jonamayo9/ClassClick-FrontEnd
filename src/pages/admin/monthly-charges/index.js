@@ -1488,8 +1488,21 @@ async function loadCoursesAndStudents() {
 }
 
 async function loadCharges() {
+    const params = new URLSearchParams();
+
+    params.append("year", filters.year);
+    params.append("month", filters.month);
+
+    if (filters.status) {
+        params.append("status", filters.status);
+    }
+
+    if (filters.search.trim()) {
+        params.append("search", filters.search.trim());
+    }
+
     charges = await get(
-        `/api/admin/${company.slug}/monthly-charges?year=${filters.year}&month=${filters.month}`
+        `/api/admin/${company.slug}/monthly-charges?${params.toString()}`
     );
 
     renderSummary();
@@ -1507,16 +1520,14 @@ function bindEvents() {
         await loadCharges();
     });
 
-    document.getElementById("statusFilter").addEventListener("change", () => {
+    document.getElementById("statusFilter").addEventListener("change", async () => {
         filters.status = document.getElementById("statusFilter").value;
-        renderSummary();
-        renderCharges();
+        await loadCharges();
     });
 
-    document.getElementById("searchFilter").addEventListener("input", () => {
+    document.getElementById("searchFilter").addEventListener("input", async () => {
         filters.search = document.getElementById("searchFilter").value;
-        renderSummary();
-        renderCharges();
+        await loadCharges();
     });
 
     document.getElementById("closeChargeDetailModalBtn").addEventListener("click", () => {
@@ -1553,9 +1564,7 @@ document.getElementById("generateStudentSearchInput")?.addEventListener("input",
     try {
         const result = await get(`/api/admin/${company.slug}/students?search=${encodeURIComponent(search)}`);
 
-        const rawStudents = unwrapList(result);
-
-        students = filterStudentsBySearch(rawStudents, search)
+        students = unwrapList(result)
             .filter(student => !selectedGenerateStudentIds.includes(student.id));
 
         renderGenerateStudentResults();
