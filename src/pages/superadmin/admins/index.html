@@ -293,6 +293,87 @@
     </div>
   </div>
 
+  <div id="passwordModal" class="hidden fixed inset-0 z-50">
+  <div class="absolute inset-0 bg-black/40"></div>
+
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div>
+          <h3 class="text-lg font-semibold text-slate-900">
+            Cambiar contraseña
+          </h3>
+
+          <p
+            id="passwordModalSubtitle"
+            class="text-sm text-slate-500">
+          </p>
+        </div>
+
+        <button
+          id="closePasswordModalButton"
+          type="button"
+          class="rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100">
+          Cerrar
+        </button>
+      </div>
+
+      <form id="passwordForm" class="space-y-4 px-5 py-5">
+        <input
+          id="passwordAdminId"
+          type="hidden" />
+
+        <div>
+          <label for="newPasswordInput" class="label">
+            Nueva contraseña
+          </label>
+
+          <input
+            id="newPasswordInput"
+            type="password"
+            class="input"
+            minlength="6"
+            required />
+        </div>
+
+        <div>
+          <label for="confirmPasswordInput" class="label">
+            Confirmar contraseña
+          </label>
+
+          <input
+            id="confirmPasswordInput"
+            type="password"
+            class="input"
+            minlength="6"
+            required />
+        </div>
+
+        <div
+          id="passwordErrorBox"
+          class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button
+            id="cancelPasswordButton"
+            type="button"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+            Cancelar
+          </button>
+
+          <button
+            id="submitPasswordButton"
+            type="submit"
+            class="rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60">
+            Actualizar contraseña
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
   <div id="confirmModal" class="hidden fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/40"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">

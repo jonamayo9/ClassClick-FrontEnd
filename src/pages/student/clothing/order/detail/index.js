@@ -2,6 +2,8 @@ import { get, postForm } from "../../../../../shared/js/api.js";
 import { loadConfig } from "../../../../../shared/js/config.js";
 import { requireAuth } from "../../../../../shared/js/session.js";
 import { getActiveCompany } from "../../../../../shared/js/storage.js";
+import { initTheme, applyThemePreference } from "../../../../../shared/js/theme.js";
+import { getStudentMe } from "../../../../../shared/js/storage.js";
 
 let companySlug = null;
 let orderId = null;
@@ -58,16 +60,16 @@ function amountToPay() {
 
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100 p-5">
-            <div class="rounded-3xl bg-white p-5 shadow-sm">Cargando pedido...</div>
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-5">
+            <div class="rounded-3xl bg-white dark:bg-slate-900 dark:bg-slate-900 p-5 shadow-sm">Cargando pedido...</div>
         </div>
     `;
 }
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100 p-5">
-            <div class="rounded-3xl bg-white p-5 text-red-600 shadow-sm">${error}</div>
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-5">
+            <div class="rounded-3xl bg-white dark:bg-slate-900 p-5 text-red-600 shadow-sm">${error}</div>
         </div>
     `;
 }
@@ -76,10 +78,10 @@ function buildContent() {
     const payText = paymentText();
 
     return `
-        <div class="min-h-screen bg-slate-100 p-5">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-5">
             <div class="mx-auto max-w-xl space-y-5">
 
-                <section class="rounded-[28px] bg-slate-950 p-5 text-white shadow-sm">
+                <section class="rounded-[28px] bg-slate-950 dark:bg-slate-900 p-5 text-white shadow-sm">
                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-2xl">✓</div>
                     <h1 class="mt-4 text-2xl font-black">Pedido confirmado</h1>
                         <p class="mt-2 text-sm text-slate-300">
@@ -88,29 +90,29 @@ function buildContent() {
                 </section>
 
                 ${uiMessage ? `
-                    <div class="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+                    <div class="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 p-4 text-sm font-bold text-emerald-700">
                         ${uiMessage}
                     </div>
                 ` : ""}
 
-                <section class="rounded-[24px] bg-white p-5 shadow-sm">
-    <h2 class="text-lg font-black text-slate-900">Comprobante de pago</h2>
+                <section class="rounded-[24px] bg-white dark:bg-slate-900 p-5 shadow-sm">
+    <h2 class="text-lg font-black text-slate-900 dark:text-white">Comprobante de pago</h2>
 
     ${
         order.hasPendingPaymentProof
             ? `
-                <div class="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+                <div class="mt-3 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 p-4 text-sm font-bold text-emerald-700">
                     Comprobante enviado. Está pendiente de revisión del club.
                 </div>
             `
             : canUploadProof()
                 ? `
-                    <p class="mt-1 text-sm text-slate-500">
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                         Subí el comprobante correspondiente al pago de la ${payText}: <b>${money(amountToPay())}</b>
                     </p>
 
                     ${clothingSettings?.paymentAlias ? `
-<div class="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
+<div class="mt-4 rounded-2xl border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-500/10 p-4">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         
         <div class="min-w-0">
@@ -118,12 +120,12 @@ function buildContent() {
                 Alias para transferir
             </p>
 
-            <p class="mt-2 break-all text-2xl font-black text-slate-900">
+            <p class="mt-2 break-all text-2xl font-black text-slate-900 dark:text-white">
                 ${escapeHtml(clothingSettings.paymentAlias)}
             </p>
 
             ${clothingSettings.paymentAliasHolder ? `
-                <p class="mt-1 text-sm font-bold text-slate-500">
+                <p class="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">
                     ${escapeHtml(clothingSettings.paymentAliasHolder)}
                 </p>
             ` : ""}
@@ -132,7 +134,7 @@ function buildContent() {
         <button
             id="copyClothingAliasBtn"
             type="button"
-            class="w-full shrink-0 rounded-2xl border border-violet-400 bg-white px-5 py-4 text-sm font-black text-violet-700 shadow-sm transition hover:bg-violet-100 sm:w-auto"
+            class="w-full shrink-0 rounded-2xl border border-violet-400 dark:border-violet-800 bg-white dark:bg-slate-900 dark:bg-slate-900 px-5 py-4 text-sm font-black text-violet-700 shadow-sm transition hover:bg-violet-100 sm:w-auto"
         >
             <span class="flex items-center justify-center gap-2">
                 <svg
@@ -159,14 +161,14 @@ function buildContent() {
                         id="proofInput"
                         type="file"
                         accept="image/*,.pdf"
-                        class="mt-4 w-full rounded-2xl border border-slate-300 p-3 text-sm"
+                        class="mt-4 w-full rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 dark:text-white p-3 text-sm"
                     />
 
                     <button
                         id="uploadProofBtn"
                         type="button"
                         ${uploading ? "disabled" : ""}
-                        class="mt-4 w-full rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white disabled:opacity-50"
+                        class="mt-4 w-full rounded-2xl bg-white dark:bg-slate-100 px-5 py-4 text-sm font-black text-slate-950 disabled:opacity-50"
                     >
                         ${uploading ? "Subiendo..." : "Subir comprobante"}
                     </button>
@@ -179,14 +181,14 @@ function buildContent() {
     }
 </section>
 
-                <section class="rounded-[24px] bg-white p-5 shadow-sm">
-                    <h2 class="text-lg font-black text-slate-900">Productos</h2>
+                <section class="rounded-[24px] bg-white dark:bg-slate-900 p-5 shadow-sm">
+                    <h2 class="text-lg font-black text-slate-900 dark:text-white">Productos</h2>
 
                     <div class="mt-4 space-y-3">
                         ${order.items.map(item => `
-                            <div class="rounded-2xl border border-slate-200 p-4">
-                                <p class="font-black text-slate-900">${item.productName}</p>
-                                ${item.variantName ? `<p class="text-xs text-slate-500">Variante: ${item.variantName}</p>` : ""}
+                            <div class="rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+                                <p class="font-black text-slate-900 dark:text-white">${item.productName}</p>
+                                ${item.variantName ? `<p class="text-xs text-slate-500 dark:text-slate-400">Variante: ${item.variantName}</p>` : ""}
                                 ${
                                     item.personalizationText
                                         ? `<p class="text-xs font-bold text-sky-700">
@@ -195,8 +197,8 @@ function buildContent() {
                                         : ""
                                 }
                                 <div class="mt-2 flex justify-between text-sm">
-                                    <span class="text-slate-500">${item.quantity} × ${money(item.unitPrice)}</span>
-                                    <span class="font-black">${money(item.subtotal)}</span>
+                                    <span class="text-slate-500 dark:text-slate-400">${item.quantity} × ${money(item.unitPrice)}</span>
+                                    <span class="font-black text-slate-900 dark:text-white">${money(item.subtotal)}</span>
                                 </div>
                             </div>
                         `).join("")}
@@ -206,7 +208,7 @@ function buildContent() {
                 <button
                     id="myOrdersBtn"
                     type="button"
-                    class="w-full rounded-2xl border border-slate-300 bg-white py-4 font-black text-slate-800"
+                    class="w-full rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 py-4 font-black text-slate-800 dark:text-slate-100"
                 >
                     Ir a mis pedidos
                 </button>
@@ -214,7 +216,7 @@ function buildContent() {
                 <button
                     id="backBtn"
                     type="button"
-                    class="w-full rounded-2xl py-3 font-bold text-slate-500"
+                    class="w-full rounded-2xl py-3 font-bold text-slate-500 dark:text-slate-400"
                 >
                     Volver al catálogo
                 </button>
@@ -314,6 +316,7 @@ async function loadOrder() {
 
 async function init() {
     try {
+        initTheme();
         await loadConfig();
 
         const session = requireAuth();
@@ -321,6 +324,8 @@ async function init() {
 
         companySlug = session.activeCompanySlug;
         const company = getActiveCompany(companySlug);
+        const student = getStudentMe(companySlug);
+        applyThemePreference(student?.themePreference || "system");
 
         if (company?.modules?.clothing !== true) {
             window.location.href = "/src/pages/student/home/index.html";

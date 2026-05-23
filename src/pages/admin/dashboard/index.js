@@ -1,5 +1,5 @@
 import { loadConfig } from "../../../shared/js/config.js";
-import { get } from "../../../shared/js/api.js";
+import { get, post } from "../../../shared/js/api.js";
 import { getUser, getActiveRole, getToken } from "../../../shared/js/storage.js";
 import { requireAuth } from "../../../shared/js/session.js";
 import { renderAdminLayout, setupAdminLayout } from "../../../shared/js/admin-layout.js";
@@ -9,7 +9,8 @@ const state = {
   activeCompany: null,
   items: [],
   summary: null,
-  apiBaseUrl: ""
+  apiBaseUrl: "",
+  coursesLoadedForSlug: ""
 };
 
 function formatCurrency(value) {
@@ -45,15 +46,43 @@ function escapeHtml(value) {
 function paymentMethodLabel(value) {
   const normalized = String(value || "").toLowerCase();
 
-  if (normalized === "cash" || normalized === "efectivo" || normalized === "1") {
-    return "Efectivo";
-  }
-
-  if (normalized === "transfer" || normalized === "transferencia" || normalized === "2") {
-    return "Transferencia";
-  }
+  if (normalized === "cash" || normalized === "efectivo" || normalized === "5") return "Efectivo";
+  if (normalized === "transfer" || normalized === "transferencia" || normalized === "1") return "Transferencia";
+  if (normalized === "debitcard" || normalized === "debit_card" || normalized === "2") return "Débito";
+  if (normalized === "creditcard" || normalized === "credit_card" || normalized === "3") return "Crédito";
+  if (normalized === "mercadopago" || normalized === "mercado_pago" || normalized === "4") return "Mercado Pago";
 
   return "-";
+}
+
+function renderChargeExtras(item) {
+  const badges = [];
+
+  if (item.hasScholarship || Number(item.scholarshipDiscountAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">🎓 Beca</span>`);
+  }
+
+  if (item.hasSiblingDiscount || Number(item.siblingDiscountAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">👥 Hermanos</span>`);
+  }
+
+  if (item.hasPromotion || Number(item.promotionAmount || item.promotionDiscountAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">🏷️ Promo</span>`);
+  }
+
+  if (Number(item.lateChargeAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">⏰ Mora</span>`);
+  }
+
+  if (Number(item.paymentMethodSurchargeAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">💳 Recargo</span>`);
+  }
+
+  if (!badges.length) {
+    return `<span class="text-xs text-slate-400">—</span>`;
+  }
+
+  return `<div class="flex flex-wrap gap-1.5">${badges.join("")}</div>`;
 }
 
 function reportStatusLabel(value) {
@@ -176,7 +205,7 @@ function buildDashboardContent() {
             </div>
 
             <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
-              <p class="text-[11px] uppercase tracking-[0.14em] text-slate-300">Pendiente</p>
+              <p class="text-[11px] uppercase tracking-[0.14em] text-slate-300">A vencer</p>
               <p id="heroTotalPending" class="mt-1 text-2xl font-bold text-white">$ 0</p>
             </div>
 
@@ -207,6 +236,10 @@ function buildDashboardContent() {
           <div>
             <h3 class="text-2xl font-bold tracking-tight text-slate-900">Resumen de cobranza</h3>
             <p id="companySlugText" class="text-sm text-slate-500"></p>
+            <button id="openMetricsHelpButton"
+              class="mt-2 inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+              ¿Qué significa cada monto?
+            </button>
           </div>
         </div>
 
@@ -214,12 +247,12 @@ function buildDashboardContent() {
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-7">
             <div>
               <label for="dateFromUtc" class="mb-2 block text-sm font-medium text-slate-700">Desde</label>
-              <input id="dateFromUtc" type="date" value="${dateFrom}" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400" />
+              <input id="dateFromUtc" type="text" value="${dateFrom}" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400" />
             </div>
 
             <div>
               <label for="dateToUtc" class="mb-2 block text-sm font-medium text-slate-700">Hasta</label>
-              <input id="dateToUtc" type="date" value="${dateTo}" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400" />
+              <input id="dateToUtc" type="text" value="${dateTo}" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400" />
             </div>
 
             <div>
@@ -235,9 +268,10 @@ function buildDashboardContent() {
               <label for="chargeType" class="mb-2 block text-sm font-medium text-slate-700">Tipo de cuota</label>
               <select id="chargeType" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400">
                 <option value="">Todas</option>
-                <option value="Pure">Puras</option>
+                <option value="Pure">Sin promoción</option>
+                <option value="WithScholarship">Con beca</option>
                 <option value="WithPromotion">Con promoción</option>
-                <option value="WithoutPromotion">Sin promoción</option>
+                <option value="WithLateFee">Con mora</option>
               </select>
             </div>
 
@@ -252,12 +286,9 @@ function buildDashboardContent() {
             </div>
 
             <div>
-              <label for="periodPreset" class="mb-2 block text-sm font-medium text-slate-700">Período rápido</label>
-              <select id="periodPreset" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400">
-                <option value="">Personalizado</option>
-                <option value="today">Hoy</option>
-                <option value="thisMonth">Este mes</option>
-                <option value="lastMonth">Mes anterior</option>
+              <label for="courseId" class="mb-2 block text-sm font-medium text-slate-700">Curso</label>
+              <select id="courseId" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400">
+                <option value="">Todos</option>
               </select>
             </div>
 
@@ -294,7 +325,7 @@ function buildDashboardContent() {
         <div id="dashboardGrid" class="hidden space-y-6">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             ${buildMetricCard({ title: "Total cobrado", id: "totalCollected" })}
-            ${buildMetricCard({ title: "Total pendiente", id: "totalPending" })}
+            ${buildMetricCard({ title: "A vencer", id: "totalPending" })}
             ${buildMetricCard({ title: "Total vencido", id: "totalOverdue" })}
             ${buildMetricCard({ title: "Cuotas pagas", id: "paidChargesCount" })}
           </div>
@@ -307,14 +338,21 @@ function buildDashboardContent() {
           </div>
 
           <section class="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h4 class="text-lg font-semibold text-slate-900">Detalle de cuotas</h4>
-                <p class="text-sm text-slate-500">Listado filtrado según los criterios seleccionados.</p>
-              </div>
-              <p id="resultsCount" class="text-sm font-medium text-slate-500">0 resultados</p>
+          <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 class="text-lg font-semibold text-slate-900">Detalle de cuotas</h4>
+              <p class="text-sm text-slate-500">Listado filtrado según los criterios seleccionados.</p>
             </div>
 
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+              <p id="resultsCount" class="text-sm font-medium text-slate-500">0 resultados</p>
+
+              <button id="notifyPendingChargesButton"
+                class="inline-flex items-center justify-center rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-600">
+                Notificar pendientes
+              </button>
+            </div>
+          </div>
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50">
@@ -339,8 +377,277 @@ function buildDashboardContent() {
           </section>
         </div>
       </section>
-    </section>
+    </section>    
   `;
+}
+
+function initDatePickers() {
+  if (!window.flatpickr) return;
+
+  flatpickr("#dateFromUtc", {
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    locale: "es",
+    allowInput: false
+  });
+
+  flatpickr("#dateToUtc", {
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    locale: "es",
+    allowInput: false
+  });
+}
+
+function ensureMetricsHelpModal() {
+  if (document.getElementById("metricsHelpModal")) return;
+
+document.body.insertAdjacentHTML("beforeend", `
+  <div id="metricsHelpModal" class="fixed inset-0 z-[999999] hidden min-h-screen w-screen items-center justify-center bg-slate-900/70 px-4 py-6 overflow-y-auto">
+
+    <div class="w-full max-w-2xl rounded-[32px] bg-white p-6 shadow-2xl sm:p-7">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-2xl font-bold tracking-tight text-slate-900">
+            ¿Cómo interpretar el dashboard?
+          </h3>
+
+          <p class="mt-2 text-sm text-slate-500">
+            Estos indicadores te ayudan a entender rápidamente el estado de cobranza de tu empresa.
+          </p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
+          Cobranza
+        </div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <p class="text-sm font-semibold text-emerald-900">💰 Cobrado</p>
+          <p class="mt-2 text-sm leading-6 text-emerald-800">
+            Total de cuotas pagadas dentro del período filtrado.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p class="text-sm font-semibold text-amber-900">⏳ A vencer</p>
+          <p class="mt-2 text-sm leading-6 text-amber-800">
+            Cuotas impagas que todavía están dentro de fecha.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          <p class="text-sm font-semibold text-rose-900">🚨 Vencido</p>
+          <p class="mt-2 text-sm leading-6 text-rose-800">
+            Cuotas impagas que ya superaron la fecha de vencimiento.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p class="text-sm font-semibold text-slate-900">📄 Pagadas</p>
+          <p class="mt-2 text-sm leading-6 text-slate-700">
+            Cantidad total de cuotas cobradas.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Métodos y promociones
+        </h4>
+
+        <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-sm font-semibold text-slate-900">💵 Efectivo</p>
+            <p class="mt-2 text-sm leading-6 text-slate-700">
+              Total cobrado mediante pagos en efectivo.
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-sm font-semibold text-slate-900">🏦 Transferencia</p>
+            <p class="mt-2 text-sm leading-6 text-slate-700">
+              Total cobrado mediante transferencias bancarias.
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+            <p class="text-sm font-semibold text-violet-900">🎟️ Con promoción</p>
+            <p class="mt-2 text-sm leading-6 text-violet-800">
+              Cuotas que tuvieron descuentos, promociones o beneficios aplicados.
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-sm font-semibold text-slate-900">📄 Sin promoción</p>
+            <p class="mt-2 text-sm leading-6 text-slate-700">
+              Cuotas cobradas sin descuentos ni promociones aplicadas.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button
+          id="closeMetricsHelpButton"
+          class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+          Entendido
+        </button>
+      </div>
+    </div>
+
+  </div>
+`);
+
+  document.getElementById("metricsHelpModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "metricsHelpModal") {
+      closeMetricsHelpModal();
+    }
+  });
+
+  document.getElementById("closeMetricsHelpButton")?.addEventListener("click", closeMetricsHelpModal);
+}
+
+function openMetricsHelpModal() {
+  ensureMetricsHelpModal();
+
+  const modal = document.getElementById("metricsHelpModal");
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function closeMetricsHelpModal() {
+  const modal = document.getElementById("metricsHelpModal");
+  if (!modal) return;
+
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+function ensureNotifyModal() {
+  if (document.getElementById("notifyModal")) return;
+
+  document.body.insertAdjacentHTML("beforeend", `
+    <div id="notifyModal" class="fixed inset-0 z-[999999] hidden min-h-screen w-screen items-center justify-center bg-slate-900/70 px-4">
+      <div class="w-full max-w-md rounded-3xl bg-white p-5 shadow-xl sm:p-6">
+        <h3 id="notifyModalTitle" class="text-lg font-bold text-slate-900">Confirmar envío</h3>
+
+        <p id="notifyModalMessage" class="mt-2 text-sm text-slate-600">
+          Se enviarán notificaciones a todos los alumnos con cuotas pendientes o vencidas según los filtros actuales.
+        </p>
+
+        <div id="notifyModalActions" class="mt-5 flex justify-end gap-2">
+          <button id="cancelNotifyButton" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+            Cancelar
+          </button>
+
+          <button id="confirmNotifyButton" class="rounded-2xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white">
+            Enviar notificaciones
+          </button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  document.getElementById("notifyModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "notifyModal") {
+      closeNotifyModal();
+    }
+  });
+}
+
+function openNotifyModal() {
+  ensureNotifyModal();
+
+  const modal = document.getElementById("notifyModal");
+  if (!modal) return;
+
+  document.getElementById("notifyModalTitle").textContent = "Confirmar envío";
+  document.getElementById("notifyModalMessage").textContent =
+    "Se enviarán notificaciones a todos los alumnos con cuotas pendientes o vencidas según los filtros actuales.";
+
+  document.getElementById("notifyModalActions").innerHTML = `
+    <button id="cancelNotifyButton" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+      Cancelar
+    </button>
+
+    <button id="confirmNotifyButton" class="rounded-2xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white">
+      Enviar notificaciones
+    </button>
+  `;
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+
+  document.getElementById("cancelNotifyButton")?.addEventListener("click", closeNotifyModal);
+  document.getElementById("confirmNotifyButton")?.addEventListener("click", notifyPendingCharges);
+}
+
+function closeNotifyModal() {
+  const modal = document.getElementById("notifyModal");
+  if (!modal) return;
+
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+  document.body.classList.remove("overflow-hidden");
+}
+
+function setNotifyModalLoading() {
+  document.getElementById("notifyModalTitle").textContent = "Enviando notificaciones";
+  document.getElementById("notifyModalMessage").textContent = "Aguardá unos segundos mientras se notifican las cuotas pendientes.";
+  document.getElementById("notifyModalActions").innerHTML = "";
+}
+
+async function notifyPendingCharges() {
+  if (!state.activeCompany?.slug) return;
+
+  try {
+    hideError();
+    setNotifyModalLoading();
+
+    const query = buildQueryParams();
+
+    const url = query
+      ? `/api/admin/${state.activeCompany.slug}/dashboard/collections/notify-pending?${query}`
+      : `/api/admin/${state.activeCompany.slug}/dashboard/collections/notify-pending`;
+
+    const result = await post(url);
+
+    document.getElementById("notifyModalTitle").textContent = "Notificaciones enviadas";
+    document.getElementById("notifyModalMessage").textContent =
+      result?.message || "Las notificaciones se enviaron correctamente.";
+
+    document.getElementById("notifyModalActions").innerHTML = `
+      <button id="closeNotifySuccessButton" class="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+        Cerrar
+      </button>
+    `;
+
+    document
+      .getElementById("closeNotifySuccessButton")
+      ?.addEventListener("click", closeNotifyModal);
+  } catch (error) {
+    document.getElementById("notifyModalTitle").textContent = "No se pudo enviar";
+    document.getElementById("notifyModalMessage").textContent =
+      error.message || "No se pudieron enviar las notificaciones.";
+
+    document.getElementById("notifyModalActions").innerHTML = `
+      <button id="closeNotifyErrorButton" class="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+        Cerrar
+      </button>
+    `;
+
+    document
+      .getElementById("closeNotifyErrorButton")
+      ?.addEventListener("click", closeNotifyModal);
+  }
 }
 
 function setText(id, value) {
@@ -380,7 +687,15 @@ function getStatusBadge(status) {
 }
 
 function getChargeTypeLabel(item) {
-  return item.hasPromotion ? "Con promoción" : "Sin promoción";
+  if (item.hasScholarship || Number(item.scholarshipDiscountAmount || 0) > 0) {
+    return "Con beca";
+  }
+
+  if (item.hasPromotion || Number(item.promotionAmount || item.promotionDiscountAmount || item.siblingDiscountAmount || 0) > 0) {
+    return "Con promoción";
+  }
+
+  return "Sin promoción";
 }
 
 function getApiBaseUrlOrThrow() {
@@ -396,12 +711,14 @@ function getApiBaseUrlOrThrow() {
 function buildQueryParams() {
   const params = new URLSearchParams();
 
+  const courseId = document.getElementById("courseId")?.value;
   const dateFromUtc = document.getElementById("dateFromUtc")?.value;
   const dateToUtc = document.getElementById("dateToUtc")?.value;
   const paymentMethod = document.getElementById("paymentMethod")?.value;
   const chargeType = document.getElementById("chargeType")?.value;
   const status = document.getElementById("status")?.value;
 
+  if (courseId) params.set("courseId", courseId);
   if (dateFromUtc) params.set("dateFromUtc", `${dateFromUtc}T00:00:00Z`);
   if (dateToUtc) params.set("dateToUtc", `${dateToUtc}T23:59:59Z`);
   if (paymentMethod) params.set("paymentMethod", paymentMethod);
@@ -465,42 +782,29 @@ function fillTable(items) {
   `).join("");
 }
 
-function applyPreset() {
-  const preset = document.getElementById("periodPreset")?.value;
-  const fromInput = document.getElementById("dateFromUtc");
-  const toInput = document.getElementById("dateToUtc");
+async function loadCourses(activeCompany) {
+  const courseSelect = document.getElementById("courseId");
+  if (!courseSelect || !activeCompany?.slug) return;
 
-  if (!fromInput || !toInput || !preset) return;
+  courseSelect.innerHTML = `<option value="">Todos</option>`;
 
-  const now = new Date();
-  const yyyyMmDd = value => {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
+  try {
+    const courses = await get(`/api/admin/${activeCompany.slug}/dashboard/courses/options`);
 
-  if (preset === "today") {
-    const value = yyyyMmDd(now);
-    fromInput.value = value;
-    toInput.value = value;
-    return;
-  }
+    const items = Array.isArray(courses)
+      ? courses
+      : Array.isArray(courses?.items)
+        ? courses.items
+        : [];
 
-  if (preset === "thisMonth") {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    fromInput.value = `${year}-${month}-01`;
-    toInput.value = yyyyMmDd(now);
-    return;
-  }
-
-  if (preset === "lastMonth") {
-    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-
-    fromInput.value = yyyyMmDd(firstDay);
-    toInput.value = yyyyMmDd(lastDay);
+    courseSelect.innerHTML = `
+      <option value="">Todos</option>
+      ${items.map(course => `
+        <option value="${escapeHtml(course.id)}">${escapeHtml(course.name || course.title || "-")}</option>
+      `).join("")}
+    `;
+  } catch (error) {
+    console.error("No se pudieron cargar los cursos", error);
   }
 }
 
@@ -508,7 +812,7 @@ function clearFilters() {
   document.getElementById("paymentMethod").value = "";
   document.getElementById("chargeType").value = "";
   document.getElementById("status").value = "";
-  document.getElementById("periodPreset").value = "";
+  document.getElementById("courseId").value = "";
   document.getElementById("exportFormat").value = "excel";
 
   const now = new Date();
@@ -546,30 +850,35 @@ async function loadDashboard(activeCompany) {
 
   companySlugText.textContent = `Empresa activa: ${activeCompany.name} (${activeCompany.slug})`;
 
-  try {
-    hideError();
-    dashboardGrid?.classList.add("hidden");
-    loadingBox?.classList.remove("hidden");
+try {
+  hideError();
+  dashboardGrid?.classList.add("hidden");
+  loadingBox?.classList.remove("hidden");
 
-    const query = buildQueryParams();
-    const url = query
-      ? `/api/admin/${activeCompany.slug}/reports/collections?${query}`
-      : `/api/admin/${activeCompany.slug}/reports/collections`;
-
-    const data = await get(url);
-
-    state.summary = data.summary || null;
-    state.items = Array.isArray(data.items) ? data.items : [];
-
-    fillSummary(state.summary || {});
-    fillTable(state.items);
-
-    loadingBox?.classList.add("hidden");
-    dashboardGrid?.classList.remove("hidden");
-  } catch (error) {
-    loadingBox?.classList.add("hidden");
-    showError(error.message || "No se pudo cargar el dashboard.");
+  if (state.coursesLoadedForSlug !== activeCompany.slug) {
+    await loadCourses(activeCompany);
+    state.coursesLoadedForSlug = activeCompany.slug;
   }
+
+  const query = buildQueryParams();
+  const url = query
+    ? `/api/admin/${activeCompany.slug}/reports/collections?${query}`
+    : `/api/admin/${activeCompany.slug}/reports/collections`;
+
+  const data = await get(url);
+
+  state.summary = data.summary || null;
+  state.items = Array.isArray(data.items) ? data.items : [];
+
+  fillSummary(state.summary || {});
+  fillTable(state.items);
+
+  loadingBox?.classList.add("hidden");
+  dashboardGrid?.classList.remove("hidden");
+} catch (error) {
+  loadingBox?.classList.add("hidden");
+  showError(error.message || "No se pudo cargar el dashboard.");
+}
 }
 
 async function exportReport() {
@@ -600,13 +909,26 @@ function bindEvents() {
     await loadDashboard(state.activeCompany);
   });
 
+  document
+  .getElementById("notifyPendingChargesButton")
+  ?.addEventListener("click", openNotifyModal);
+
   document.getElementById("clearButton")?.addEventListener("click", async () => {
     clearFilters();
     await loadDashboard(state.activeCompany);
   });
 
-  document.getElementById("periodPreset")?.addEventListener("change", applyPreset);
   document.getElementById("exportButton")?.addEventListener("click", exportReport);
+
+  document.getElementById("notifyModal")?.addEventListener("click", (event) => {
+  if (event.target?.id === "notifyModal") {
+    closeNotifyModal();
+  }
+});
+
+document
+  .getElementById("openMetricsHelpButton")
+  ?.addEventListener("click", openMetricsHelpModal);
 }
 
 async function init() {
@@ -631,6 +953,9 @@ async function init() {
     contentHtml: buildDashboardContent()
   });
 
+  ensureNotifyModal();
+  ensureMetricsHelpModal();
+
   const welcomeName = document.getElementById("welcomeName");
   const welcomeMeta = document.getElementById("welcomeMeta");
 
@@ -642,6 +967,7 @@ async function init() {
     : `Rol activo: ${activeRole || "-"}`;
 
   bindEvents();
+  initDatePickers();
 
   const { activeCompany } = await setupAdminLayout({
     onCompanyChanged: async (company) => {

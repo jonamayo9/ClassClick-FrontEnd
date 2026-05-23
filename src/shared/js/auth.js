@@ -75,19 +75,26 @@ async function clearClientCache() {
   }
 }
 
-function resolveFirstCompany(companies) {
+function resolveDefaultAccess(companies) {
   if (!Array.isArray(companies) || companies.length === 0) return null;
+
+  const adminAccess = companies.find(x =>
+    (x.role || x.activeRole || "").toLowerCase() === "admin"
+  );
+
+  if (adminAccess) return adminAccess;
+
   return companies[0];
 }
 
-function resolveRole(company) {
-  if (!company) return null;
+function resolveRole(access) {
+  if (!access) return null;
 
-  if (company.activeRole) return company.activeRole;
-  if (company.role) return company.role;
+  if (access.activeRole) return access.activeRole;
+  if (access.role) return access.role;
 
-  if (Array.isArray(company.roles) && company.roles.length > 0) {
-    return company.roles[0];
+  if (Array.isArray(access.roles) && access.roles.length > 0) {
+    return access.roles[0];
   }
 
   return null;
@@ -128,18 +135,27 @@ try {
   console.warn("No se pudo guardar me en cache:", error);
 }
 
-  const firstCompany = resolveFirstCompany(normalized.companies);
-  const companySlug = resolveCompanySlug(firstCompany);
-  const role = resolveRole(firstCompany);
+const defaultAccess = resolveDefaultAccess(normalized.companies);
+const companySlug = resolveCompanySlug(defaultAccess);
+const role = resolveRole(defaultAccess);
 
-  if (companySlug) {
-    setActiveCompanySlug(companySlug);
-  }
+if (companySlug) {
+  setActiveCompanySlug(companySlug);
+}
 
-  if (role) {
-    setActiveRole(role);
-  }
+if (role) {
+  setActiveRole(role);
+}
 
+if (companySlug && role) {
+  localStorage.setItem(
+    "classclick_active_context",
+    JSON.stringify({
+      companySlug,
+      role
+    })
+  );
+}
   return normalized;
 }
 

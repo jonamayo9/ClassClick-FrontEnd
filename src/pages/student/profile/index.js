@@ -24,6 +24,11 @@ import {
     getActiveCompany,
     setActiveCompany
 } from "../../../shared/js/storage.js";
+import {
+    buildStudentSidebar,
+    bindStudentLayoutEvents
+} from "../../../shared/js/student-layout.js";
+import { initTheme, applyThemePreference } from "../../../shared/js/theme.js";
 
 let session = null;
 let companySlug = null;
@@ -79,8 +84,8 @@ function readonlyAttr() {
 
 function readonlyClass() {
     return profileEditMode
-        ? "bg-white"
-        : "bg-slate-100 text-slate-500 cursor-not-allowed";
+        ? "bg-white text-slate-900 dark:bg-slate-900 dark:text-white"
+        : "bg-slate-100 text-slate-500 cursor-not-allowed dark:bg-slate-800 dark:text-slate-400";
 }
 
 function formatDateInput(value) {
@@ -206,19 +211,19 @@ function buildCompanyLogo(size = "h-14 w-14", rounded = "rounded-2xl") {
 
     if (!logoUrl) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
     }
 
     return `
-        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm">
+        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white dark:bg-slate-900 shadow-sm">
             <img
                 src="${escapeHtml(logoUrl)}"
                 alt="Logo empresa"
                 class="block h-full w-full object-cover"
-                onerror="const p=this.parentElement; this.remove(); if(p){ p.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center text-xs font-bold text-slate-700&quot;>${escapeHtml(initials)}</div>'; }"
+                onerror="const p=this.parentElement; this.remove(); if(p){ p.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center text-xs font-bold text-slate-700 dark:text-slate-200&quot;>${escapeHtml(initials)}</div>'; }"
             />
         </div>
     `;
@@ -230,14 +235,14 @@ function buildProfileAvatar(size = "h-28 w-28") {
 
     if (!imageUrl) {
         return `
-            <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-2xl font-bold text-slate-600 shadow-sm">
+            <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:bg-slate-950 text-2xl font-bold text-slate-600 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
     }
 
     return `
-        <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 shadow-sm">
+        <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:bg-slate-950 shadow-sm">
             <img
                 id="profileAvatarImage"
                 src="${escapeHtml(imageUrl)}"
@@ -249,91 +254,9 @@ function buildProfileAvatar(size = "h-28 w-28") {
     `;
 }
 
-function navLink(label, href, active = false) {
-    return `
-        <a
-            href="${href}"
-            class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
-            }"
-        >
-            ${escapeHtml(label)}
-        </a>
-    `;
-}
-
-function buildSidebar() {
-    return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
-            <div class="border-b border-slate-200 px-5 py-5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Alumno
-                </div>
-
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
-                    ${escapeHtml(getFullName() || "—")}
-                </div>
-
-                ${
-                    profile?.email
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(profile.email)}</div>`
-                        : ""
-                }
-            </div>
-
-<nav class="flex-1 space-y-2 px-4 py-4">
-    ${navLink("Inicio", "/src/pages/student/home/index.html")}
-
-    ${
-        company?.modules?.courses !== false
-            ? navLink("Cursos", "/src/pages/student/courses/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.payments === true
-            ? navLink("Pagos", "/src/pages/student/payments/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.documents === true
-            ? navLink("Documentos", "/src/pages/student/documents/index.html")
-            : ""
-    }
-
-    ${navLink("Perfil", "/src/pages/student/profile/index.html", true)}
-
-    ${
-        company?.modules?.siblings !== false
-            ? navLink("Hermanos", "/src/pages/student/siblings/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.clothing === true
-            ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
-            : ""
-    }
-</nav>
-            <div class="mt-auto border-t border-slate-200 px-4 py-4">
-                <button
-                    id="logoutBtn"
-                    type="button"
-                    class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                    Cerrar sesión
-                </button>
-            </div>
-        </aside>
-    `;
-}
-
 function buildMobileHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:bg-slate-900 md:hidden">
             <div class="flex items-center justify-between px-4 py-3">
 
                 <div class="flex min-w-0 items-center gap-3">
@@ -341,11 +264,11 @@ function buildMobileHeader() {
                     ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getCompanyName() || "Mi club")}
                         </div>
 
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(getFullName() || "Alumno")}
                         </div>
                     </div>
@@ -381,7 +304,7 @@ function buildMobileBottomNav() {
 
 function buildTopBar() {
     return `
-        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:block">
+        <section class="hidden rounded-[28px] border border-slate-200 bg-white dark:bg-slate-900 p-4 shadow-sm md:block">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-14 w-14")}
@@ -391,7 +314,7 @@ function buildTopBar() {
                             Empresa
                         </div>
 
-                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getCompanyName() || "—")}
                         </h1>
                     </div>
@@ -405,7 +328,7 @@ function buildTopBar() {
 
 function buildProfileHeader() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
                     <div class="relative">
@@ -423,28 +346,28 @@ function buildProfileHeader() {
                     </div>
 
                     <div class="min-w-0 text-center sm:text-left">
-                        <div class="truncate text-2xl font-bold text-slate-900">
+                        <div class="truncate text-2xl font-bold text-slate-900 dark:text-white">
                             ${escapeHtml(getFullName() || "Mi perfil")}
                         </div>
 
                         ${
                             profile?.email
-                                ? `<div class="mt-1 truncate text-sm text-slate-500">${escapeHtml(profile.email)}</div>`
+                                ? `<div class="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">${escapeHtml(profile.email)}</div>`
                                 : ""
                         }
 
                         ${
                             profile?.systemRole
-                                ? `<div class="mt-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">${escapeHtml(translateRole(profile.systemRole))}</div>`
+                                ? `<div class="mt-2 inline-flex rounded-full bg-slate-100 dark:bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200">${escapeHtml(translateRole(profile.systemRole))}</div>`
                                 : ""
                         }
                     </div>
                 </div>
 
                 <div class="min-w-0 lg:max-w-[360px]">
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div class="text-sm font-semibold text-slate-900">Foto de perfil</div>
-                        <div class="mt-1 text-sm text-slate-500">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-800 p-4">
+                        <div class="text-sm font-semibold text-slate-900 dark:text-white">Foto de perfil</div>
+                        <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             Podés subir JPG, PNG o WEBP. La imagen se actualiza apenas se guarda.
                         </div>
 
@@ -476,7 +399,7 @@ function buildProfileHeader() {
                                         <button
                                             id="cancelPhotoButton"
                                             type="button"
-                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800"
                                         >
                                             Cancelar
                                         </button>
@@ -491,15 +414,63 @@ function buildProfileHeader() {
     `;
 }
 
+function getThemePreference() {
+    return profile?.themePreference || localStorage.getItem("themePreference") || "system";
+}
+
+function buildThemeSelector() {
+    const selected = getThemePreference();
+
+    const option = (key, icon, title, description) => `
+        <button
+            type="button"
+            data-theme="${key}"
+            class="theme-option rounded-[22px] border p-4 text-left transition ${
+                selected === key
+                    ? "border-slate-900 bg-slate-900 text-white shadow-md"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+            }"
+        >
+            <div class="flex items-center justify-between gap-3">
+                <div class="text-2xl">${icon}</div>
+
+                <span class="h-4 w-4 rounded-full border ${
+                selected === key
+                    ? "border-emerald-400 bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.18)]"
+                    : "border-slate-300 bg-white dark:bg-slate-900"
+                }"></span>
+            </div>
+
+            <div class="mt-3 text-sm font-bold">${title}</div>
+            <div class="mt-1 text-xs opacity-70">${description}</div>
+        </button>
+    `;
+
+    return `
+        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Apariencia</h2>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Elegí cómo querés ver ClassClick.
+            </p>
+
+            <div class="mt-4 grid grid-cols-1 gap-3">
+                ${option("light", "☀️", "Claro", "Fondo claro y limpio")}
+                ${option("dark", "🌙", "Oscuro", "Ideal para la noche")}
+                ${option("system", "💻", "Sistema", "Usa el tema del dispositivo")}
+            </div>
+        </section>
+    `;
+}
+
 function buildProfileForm() {
     return `
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div class="xl:col-span-2 space-y-6">
-                <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div class="mb-5 flex items-start justify-between gap-4">
                         <div>
-                            <h2 class="text-lg font-semibold text-slate-900">Datos personales</h2>
-                            <p class="mt-1 text-sm text-slate-500">
+                            <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Datos personales</h2>
+                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                 Actualizá tu información principal y contactos.
                             </p>
                         </div>
@@ -522,33 +493,33 @@ function buildProfileForm() {
                     <form id="profileForm" class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
-                                <label for="firstName" class="mb-1 block text-sm font-medium text-slate-700">Nombre</label>
+                                <label for="firstName" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Nombre</label>
                                 <input id="firstName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.firstName || "")}" />
                             </div>
 
                             <div>
-                                <label for="lastName" class="mb-1 block text-sm font-medium text-slate-700">Apellido</label>
+                                <label for="lastName" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Apellido</label>
                                 <input id="lastName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.lastName || "")}" />
                             </div>
 
                             <div>
-                                <label for="dateOfBirth" class="mb-1 block text-sm font-medium text-slate-700">Fecha de nacimiento</label>
+                                <label for="dateOfBirth" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Fecha de nacimiento</label>
                                 <input id="dateOfBirth" type="date" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${formatDateInput(profile?.dateOfBirth)}" />
                             </div>
 
                             <div>
-                                <label for="phone" class="mb-1 block text-sm font-medium text-slate-700">Teléfono</label>
+                                <label for="phone" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Teléfono</label>
                                 <input id="phone" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.phone || "")}" />
                             </div>
 
                             <div class="md:col-span-2">
-                                <label for="address" class="mb-1 block text-sm font-medium text-slate-700">Dirección</label>
+                                <label for="address" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Dirección</label>
                                 <input id="address" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.address || "")}" />
                             </div>
                         </div>
 
-                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-800 p-4">
+                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                                 <input
                                     id="hasHealthInsurance"
                                     type="checkbox"
@@ -561,7 +532,7 @@ function buildProfileForm() {
 
                             <div id="healthInsuranceFields" class="${profile?.hasHealthInsurance ? "" : "hidden"} mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
-                                    <label for="healthInsuranceName" class="mb-1 block text-sm font-medium text-slate-700">
+                                    <label for="healthInsuranceName" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                                         Nombre de obra social
                                     </label>
                                     <input
@@ -574,7 +545,7 @@ function buildProfileForm() {
                                 </div>
 
                                 <div>
-                                    <label for="healthInsuranceMemberNumber" class="mb-1 block text-sm font-medium text-slate-700">
+                                    <label for="healthInsuranceMemberNumber" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                                         Nro. afiliado / socio
                                     </label>
                                     <input
@@ -587,7 +558,7 @@ function buildProfileForm() {
                                 </div>
 
                                 <div class="md:col-span-2">
-                                    <label for="healthInsurancePlan" class="mb-1 block text-sm font-medium text-slate-700">
+                                    <label for="healthInsurancePlan" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                                         Plan
                                     </label>
                                     <input
@@ -603,17 +574,17 @@ function buildProfileForm() {
 
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
-                                <label for="emergencyContactName" class="mb-1 block text-sm font-medium text-slate-700">Contacto de emergencia</label>
+                                <label for="emergencyContactName" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Contacto de emergencia</label>
                                 <input id="emergencyContactName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.emergencyContactName || "")}" />
                             </div>
 
                             <div>
-                                <label for="emergencyContactPhone" class="mb-1 block text-sm font-medium text-slate-700">Teléfono de emergencia</label>
+                                <label for="emergencyContactPhone" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Teléfono de emergencia</label>
                                 <input id="emergencyContactPhone" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.emergencyContactPhone || "")}" />
                             </div>
 
                             <div class="md:col-span-2">
-                                <label for="notes" class="mb-1 block text-sm font-medium text-slate-700">Notas</label>
+                                <label for="notes" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Notas</label>
                                 <textarea id="notes" rows="4" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}">${escapeHtml(profile?.notes || "")}</textarea>
                             </div>
                         </div>
@@ -627,7 +598,7 @@ function buildProfileForm() {
                                         <button
                                             id="cancelProfileEditButton"
                                             type="button"
-                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800"
                                         >
                                             Cancelar
                                         </button>
@@ -648,10 +619,11 @@ function buildProfileForm() {
             </div>
 
             <div class="space-y-6">
-                <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            ${buildThemeSelector()}
+                <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div class="mb-5">
-                        <h2 class="text-lg font-semibold text-slate-900">Seguridad</h2>
-                        <p class="mt-1 text-sm text-slate-500">
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Seguridad</h2>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             Cambiá tu contraseña para mantener tu cuenta segura.
                         </p>
                     </div>
@@ -665,27 +637,27 @@ function buildProfileForm() {
                     </button>
                 </section>
 
-                <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                    <h2 class="text-lg font-semibold text-slate-900">Resumen</h2>
+                <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Resumen</h2>
 
-                    <div class="mt-4 space-y-3 text-sm text-slate-600">
+                    <div class="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
                         <div>
-                            <span class="font-semibold text-slate-900">Email:</span>
+                            <span class="font-semibold text-slate-900 dark:text-white">Email:</span>
                             ${escapeHtml(profile?.email || "-")}
                         </div>
 
                         <div>
-                            <span class="font-semibold text-slate-900">Teléfono:</span>
+                            <span class="font-semibold text-slate-900 dark:text-white">Teléfono:</span>
                             ${escapeHtml(profile?.phone || "-")}
                         </div>
 
                         <div>
-                            <span class="font-semibold text-slate-900">Dirección:</span>
+                            <span class="font-semibold text-slate-900 dark:text-white">Dirección:</span>
                             ${escapeHtml(profile?.address || "-")}
                         </div>
 
                         <div>
-                            <span class="font-semibold text-slate-900">Obra social:</span>
+                            <span class="font-semibold text-slate-900 dark:text-white">Obra social:</span>
                             ${profile?.hasHealthInsurance ? "Sí" : "No"}
                         </div>
 
@@ -693,17 +665,17 @@ function buildProfileForm() {
                             profile?.hasHealthInsurance
                                 ? `
                                     <div>
-                                        <span class="font-semibold text-slate-900">Nombre:</span>
+                                        <span class="font-semibold text-slate-900 dark:text-white">Nombre:</span>
                                         ${escapeHtml(profile?.healthInsuranceName || "-")}
                                     </div>
 
                                     <div>
-                                        <span class="font-semibold text-slate-900">Nro. afiliado/socio:</span>
+                                        <span class="font-semibold text-slate-900 dark:text-white">Nro. afiliado/socio:</span>
                                         ${escapeHtml(profile?.healthInsuranceMemberNumber || "-")}
                                     </div>
 
                                     <div>
-                                        <span class="font-semibold text-slate-900">Plan:</span>
+                                        <span class="font-semibold text-slate-900 dark:text-white">Plan:</span>
                                         ${escapeHtml(profile?.healthInsurancePlan || "-")}
                                     </div>
                                 `
@@ -721,11 +693,11 @@ function buildPasswordModal() {
 
     return `
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div class="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl">
+            <div class="w-full max-w-md rounded-[28px] bg-white dark:bg-slate-900 p-6 shadow-2xl">
                 <div class="flex items-start justify-between gap-4">
                     <div>
-                        <h3 class="text-lg font-semibold text-slate-900">Cambiar contraseña</h3>
-                        <p class="mt-1 text-sm text-slate-500">
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Cambiar contraseña</h3>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             Ingresá tu contraseña actual y definí una nueva.
                         </p>
                     </div>
@@ -733,7 +705,7 @@ function buildPasswordModal() {
                     <button
                         id="closePasswordModalButton"
                         type="button"
-                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                         ✕
                     </button>
@@ -741,7 +713,7 @@ function buildPasswordModal() {
 
                 <form id="passwordForm" class="mt-5 space-y-4">
                     <div>
-                        <label for="currentPassword" class="mb-1 block text-sm font-medium text-slate-700">Contraseña actual</label>
+                        <label for="currentPassword" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Contraseña actual</label>
                         <input
                             id="currentPassword"
                             type="password"
@@ -750,7 +722,7 @@ function buildPasswordModal() {
                     </div>
 
                     <div>
-                        <label for="newPassword" class="mb-1 block text-sm font-medium text-slate-700">Nueva contraseña</label>
+                        <label for="newPassword" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Nueva contraseña</label>
                         <input
                             id="newPassword"
                             type="password"
@@ -759,7 +731,7 @@ function buildPasswordModal() {
                     </div>
 
                     <div>
-                        <label for="confirmNewPassword" class="mb-1 block text-sm font-medium text-slate-700">Confirmar nueva contraseña</label>
+                        <label for="confirmNewPassword" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Confirmar nueva contraseña</label>
                         <input
                             id="confirmNewPassword"
                             type="password"
@@ -773,7 +745,7 @@ function buildPasswordModal() {
                         <button
                             id="cancelPasswordModalButton"
                             type="button"
-                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             Cancelar
                         </button>
@@ -794,12 +766,12 @@ function buildPasswordModal() {
 
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando perfil...</div>
+                        <div class="rounded-[28px] border border-slate-200 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Cargando perfil...</div>
                         </div>
                     </div>
                 </main>
@@ -810,13 +782,13 @@ function buildLoading() {
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm">
-                            <div class="text-base font-semibold text-slate-900">No se pudo cargar el perfil.</div>
-                            <div class="mt-2 text-sm text-slate-500">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
+                        <div class="rounded-[28px] border border-rose-200 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                            <div class="text-base font-semibold text-slate-900 dark:text-white">No se pudo cargar el perfil.</div>
+                            <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
                         </div>
                     </div>
                 </main>
@@ -827,12 +799,16 @@ function buildError() {
 
 function buildPage() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             ${buildMobileHeader()}
             ${buildMobileMenu()}
 
             <div class="flex min-h-screen">
-                ${buildSidebar()}
+                ${buildStudentSidebar({
+                    company,
+                    student: profile,
+                    activeItem: "profile"
+                })}
 
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 pb-[190px] sm:px-6 lg:px-8 md:pb-6">
@@ -1032,7 +1008,7 @@ const payload = {
     emergencyContactName: qs("emergencyContactName").value.trim() || null,
     emergencyContactPhone: qs("emergencyContactPhone").value.trim() || null,
     notes: qs("notes").value.trim() || null,
-
+    themePreference: getThemePreference(),
     hasHealthInsurance: qs("hasHealthInsurance")?.checked || false,
     healthInsuranceName: qs("hasHealthInsurance")?.checked
         ? qs("healthInsuranceName").value.trim()
@@ -1127,6 +1103,7 @@ async function changePassword(event) {
 }
 
 function bindEvents() {
+    bindStudentLayoutEvents();
     window.__studentProfileImageError = () => {
         handleProfileImageError();
     };
@@ -1217,9 +1194,32 @@ initNotificationsBell({
         logoutAndRedirect();
     });    
 });
+
+document.querySelectorAll(".theme-option").forEach(btn => {
+    btn.addEventListener("click", async () => {
+        const theme = btn.dataset.theme || "system";
+
+        profile.themePreference = theme;
+        applyThemePreference(theme);
+        render();
+
+        try {
+            profile = await put("/api/profile/me", {
+                ...profile,
+                themePreference: theme
+            });
+
+            setStudentProfile(profile);
+            setStudentMe(companySlug, profile);
+        } catch (error) {
+            showMessage(error?.message || "No se pudo guardar el tema.", "error");
+        }
+    });
+});
 }
 
 async function init() {
+    initTheme();
     try {
         await loadConfig();
         session = requireAuth();
@@ -1259,6 +1259,8 @@ if (cachedProfile && !isSasUrlExpired(cachedProfile.profileImageUrl)) {
         if (!profile) {
             throw new Error("No se pudo obtener el perfil del alumno.");
         }
+
+        applyThemePreference(profile.themePreference || "system");
 
         await refreshProfilePhotoUrl({ render: false });
     } catch (error) {

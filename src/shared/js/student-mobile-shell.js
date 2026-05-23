@@ -1,4 +1,5 @@
 import { hasModule } from "./modules.js";
+import { getMe } from "./storage.js";
 
 export function escapeStudentShellHtml(value) {
     return String(value ?? "")
@@ -70,8 +71,51 @@ export function buildStudentBottomNavIcon(type, extraClass = "") {
 
 function getNavItemClass(isActive) {
     return isActive
-        ? "bg-slate-100 text-slate-900"
-        : "text-slate-700 transition hover:bg-slate-50";
+        ? "bg-slate-100 text-slate-900 dark:bg-slate-100 dark:text-slate-950"
+        : "text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800";
+}
+
+function getAvailableAccesses() {
+    const me = getMe();
+
+    if (!me?.companies?.length) {
+        return [];
+    }
+
+    return me.companies.filter(x =>
+        x.companySlug &&
+        x.role
+    );
+}
+
+function shouldShowAccessSelector() {
+    const accesses = getAvailableAccesses();
+
+    const uniqueAccesses = accesses.map(x =>
+        `${x.companySlug}::${x.role}`
+    );
+
+    return new Set(uniqueAccesses).size > 1;
+}
+
+function buildMobileAccessOptions() {
+    const accesses = getAvailableAccesses();
+    const activeSlug = localStorage.getItem("classclick_active_company_slug");
+    const activeRole = localStorage.getItem("classclick_active_role");
+
+    return accesses.map(access => {
+        const value = `${access.companySlug}::${access.role}`;
+
+        const selected =
+            access.companySlug === activeSlug &&
+            access.role === activeRole;
+
+        return `
+            <option value="${value}" ${selected ? "selected" : ""}>
+                ${escapeStudentShellHtml(access.companyName || access.name || access.companySlug)} — ${escapeStudentShellHtml(access.role)}
+            </option>
+        `;
+    }).join("");
 }
 
 export function buildStudentMobileMenu({
@@ -98,32 +142,51 @@ export function buildStudentMobileMenu({
             ></div>
 
             <aside
-                class="absolute right-0 top-0 flex h-full w-72 max-w-[85vw] flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-200 ${
+                class="absolute right-0 top-0 flex h-full w-72 max-w-[85vw] flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl transition-transform duration-200 ${
                     mobileMenuOpen ? "translate-x-0" : "translate-x-full"
                 }"
             >
-                <div class="border-b border-slate-200 px-4 py-4">
+                <div class="border-b border-slate-200 dark:border-slate-800 px-4 py-4">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                                 Alumno
                             </div>
 
-                            <div class="mt-1 truncate text-sm font-semibold text-slate-900">
+                            <div class="mt-1 truncate text-sm font-semibold text-slate-900 dark:text-white">
                                 ${escapeStudentShellHtml(resolvedStudentName)}
                             </div>
 
                             ${
                                 studentEmail
-                                    ? `<div class="truncate text-xs text-slate-500">${escapeStudentShellHtml(studentEmail)}</div>`
+                                    ? `<div class="truncate text-xs text-slate-500 dark:text-slate-400">${escapeStudentShellHtml(studentEmail)}</div>`
                                     : ""
                             }
+
+                                                    ${
+                            shouldShowAccessSelector()
+                                ? `
+                                    <div class="mt-3">
+                                        <div class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                            Acceso activo
+                                        </div>
+
+                                        <select
+                                            id="studentMobileAccessSelector"
+                                            class="w-full rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white outline-none transition focus:border-orange-500"
+                                        >
+                                            ${buildMobileAccessOptions()}
+                                        </select>
+                                    </div>
+                                `
+                                : ""
+                        }
                         </div>
 
                         <button
                             data-student-shell-close-menu
                             type="button"
-                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                             aria-label="Cerrar menú"
                         >
                             ✕
@@ -133,46 +196,46 @@ export function buildStudentMobileMenu({
 
                 <nav class="space-y-2 px-4 py-4">
                     <a href="/src/pages/student/home/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                        activeItem === "home" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        activeItem === "home" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                     }">Inicio</a>
 
                     <a href="/src/pages/student/courses/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                        activeItem === "courses" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        activeItem === "courses" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                     }">Cursos</a>
 
                     ${hasModule(company, "payments") ? `
                         <a href="/src/pages/student/payments/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                            activeItem === "payments" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                            activeItem === "payments" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }">Pagos</a>
                     ` : ""}
 
                     ${hasModule(company, "documents") ? `
                         <a href="/src/pages/student/documents/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                            activeItem === "documents" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                            activeItem === "documents" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }">Documentos</a>
                     ` : ""}
 
                     <a href="/src/pages/student/profile/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                        activeItem === "profile" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                        activeItem === "profile" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                     }">Perfil</a>
 
                     ${hasModule(company, "payments") ? `
                         <a href="/src/pages/student/siblings/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                            activeItem === "siblings" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                            activeItem === "siblings" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }">Hermanos</a>
                     ` : ""}
                     ${hasModule(company, "clothing") ? `
                         <a href="/src/pages/student/clothing/catalog/index.html" class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium ${
-                            activeItem === "clothing" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+                            activeItem === "clothing" ? "bg-slate-900 text-white shadow-sm" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }">Indumentaria</a>
                     ` : ""}
                 </nav>
 
-                <div class="mt-auto border-t border-slate-200 px-4 py-4">
+                <div class="mt-auto border-t border-slate-200 dark:border-slate-800 px-4 py-4">
                     <button
                         data-student-shell-logout
                         type="button"
-                        class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                         Cerrar sesión
                     </button>
@@ -196,8 +259,8 @@ const showPayments = hasModule(company, "payments");
 
     const getNavItemClass = (isActive) =>
         isActive
-            ? "bg-slate-100 text-slate-900"
-            : "text-slate-700 transition hover:bg-slate-50";
+        ? "bg-slate-100 text-slate-900 dark:bg-slate-100 dark:text-slate-950"
+        : "text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800";
 
     const icon = (svg) => `
         <span class="flex h-7 w-7 items-center justify-center">
@@ -246,7 +309,7 @@ const showPayments = hasModule(company, "payments");
     return `
         <div class="fixed inset-x-0 bottom-0 z-[60] px-4 pb-[calc(env(safe-area-inset-bottom)+22px)] md:hidden pointer-events-none">
 
-            <nav class="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 bg-white px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)]">
+            <nav class="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)]">
 
                 <div class="grid ${showPayments ? "grid-cols-5 items-end" : "grid-cols-4 items-center"} gap-1">
 
@@ -275,13 +338,13 @@ const showPayments = hasModule(company, "payments");
                             type="button"
                             class="flex flex-col items-center justify-center"
                         >
-                            <span class="-mt-10 flex h-[78px] w-[78px] items-center justify-center rounded-full border-4 border-white bg-slate-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.24)]">
+                            <span class="-mt-10 flex h-[78px] w-[78px] items-center justify-center rounded-full border-4 border-white dark:border-slate-900 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.24)]">
                                 <span class="h-9 w-9">
                                     ${iconCard}
                                 </span>
                             </span>
 
-                            <span class="mt-1 text-[11px] font-semibold text-slate-900">
+                            <span class="mt-1 text-[11px] font-semibold text-slate-900 dark:text-white">
                                 Carnet
                             </span>
                         </button>
@@ -368,6 +431,32 @@ document.querySelectorAll("[data-student-shell-open-carnet]").forEach(btn => {
         }
     });
 });
+
+const mobileAccessSelector = document.getElementById("studentMobileAccessSelector");
+
+if (mobileAccessSelector) {
+    mobileAccessSelector.addEventListener("change", event => {
+        const [nextSlug, nextRole] = event.target.value.split("::");
+
+        localStorage.setItem("classclick_active_company_slug", nextSlug);
+        localStorage.setItem("classclick_active_role", nextRole);
+
+        localStorage.setItem(
+            "classclick_active_context",
+            JSON.stringify({
+                companySlug: nextSlug,
+                role: nextRole
+            })
+        );
+
+        if (nextRole === "Admin") {
+            window.location.href = "/src/pages/admin/dashboard/index.html";
+            return;
+        }
+
+        window.location.href = "/src/pages/student/home/index.html";
+    });
+}
 }
 
 export function syncStudentMobileShellScrollLock({ mobileMenuOpen, extraLocked = false }) {
@@ -412,8 +501,8 @@ export function enableStudentSoftNavigation() {
     //         currentApp.innerHTML = `
     //             <div class="min-h-screen bg-slate-100">
     //                 <div class="px-4 py-6">
-    //                     <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-    //                         <div class="text-sm text-slate-500">Cargando...</div>
+    //                     <div class="rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+    //                         <div class="text-sm text-slate-500 dark:text-slate-400">Cargando...</div>
     //                     </div>
     //                 </div>
     //             </div>

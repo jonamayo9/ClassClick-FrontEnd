@@ -12,6 +12,7 @@ import {
   removeCompanyFromSuperAdminAdmin
 } from "../../../shared/js/superadmin-admin-service.js";
 import { getSuperAdminCompanies } from "../../../shared/js/superadmin-company-service.js";
+import { post } from "../../../shared/js/api.js";
 
 const logoutButton = document.getElementById("logoutButton");
 const searchInput = document.getElementById("searchInput");
@@ -59,6 +60,14 @@ const confirmErrorBox = document.getElementById("confirmErrorBox");
 const confirmCancelButton = document.getElementById("confirmCancelButton");
 const confirmAcceptButton = document.getElementById("confirmAcceptButton");
 
+const passwordModal = document.getElementById("passwordModal");
+const passwordForm = document.getElementById("passwordForm");
+const passwordModalSubtitle = document.getElementById("passwordModalSubtitle");
+const closePasswordModalButton = document.getElementById("closePasswordModalButton");
+const cancelPasswordButton = document.getElementById("cancelPasswordButton");
+const submitPasswordButton = document.getElementById("submitPasswordButton");
+const passwordErrorBox = document.getElementById("passwordErrorBox");
+
 let allAdmins = [];
 let allCompanies = [];
 let confirmAction = null;
@@ -74,6 +83,23 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function showPasswordError(message) {
+  passwordErrorBox.textContent = message;
+  passwordErrorBox.classList.remove("hidden");
+}
+
+function hidePasswordError() {
+  passwordErrorBox.textContent = "";
+  passwordErrorBox.classList.add("hidden");
+}
+
+function setPasswordLoading(isLoading) {
+  submitPasswordButton.disabled = isLoading;
+  submitPasswordButton.textContent = isLoading
+    ? "Actualizando..."
+    : "Actualizar contraseña";
 }
 
 function formatDate(value) {
@@ -135,6 +161,14 @@ function getActionButtonsHtml(admin) {
 
       <button
         type="button"
+        data-action="password"
+        data-id="${escapeHtml(admin.id)}"
+        class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100">
+        Contraseña
+      </button>
+
+      <button
+        type="button"
         data-action="toggle"
         data-id="${escapeHtml(admin.id)}"
         class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
@@ -150,6 +184,24 @@ function getActionButtonsHtml(admin) {
       </button>
     </div>
   `;
+}
+
+function openPasswordModal(admin) {
+  hidePasswordError();
+
+  document.getElementById("passwordAdminId").value = admin.id;
+  document.getElementById("newPasswordInput").value = "";
+  document.getElementById("confirmPasswordInput").value = "";
+
+  passwordModalSubtitle.textContent =
+    `${admin.firstName} ${admin.lastName} · ${admin.email}`;
+
+  passwordModal.classList.remove("hidden");
+}
+
+function closePasswordModal() {
+  hidePasswordError();
+  passwordModal.classList.add("hidden");
 }
 
 function renderAdmins(items) {
@@ -697,6 +749,15 @@ async function init() {
     }
   });
 
+  closePasswordModalButton?.addEventListener("click", closePasswordModal);
+cancelPasswordButton?.addEventListener("click", closePasswordModal);
+
+passwordModal?.addEventListener("click", (event) => {
+  if (event.target === passwordModal) {
+    closePasswordModal();
+  }
+});
+
   editModal?.addEventListener("click", (event) => {
     if (event.target === editModal) {
       closeEditModal();
@@ -910,6 +971,14 @@ async function init() {
       return;
     }
 
+    if (action === "password") {
+      const admin = findAdminById(adminId);
+      if (!admin) return;
+
+      openPasswordModal(admin);
+      return;
+    }
+
     if (action === "toggle") {
       askToggleAdmin(adminId);
       return;
@@ -919,6 +988,42 @@ async function init() {
       askDeleteAdmin(adminId);
     }
   });
+
+  passwordForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  hidePasswordError();
+  setPasswordLoading(true);
+
+  try {
+    const adminId =
+      document.getElementById("passwordAdminId").value;
+
+    const password =
+      document.getElementById("newPasswordInput").value;
+
+    const confirmPassword =
+      document.getElementById("confirmPasswordInput").value;
+
+    if (!password || password.length < 6) {
+      throw new Error("La contraseña debe tener al menos 6 caracteres.");
+    }
+
+    if (password !== confirmPassword) {
+      throw new Error("Las contraseñas no coinciden.");
+    }
+
+    await post(`/api/superadmin/admins/${adminId}/password`, {
+      password
+    });
+
+    closePasswordModal();
+  } catch (error) {
+    showPasswordError(error.message || "No se pudo actualizar la contraseña.");
+  } finally {
+    setPasswordLoading(false);
+  }
+});
 
   await loadCompanies();
   await loadAdmins();

@@ -15,6 +15,7 @@ import {
     getStudentMe,
     setStudentMe
 } from "../../../../shared/js/storage.js";
+import { initTheme, applyThemePreference } from "../../../../shared/js/theme.js";
 
 let companySlug = null;
 let company = null;
@@ -324,7 +325,7 @@ function buildImageOrFallback(image, className = "h-full w-full object-cover") {
     }
 
     return `
-        <div class="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+        <div class="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 dark:text-slate-500">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                     d="M6 7l6-4 6 4v10a2 2 0 01-2 2H8a2 2 0 01-2-2V7z"/>
@@ -341,7 +342,7 @@ function buildHeader() {
                 ${escapeHtml(getCompanyName())}
             </p>
 
-            <p class="text-xs uppercase tracking-[0.28em] text-slate-400">
+            <p class="text-xs uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">
                 Indumentaria
             </p>
 
@@ -352,18 +353,18 @@ function buildHeader() {
                 Elegí tus productos, filtrá por categoría y armá tu pedido.
             </p>
 
-            <div class="mt-5 rounded-2xl bg-white/10 p-2">
+            <div class="mt-5 rounded-2xl bg-white dark:bg-slate-900/10 p-2">
                 <input
                     id="searchInput"
                     value="${escapeHtml(searchText)}"
                     placeholder="Buscar producto, categoría o talle..."
-                    class="w-full rounded-xl border border-white/10 bg-white px-4 py-3 text-sm text-slate-900 outline-none"
+                    class="w-full rounded-xl border border-white/10 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-900 dark:text-white outline-none"
                 />
             </div>
             <div class="mt-4">
                 <a
                     href="/src/pages/student/clothing/orders/index.html"
-                    class="flex w-full items-center justify-center rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white"
+                    class="flex w-full items-center justify-center rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/15"
                 >
                     Ver mis pedidos
                 </a>
@@ -380,7 +381,7 @@ function buildCategories() {
             <div class="flex gap-2 overflow-x-auto pb-1">
                 <button
                     data-parent-category=""
-                    class="parent-category-btn shrink-0 rounded-full px-4 py-2 text-sm font-bold ${!selectedParentCategory ? "bg-slate-900 text-white" : "bg-white text-slate-700"}"
+                    class="parent-category-btn shrink-0 rounded-full px-4 py-2 text-sm font-bold ${!selectedParentCategory ? "bg-slate-900 dark:bg-slate-100 dark:text-slate-950 text-white" : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"}"
                 >
                     Todos
                 </button>
@@ -388,7 +389,7 @@ function buildCategories() {
                 ${parents.map(name => `
                     <button
                         data-parent-category="${escapeHtml(name)}"
-                        class="parent-category-btn shrink-0 rounded-full px-4 py-2 text-sm font-bold ${selectedParentCategory === name ? "bg-slate-900 text-white" : "bg-white text-slate-700"}"
+                        class="parent-category-btn shrink-0 rounded-full px-4 py-2 text-sm font-bold ${selectedParentCategory === name ? "bg-slate-900 dark:bg-slate-100 dark:text-slate-950 text-white" : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"}"
                     >
                         ${escapeHtml(name)}
                     </button>
@@ -409,7 +410,7 @@ function buildSubcategories() {
         <div class="flex gap-2 overflow-x-auto pb-1">
             <button
                 data-child-category=""
-                class="child-category-btn shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${!selectedChildCategory ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600"}"
+                class="child-category-btn shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${!selectedChildCategory ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white dark:bg-slate-900 text-slate-600"}"
             >
                 Todas
             </button>
@@ -417,7 +418,7 @@ function buildSubcategories() {
             ${children.map(name => `
                 <button
                     data-child-category="${escapeHtml(name)}"
-                    class="child-category-btn shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${selectedChildCategory === name ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600"}"
+                    class="child-category-btn shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${selectedChildCategory === name ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white dark:bg-slate-900 text-slate-600"}"
                 >
                     ${escapeHtml(name)}
                 </button>
@@ -431,18 +432,18 @@ function buildProductCard(product) {
     const available = isProductAvailable(product);
 
     return `
-        <article class="flex h-[330px] md:h-[360px] flex-col overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-sm">
+        <article class="flex h-[330px] md:h-[360px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-sm">
             <button type="button" data-open-detail="${product.id}" class="flex min-h-0 flex-1 flex-col text-left">
                 <div class="h-[150px] shrink-0 bg-slate-100">
                     ${buildImageOrFallback(image)}
                 </div>
 
                 <div class="flex min-h-0 flex-1 flex-col p-3">
-                    <h3 class="line-clamp-2 text-sm font-black leading-5 text-slate-900 md:text-base">
+                    <h3 class="line-clamp-2 text-sm font-black leading-5 text-slate-900 dark:text-white md:text-base">
                         ${escapeHtml(product.name)}
                     </h3>
 
-                    <p class="mt-1 text-sm font-bold text-slate-700">
+                    <p class="mt-1 text-sm font-bold text-slate-700 dark:text-slate-200">
                         ${money(product.price)}
                     </p>
 
@@ -454,7 +455,7 @@ function buildProductCard(product) {
                         }
                     </div>
 
-                    <p class="mt-2 min-h-[18px] text-xs text-slate-400">
+                    <p class="mt-2 min-h-[18px] text-xs text-slate-400 dark:text-slate-500">
                         ${product.hasVariants ? `${product.variants?.length || 0} variante(s)` : "&nbsp;"}
                     </p>
                 </div>
@@ -465,7 +466,7 @@ function buildProductCard(product) {
                     type="button"
                     data-open-detail="${product.id}"
                     ${available ? "" : "disabled"}
-                    class="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    class="w-full rounded-2xl bg-slate-900 dark:bg-slate-100 dark:text-slate-950 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     ${product.hasVariants ? "Elegir" : "Agregar"}
                 </button>
@@ -480,8 +481,8 @@ function buildProductsSection() {
 
     if (!keys.length) {
         return `
-            <section class="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
-                <p class="text-sm font-semibold text-slate-500">No hay productos para mostrar.</p>
+            <section class="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center">
+                <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">No hay productos para mostrar.</p>
             </section>
         `;
     }
@@ -491,8 +492,8 @@ function buildProductsSection() {
             ${keys.map(groupName => `
                 <div class="space-y-3">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-lg font-black text-slate-900">${escapeHtml(groupName)}</h2>
-                        <span class="text-xs font-bold text-slate-400">${grouped[groupName].length} producto(s)</span>
+                        <h2 class="text-lg font-black text-slate-900 dark:text-white">${escapeHtml(groupName)}</h2>
+                        <span class="text-xs font-bold text-slate-400 dark:text-slate-500">${grouped[groupName].length} producto(s)</span>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
@@ -513,15 +514,22 @@ function buildCartButton() {
         <button
             id="floatingCartBtn"
             type="button"
-            class="fixed bottom-[140px] left-4 right-4 z-[999] rounded-2xl bg-slate-950 px-4 py-3 text-white shadow-2xl
-                   md:bottom-8 md:left-auto md:right-8 md:w-[320px]
-                   md:rounded-[22px] md:border md:border-slate-200 md:bg-white
-                   md:px-4 md:py-3 md:text-slate-900 md:shadow-xl md:hover:shadow-2xl md:transition"
+class="fixed bottom-[140px] left-4 right-4 z-[999]
+       rounded-[24px]
+       border border-slate-700
+       bg-slate-800/95
+       backdrop-blur-xl
+       px-4 py-3 text-white
+       shadow-2xl
+       transition
+
+       md:bottom-8 md:left-auto md:right-8 md:w-[340px]
+       md:px-5 md:py-4"
         >
             <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-sm
-                                 md:h-11 md:w-11 md:bg-slate-900 md:text-white md:relative">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-700 text-sm
+                                 md:h-11 md:w-11 md:bg-slate-900 dark:bg-slate-100 dark:text-slate-950 md:text-white md:relative">
                         🛒
                         <span class="hidden md:flex absolute -top-2 -right-2 h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[11px] font-bold text-white">
                             ${count}
@@ -529,18 +537,18 @@ function buildCartButton() {
                     </span>
 
                     <div class="text-left">
-                        <p class="text-sm font-black md:text-slate-900">Ver carrito</p>
-                        <p class="text-[11px] text-slate-300 md:text-slate-500">
+                        <p class="text-sm font-black md:text-white">Ver carrito</p>
+                        <p class="text-[11px] text-slate-300 md:text-slate-500 dark:text-slate-400">
                             ${count} producto(s)
                         </p>
                     </div>
                 </div>
 
                 <div class="text-right">
-                    <p class="text-sm font-black md:text-slate-900">
+                    <p class="text-sm font-black md:text-white">
                         ${money(total)}
                     </p>
-                    <p class="text-[11px] text-slate-300 md:text-slate-400">
+                    <p class="text-[11px] text-slate-300 md:text-slate-400 dark:text-slate-500">
                         Continuar Pedido →
                     </p>
                 </div>
@@ -607,14 +615,14 @@ function buildCartDrawer() {
 
     return `
         <div class="fixed inset-0 z-50 bg-slate-950/60 p-4 backdrop-blur-sm">
-            <div class="ml-auto flex h-full w-full max-w-md flex-col rounded-[28px] bg-white shadow-2xl">
+            <div class="ml-auto flex h-full w-full max-w-md flex-col rounded-[28px] bg-white dark:bg-slate-900 shadow-2xl">
 
                 <!-- HEADER -->
                 <div class="border-b border-slate-200 p-5">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-xl font-black text-slate-900">Tu carrito</h3>
-                            <p class="mt-1 text-xs font-semibold text-slate-400">
+                            <h3 class="text-xl font-black text-slate-900 dark:text-white">Tu carrito</h3>
+                            <p class="mt-1 text-xs font-semibold text-slate-400 dark:text-slate-500">
                                 ${cart.length} producto(s)
                             </p>
                         </div>
@@ -638,11 +646,11 @@ function buildCartDrawer() {
                                     </div>
 
                                     <div class="min-w-0 flex-1">
-                                        <p class="font-black text-slate-900">${escapeHtml(item.name)}</p>
+                                        <p class="font-black text-slate-900 dark:text-white">${escapeHtml(item.name)}</p>
 
                                         ${
                                             item.variantName
-                                                ? `<p class="text-xs text-slate-500">Variante: ${escapeHtml(item.variantName)}</p>`
+                                                ? `<p class="text-xs text-slate-500 dark:text-slate-400">Variante: ${escapeHtml(item.variantName)}</p>`
                                                 : ""
                                         }
 
@@ -661,19 +669,21 @@ ${
                                                 : ""
                                         }
 
-                                        <p class="mt-1 text-sm font-bold text-slate-700">
+                                        <p class="mt-1 text-sm font-bold text-slate-700 dark:text-slate-200">
                                             ${money(item.price)}
                                         </p>
 
                                         <div class="mt-2 flex items-center gap-2">
                                             <button data-dec="${item.key}" class="h-8 w-8 rounded-full bg-slate-100 font-black">−</button>
-                                            <span class="w-8 text-center text-sm font-black">${item.quantity}</span>
-                                            <button data-inc="${item.key}" class="h-8 w-8 rounded-full bg-slate-900 font-black text-white">+</button>
+                                            <span class="min-w-[20px] text-center text-base font-black text-white">
+                                                ${item.quantity}
+                                            </span>
+                                            <button data-inc="${item.key}" class="h-8 w-8 rounded-full bg-slate-900 dark:bg-slate-100 dark:text-slate-950 font-black text-white">+</button>
                                         </div>
                                     </div>
                                 </div>
                             `).join("")
-                            : `<p class="text-sm text-slate-500">Tu carrito está vacío.</p>`
+                            : `<p class="text-sm text-slate-500 dark:text-slate-400">Tu carrito está vacío.</p>`
                     }
                 </div>
 
@@ -684,7 +694,7 @@ ${
                         hasDeposit
                             ? `
                                 <div class="mb-4 rounded-2xl bg-slate-50 p-3">
-                                    <p class="mb-2 text-sm font-black text-slate-900">
+                                    <p class="mb-2 text-sm font-black text-slate-900 dark:text-white">
                                         ¿Cómo querés pagar?
                                     </p>
 
@@ -696,7 +706,7 @@ ${
                                             class="rounded-xl px-3 py-3 text-sm font-black ${
                                                 selectedPaymentOption === 1
                                                     ? "bg-slate-950 text-white"
-                                                    : "border border-slate-200 bg-white text-slate-700"
+                                                    : "border border-slate-200 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
                                             }"
                                         >
                                             Seña
@@ -711,7 +721,7 @@ ${
                                             class="rounded-xl px-3 py-3 text-sm font-black ${
                                                 selectedPaymentOption === 2
                                                     ? "bg-slate-950 text-white"
-                                                    : "border border-slate-200 bg-white text-slate-700"
+                                                    : "border border-slate-200 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
                                             }"
                                         >
                                             Total
@@ -729,19 +739,19 @@ ${
                     <div class="mb-4 space-y-2 rounded-2xl border border-slate-200 p-4">
 
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold text-slate-500">Total productos</span>
-                            <span class="text-sm font-black text-slate-900">${money(total)}</span>
+                            <span class="text-sm font-bold text-slate-500 dark:text-slate-400">Total productos</span>
+                            <span class="text-sm font-black text-slate-900 dark:text-white">${money(total)}</span>
                         </div>
 
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold text-slate-500">Pagás ahora</span>
-                            <span class="text-lg font-black text-slate-900">${money(amountToPay)}</span>
+                            <span class="text-sm font-bold text-slate-500 dark:text-slate-400">Pagás ahora</span>
+                            <span class="text-lg font-black text-slate-900 dark:text-white">${money(amountToPay)}</span>
                         </div>
 
                         ${
                             hasDeposit && selectedPaymentOption === 1
                                 ? `
-                                <div class="flex items-center justify-between text-slate-400">
+                                <div class="flex items-center justify-between text-slate-400 dark:text-slate-500">
                                     <span class="text-sm font-bold">Restante</span>
                                     <span class="text-sm font-black">${money(remainingAmount)}</span>
                                 </div>
@@ -755,7 +765,7 @@ ${
                         id="checkoutBtn"
                         type="button"
                         ${cart.length ? "" : "disabled"}
-                        class="w-full rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white disabled:opacity-40"
+                        class="w-full rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-slate-100 disabled:opacity-40 dark:bg-white dark:text-slate-950"
                     >
                         Confirmar Pedido
                     </button>
@@ -763,7 +773,7 @@ ${
                     <button
                         id="clearCartBtn"
                         type="button"
-                        class="mt-3 w-full rounded-2xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700"
+                        class="mt-3 w-full rounded-2xl border border-slate-300 dark:border-slate-700 px-5 py-3 text-sm font-bold text-slate-700 dark:text-slate-200"
                     >
                         Vaciar carrito
                     </button>
@@ -790,14 +800,14 @@ function buildDetailModal() {
 
     return `
         <div class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-            <div class="max-h-[82vh] w-full max-w-md overflow-y-auto rounded-[30px] bg-white shadow-2xl">
+            <div class="max-h-[82vh] w-full max-w-md overflow-y-auto rounded-[30px] bg-white dark:bg-slate-900 shadow-2xl">
                 <div class="relative h-64 bg-slate-100">
                     ${buildImageOrFallback(image)}
 
                     <button
                         id="closeDetailModalBtn"
                         type="button"
-                        class="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-2 text-sm font-black text-slate-900 shadow-sm"
+                        class="absolute right-4 top-4 rounded-full bg-white dark:bg-slate-900/90 px-3 py-2 text-sm font-black text-slate-900 dark:text-white shadow-sm"
                     >
                         ×
                     </button>
@@ -807,7 +817,7 @@ function buildDetailModal() {
                     <div>
                         <div class="flex items-start justify-between gap-4">
                             <div>
-                                <h3 class="text-2xl font-black leading-7 text-slate-900">
+                                <h3 class="text-2xl font-black leading-7 text-slate-900 dark:text-white">
                                     ${escapeHtml(product.name)}
                                 </h3>
                                 <p class="mt-1 text-lg font-black text-slate-800">
@@ -824,8 +834,8 @@ function buildDetailModal() {
 
                         ${
                             product.description
-                                ? `<p class="mt-4 text-sm leading-6 text-slate-500">${escapeHtml(product.description)}</p>`
-                                : `<p class="mt-4 text-sm leading-6 text-slate-400">Sin descripción cargada.</p>`
+                                ? `<p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">${escapeHtml(product.description)}</p>`
+                                : `<p class="mt-4 text-sm leading-6 text-slate-400 dark:text-slate-500">Sin descripción cargada.</p>`
                         }
                     </div>
 
@@ -833,7 +843,7 @@ function buildDetailModal() {
                         product.hasVariants
                             ? `
                                 <div>
-                                    <p class="mb-3 text-sm font-black text-slate-900">Elegí una variante</p>
+                                    <p class="mb-3 text-sm font-black text-slate-900 dark:text-white">Elegí una variante</p>
 
                                     <div class="flex flex-wrap gap-2">
                                         ${(product.variants || []).map(variant => {
@@ -849,8 +859,8 @@ function buildDetailModal() {
                                                         active
                                                             ? "border-slate-950 bg-slate-950 text-white"
                                                             : enabled
-                                                                ? "border-slate-200 bg-white text-slate-700"
-                                                                : "border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                                                                ? "border-slate-200 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
+                                                                : "border-slate-200 bg-slate-100 text-slate-400 dark:text-slate-500 opacity-60"
                                                     }"
                                                 >
                                                     ${escapeHtml(variant.name)}
@@ -859,7 +869,7 @@ function buildDetailModal() {
                                         }).join("")}
                                     </div>
 
-                                    <div class="mt-3 min-h-[22px] text-xs font-semibold text-slate-500">
+                                    <div class="mt-3 min-h-[22px] text-xs font-semibold text-slate-500 dark:text-slate-400">
                                         ${
                                             selectedVariant
                                                 ? escapeHtml(getVariantStockLabel(selectedVariant))
@@ -875,7 +885,7 @@ function buildDetailModal() {
     product.allowsPersonalization
         ? `
             <div class="rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
-                <label class="mb-2 block text-sm font-black text-slate-900">
+                <label class="mb-2 block text-sm font-black text-slate-900 dark:text-white">
                     ${escapeHtml(product.personalizationLabel || "Personalización")}
                 </label>
 
@@ -884,11 +894,11 @@ function buildDetailModal() {
                     type="text"
                     maxlength="${Number(product.personalizationMaxLength || 30)}"
                     value="${escapeHtml(detailPersonalizationText)}"
-                    class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
+                    class="w-full rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
                     placeholder="Ej: Santi"
                 />
 
-                <p class="mt-2 text-xs text-slate-500">
+                <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     Máximo ${Number(product.personalizationMaxLength || 30)} caracteres.
                 </p>
             </div>
@@ -912,7 +922,7 @@ function buildDetailModal() {
                             id="detailAddBtn"
                             type="button"
                             ${canAdd ? "" : "disabled"}
-                            class="rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            class="rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-slate-100 dark:bg-white dark:text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             Agregar al carrito
                         </button>
@@ -921,7 +931,7 @@ function buildDetailModal() {
                             id="detailFinishBtn"
                             type="button"
                             ${canAdd ? "" : "disabled"}
-                            class="rounded-2xl border border-slate-300 px-5 py-4 text-sm font-black text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                            class="rounded-2xl border border-slate-600 bg-transparent px-5 py-4 text-sm font-black text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                             Agregar y finalizar
                         </button>
@@ -936,63 +946,63 @@ function buildDetailModal() {
 
 function buildSidebar() {
     return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
+        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-800 md:bg-slate-900">
             <div class="border-b border-slate-200 px-5 py-5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
                     Alumno
                 </div>
 
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
+                <div class="mt-2 truncate text-base font-semibold text-slate-900 dark:text-white">
                     ${escapeHtml(getStudentFullName() || "—")}
                 </div>
 
                 ${
                     getStudentEmail()
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
+                        ? `<div class="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(getStudentEmail())}</div>`
                         : ""
                 }
             </div>
 
             <nav class="flex-1 space-y-2 px-4 py-4">
                 <a href="/src/pages/student/home/index.html"
-                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                     Inicio
                 </a>
 
                 <a href="/src/pages/student/courses/index.html"
-                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                     Cursos
                 </a>
 
                 ${company?.modules?.payments === true ? `
                     <a href="/src/pages/student/payments/index.html"
-                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                         Pagos
                     </a>
                 ` : ""}
 
                 ${company?.modules?.documents === true ? `
                     <a href="/src/pages/student/documents/index.html"
-                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                         Documentos
                     </a>
                 ` : ""}
 
                 <a href="/src/pages/student/profile/index.html"
-                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                     Perfil
                 </a>
 
                 ${company?.modules?.payments === true ? `
                     <a href="/src/pages/student/siblings/index.html"
-                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                         Hermanos
                     </a>
                 ` : ""}
 
                 ${company?.modules?.clothing === true ? `
                     <a href="/src/pages/student/clothing/catalog/index.html"
-                    class="flex items-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm">
+                    class="flex items-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm dark:bg-slate-100 dark:text-slate-950">
                         Indumentaria
                     </a>
                 ` : ""}
@@ -1002,7 +1012,7 @@ function buildSidebar() {
                 <button
                     id="logoutBtn"
                     type="button"
-                    class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    class="flex w-full items-center justify-center rounded-2xl border border-slate-300 dark:border-slate-700 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                     Cerrar sesión
                 </button>
@@ -1024,7 +1034,7 @@ function render() {
     if (pageError) return buildError();
 
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
 
             ${buildStudentMobileMenu({
                 mobileMenuOpen,
@@ -1188,6 +1198,7 @@ async function loadProducts() {
 }
 
 async function init() {
+    initTheme();
     try {
         await loadConfig();
         const session = requireAuth();
@@ -1200,7 +1211,7 @@ async function init() {
         if (!student) {
             throw new Error("No se pudo obtener el perfil del alumno.");
         }
-
+        applyThemePreference(student?.themePreference || "system");
         let me = getMe();
         const companyFromMe = me?.companies?.find(x => x.companySlug === companySlug);
         const logoUrl = companyFromMe?.logoUrl;

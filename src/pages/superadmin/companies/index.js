@@ -7,7 +7,7 @@ import {
   setSuperAdminCompanyStatus,
   uploadSuperAdminCompanyLogo
 } from "../../../shared/js/superadmin-company-service.js";
-import { get, put } from "../../../shared/js/api.js";
+import { get, post, put, del } from "../../../shared/js/api.js";
 
 const logoutButton = document.getElementById("logoutButton");
 const newCompanyButton = document.getElementById("newCompanyButton");
@@ -22,7 +22,7 @@ const companiesTableBody = document.getElementById("companiesTableBody");
 const totalCompaniesCount = document.getElementById("totalCompaniesCount");
 const activeCompaniesCount = document.getElementById("activeCompaniesCount");
 const inactiveCompaniesCount = document.getElementById("inactiveCompaniesCount");
-
+const superAdminPaymentMethodsList = document.getElementById("superAdminPaymentMethodsList");
 const companyModal = document.getElementById("companyModal");
 const companyModalTitle = document.getElementById("companyModalTitle");
 const closeCompanyModalButton = document.getElementById("closeCompanyModalButton");
@@ -74,6 +74,18 @@ const actionsEditButton = document.getElementById("actionsEditButton");
 const actionsDocumentsLink = document.getElementById("actionsDocumentsLink");
 const actionsToggleStatusButton = document.getElementById("actionsToggleStatusButton");
 
+const openCompanyLinkModalButton = document.getElementById("openCompanyLinkModalButton");
+const companyLinkModal = document.getElementById("companyLinkModal");
+const closeCompanyLinkModalButton = document.getElementById("closeCompanyLinkModalButton");
+const cancelCompanyLinkModalButton = document.getElementById("cancelCompanyLinkModalButton");
+const saveCompanyLinkButton = document.getElementById("saveCompanyLinkButton");
+const companyLinkSourceInput = document.getElementById("companyLinkSourceInput");
+const companyLinkTargetInput = document.getElementById("companyLinkTargetInput");
+const companyLinkFormError = document.getElementById("companyLinkFormError");
+const companyLinksList = document.getElementById("companyLinksList");
+const companyLinksEmpty = document.getElementById("companyLinksEmpty");
+const companyLinksError = document.getElementById("companyLinksError");
+
 let allCompanies = [];
 let companyModalMode = "create";
 let selectedCompanyId = null;
@@ -81,7 +93,8 @@ let statusTargetCompany = null;
 let isSavingCompany = false;
 let isChangingStatus = false;
 let currentLogoPreviewObjectUrl = null;
-
+let companyLinks = [];
+let isSavingCompanyLink = false;
 let openedActionsCompanyId = null;
 
 function escapeHtml(value) {
@@ -234,6 +247,205 @@ if (!items.length) {
 }
 }
 
+function renderSuperAdminPaymentMethods(items) {
+  if (!superAdminPaymentMethodsList) return;
+
+  superAdminPaymentMethodsList.innerHTML = items.map(item => `
+    <label class="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3">
+      <div>
+        <div class="text-sm font-medium text-slate-700">
+          ${escapeHtml(item.paymentMethodName)}
+        </div>
+
+        <div class="mt-0.5 text-xs text-slate-400">
+          ${escapeHtml(item.paymentMethod)}
+        </div>
+      </div>
+
+      <input
+        type="checkbox"
+        class="superadmin-payment-method-toggle h-5 w-5 shrink-0"
+        data-payment-method="${escapeHtml(item.paymentMethod)}"
+        ${item.enabledBySuperAdmin ? "checked" : ""}
+      />
+    </label>
+  `).join("");
+}
+
+function showCompanyLinksError(message) {
+  if (!companyLinksError) return;
+
+  companyLinksError.textContent = message;
+  companyLinksError.classList.remove("hidden");
+}
+
+function hideCompanyLinksError() {
+  if (!companyLinksError) return;
+
+  companyLinksError.textContent = "";
+  companyLinksError.classList.add("hidden");
+}
+
+function showCompanyLinkFormError(message) {
+  if (!companyLinkFormError) return;
+
+  companyLinkFormError.textContent = message;
+  companyLinkFormError.classList.remove("hidden");
+}
+
+function hideCompanyLinkFormError() {
+  if (!companyLinkFormError) return;
+
+  companyLinkFormError.textContent = "";
+  companyLinkFormError.classList.add("hidden");
+}
+
+function setCompanyLinkLoading(value) {
+  isSavingCompanyLink = value;
+
+  if (!saveCompanyLinkButton) return;
+
+  saveCompanyLinkButton.disabled = value;
+  saveCompanyLinkButton.textContent = value
+    ? "Vinculando..."
+    : "Vincular empresas";
+}
+
+async function loadCompanyLinks() {
+  hideCompanyLinksError();
+
+  try {
+    companyLinks = await get("/api/superadmin/companies/links");
+    renderCompanyLinks();
+  } catch (error) {
+    companyLinks = [];
+    renderCompanyLinks();
+    showCompanyLinksError(error.message || "No se pudieron cargar las vinculaciones.");
+  }
+}
+
+function renderCompanyLinks() {
+  if (!companyLinksList || !companyLinksEmpty) return;
+
+  companyLinksList.innerHTML = "";
+
+  if (!companyLinks.length) {
+    companyLinksEmpty.classList.remove("hidden");
+    return;
+  }
+
+  companyLinksEmpty.classList.add("hidden");
+
+  companyLinksList.innerHTML = companyLinks.map(link => `
+    <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-sm font-semibold text-slate-900">
+            ${escapeHtml(link.sourceCompanyName)}
+          </div>
+
+          <div class="my-2 text-xs font-bold text-blue-600">
+            ↔ vinculada con
+          </div>
+
+          <div class="text-sm font-semibold text-slate-900">
+            ${escapeHtml(link.targetCompanyName)}
+          </div>
+
+          <div class="mt-2 text-xs text-slate-500">
+            Estado: ${escapeHtml(link.status || "-")}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          data-action="delete-company-link"
+          data-id="${escapeHtml(link.id)}"
+          class="shrink-0 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">
+          Eliminar
+        </button>
+      </div>
+    </article>
+  `).join("");
+}
+
+function buildCompanyLinkOptions(selectedId = "") {
+  return `
+    <option value="">Seleccionar empresa</option>
+    ${allCompanies
+      .filter(company => company.isActive)
+      .map(company => `
+        <option value="${escapeHtml(company.id)}" ${company.id === selectedId ? "selected" : ""}>
+          ${escapeHtml(company.name)} · ${escapeHtml(company.slug)}
+        </option>
+      `).join("")}
+  `;
+}
+
+function openCompanyLinkModal() {
+  hideCompanyLinkFormError();
+
+  if (!companyLinkSourceInput || !companyLinkTargetInput || !companyLinkModal) return;
+
+  companyLinkSourceInput.innerHTML = buildCompanyLinkOptions();
+  companyLinkTargetInput.innerHTML = buildCompanyLinkOptions();
+
+  setCompanyLinkLoading(false);
+  companyLinkModal.classList.remove("hidden");
+}
+
+function closeCompanyLinkModal() {
+  if (isSavingCompanyLink) return;
+
+  hideCompanyLinkFormError();
+  companyLinkModal?.classList.add("hidden");
+}
+
+async function saveCompanyLink() {
+  if (isSavingCompanyLink) return;
+
+  hideCompanyLinkFormError();
+
+  const sourceCompanyId = companyLinkSourceInput?.value || "";
+  const targetCompanyId = companyLinkTargetInput?.value || "";
+
+  if (!sourceCompanyId) {
+    showCompanyLinkFormError("Seleccioná la empresa A.");
+    return;
+  }
+
+  if (!targetCompanyId) {
+    showCompanyLinkFormError("Seleccioná la empresa B.");
+    return;
+  }
+
+  if (sourceCompanyId === targetCompanyId) {
+    showCompanyLinkFormError("No podés vincular una empresa consigo misma.");
+    return;
+  }
+
+  setCompanyLinkLoading(true);
+
+  try {
+    await post("/api/superadmin/companies/links", {
+      sourceCompanyId,
+      targetCompanyId
+    });
+
+    setCompanyLinkLoading(false);
+    closeCompanyLinkModal();
+    await loadCompanyLinks();
+  } catch (error) {
+    showCompanyLinkFormError(error.message || "No se pudo crear la vinculación.");
+    setCompanyLinkLoading(false);
+  }
+}
+
+async function deleteCompanyLink(linkId) {
+  await del(`/api/superadmin/companies/links/${linkId}`);
+  await loadCompanyLinks();
+}
+
 function filterCompanies(term) {
   const normalized = term.trim().toLowerCase();
 
@@ -378,6 +590,17 @@ function buildModulesPayload() {
   };
 }
 
+function buildSuperAdminPaymentMethodsPayload() {
+  const toggles = document.querySelectorAll(
+    ".superadmin-payment-method-toggle"
+  );
+
+  return Array.from(toggles).map(toggle => ({
+    paymentMethod: toggle.dataset.paymentMethod,
+    enabledBySuperAdmin: toggle.checked
+  }));
+}
+
 async function loadCompanyModules(companyId) {
   return await get(`/api/superadmin/companies/${companyId}/clothing/modules`);
 }
@@ -411,6 +634,19 @@ async function saveClothingSettings(companyId) {
   return await put(
     `/api/superadmin/companies/${companyId}/clothing/settings`,
     buildClothingSettingsPayload()
+  );
+}
+
+async function loadCompanyPaymentMethods(companyId) {
+  return await get(
+    `/api/superadmin/companies/${companyId}/payment-methods`
+  );
+}
+
+async function saveCompanyPaymentMethods(companyId, payload) {
+  return await put(
+    `/api/superadmin/companies/${companyId}/payment-methods`,
+    payload
   );
 }
 
@@ -464,7 +700,13 @@ function openCreateCompanyModal() {
   companyModalMode = "create";
   selectedCompanyId = null;
   resetCompanyForm();
-
+  renderSuperAdminPaymentMethods([
+  { paymentMethod: "Transfer", paymentMethodName: "Transferencia", enabledBySuperAdmin: false },
+  { paymentMethod: "DebitCard", paymentMethodName: "Tarjeta de débito", enabledBySuperAdmin: false },
+  { paymentMethod: "CreditCard", paymentMethodName: "Tarjeta de crédito", enabledBySuperAdmin: false },
+  { paymentMethod: "MercadoPago", paymentMethodName: "Mercado Pago", enabledBySuperAdmin: false },
+  { paymentMethod: "Cash", paymentMethodName: "Efectivo", enabledBySuperAdmin: false }
+]);
   companyModalTitle.textContent = "Nueva empresa";
   isActiveWrapper.classList.add("hidden");
 
@@ -500,6 +742,13 @@ function openEditCompanyModal(companyId) {
   countryInput.value = company.country ?? "";
   isActiveInput.value = company.isActive ? "true" : "false";
   slugInput.dataset.touched = "true";
+  loadCompanyPaymentMethods(companyId)
+  .then((items) => {
+    renderSuperAdminPaymentMethods(items);
+  })
+  .catch(() => {
+    renderSuperAdminPaymentMethods([]);
+  });
 
   if (company.logoUrl) {
     setLogoPreview(company.logoUrl);
@@ -659,6 +908,10 @@ async function onSubmitCompanyForm(event) {
     if (companyResponse?.id) {
       await saveCompanyModules(companyResponse.id);
       await saveClothingSettings(companyResponse.id);
+      await saveCompanyPaymentMethods(
+        companyResponse.id,
+        buildSuperAdminPaymentMethodsPayload()
+      );
     }
 
     setSaveCompanyLoading(false);
@@ -811,6 +1064,25 @@ actionsToggleStatusButton?.addEventListener("click", () => {
       .replace(/[^a-z0-9-]/g, "")
       .replace(/-+/g, "-");
   });
+
+  openCompanyLinkModalButton?.addEventListener("click", openCompanyLinkModal);
+closeCompanyLinkModalButton?.addEventListener("click", closeCompanyLinkModal);
+cancelCompanyLinkModalButton?.addEventListener("click", closeCompanyLinkModal);
+saveCompanyLinkButton?.addEventListener("click", saveCompanyLink);
+
+companyLinksList?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='delete-company-link']");
+  if (!button) return;
+
+  const linkId = button.dataset.id;
+  if (!linkId) return;
+
+  try {
+    await deleteCompanyLink(linkId);
+  } catch (error) {
+    showCompanyLinksError(error.message || "No se pudo eliminar la vinculación.");
+  }
+});
 }
 
 async function init() {
@@ -828,6 +1100,7 @@ async function init() {
 
   bindEvents();
   await loadCompanies();
+  await loadCompanyLinks();
 }
 
 init().catch((error) => {

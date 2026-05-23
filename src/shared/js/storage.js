@@ -199,3 +199,19 @@ export function clearUserCache() {
     }
   }
 }
+
+export function setActiveContext(context) {
+  localStorage.setItem(
+    "classclick_active_context",
+    JSON.stringify(context)
+  );
+}
+
+export function getActiveContext() {
+  const raw = localStorage.getItem("classclick_active_context");
+  return raw ? JSON.parse(raw) : null;
+}
+
+export function removeActiveContext() {
+  localStorage.removeItem("classclick_active_context");
+}

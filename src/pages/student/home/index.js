@@ -26,6 +26,11 @@ import {
     setMatches
 } from "../../../shared/js/storage.js";
 import { hasModule } from "../../../shared/js/modules.js";
+import {
+    buildStudentSidebar,
+    bindStudentLayoutEvents
+} from "../../../shared/js/student-layout.js";
+import { initTheme, applyThemePreference } from "../../../shared/js/theme.js";
 
 
 let isRefreshingOpponentLogos = false;
@@ -52,6 +57,7 @@ let sponsorDetailModalOpen = false;
 let currentSponsorIndex = 0;
 let isRestoringSponsorPosition = false;
 let selectedMatchLineup = null;
+let tournamentHighlights = [];
 
 function getShortPosition(label) {
     if (!label) return "";
@@ -259,7 +265,7 @@ function buildCompanyLogo(size = "h-12 w-12", rounded = "rounded-2xl") {
 
     if (!logoUrl && !initials) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-400 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-400 shadow-sm">
                 —
             </div>
         `;
@@ -267,19 +273,19 @@ function buildCompanyLogo(size = "h-12 w-12", rounded = "rounded-2xl") {
 
     if (!logoUrl) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
     }
 
     return `
-        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm">
+        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             <img
                 src="${escapeHtml(logoUrl)}"
                 alt="Logo empresa"
                 class="block h-full w-full object-cover"
-                onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center text-xs font-bold text-slate-700&quot;>${escapeHtml(initials || "—")}</div>';"
+                onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center text-xs font-bold text-slate-700 dark:text-slate-200&quot;>${escapeHtml(initials || "—")}</div>';"
             />
         </div>
     `;
@@ -291,7 +297,7 @@ function buildStudentAvatar(size = "h-16 w-16") {
 
     if (!imageUrl && !initials) {
         return `
-            <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-sm font-bold text-slate-400 shadow-sm">
+            <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 text-sm font-bold text-slate-400 shadow-sm">
                 —
             </div>
         `;
@@ -299,14 +305,14 @@ function buildStudentAvatar(size = "h-16 w-16") {
 
     if (!imageUrl) {
         return `
-            <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-sm font-bold text-slate-600 shadow-sm">
+            <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 text-sm font-bold text-slate-600 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
     }
 
     return `
-        <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 shadow-sm">
+        <div class="${size} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 shadow-sm">
             <img
                 id="studentAvatarImage"
                 src="${escapeHtml(imageUrl)}"
@@ -318,32 +324,17 @@ function buildStudentAvatar(size = "h-16 w-16") {
     `;
 }
 
-function navLink(label, href, active = false) {
-    return `
-        <a
-            href="${href}"
-            class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
-            }"
-        >
-            ${escapeHtml(label)}
-        </a>
-    `;
-}
-
 function quickAccessCard(icon, title, href) {
     return `
         <a
             href="${href}"
-            class="group flex flex-col items-center rounded-[22px] border border-slate-200 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            class="group flex flex-col items-center rounded-[22px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-lg">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-950 text-lg">
                 ${icon}
             </div>
 
-            <div class="mt-3 text-sm font-semibold text-slate-900">
+            <div class="mt-3 text-sm font-semibold text-slate-900 dark:text-white">
                 ${escapeHtml(title)}
             </div>
         </a>
@@ -355,73 +346,26 @@ function buildLogoutButton() {
         <button
             id="logoutBtn"
             type="button"
-            class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
         >
             Cerrar sesión
         </button>
     `;
 }
 
-function buildSidebar() {
-    return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
-            <div class="border-b border-slate-200 px-5 py-5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Alumno
-                </div>
-
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
-                    ${escapeHtml(getStudentFullName() || "—")}
-                </div>
-
-                ${
-                    getStudentEmail()
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
-                        : ""
-                }
-            </div>
-
-            <nav class="flex-1 space-y-2 px-4 py-4">
-                ${navLink("Inicio", "/src/pages/student/home/index.html", true)}
-                ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-
-                ${canUse("payments") ? navLink("Pagos", "/src/pages/student/payments/index.html") : ""}
-                ${canUse("documents") ? navLink("Documentos", "/src/pages/student/documents/index.html") : ""}
-                ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-                ${canUse("payments") ? navLink("Hermanos", "/src/pages/student/siblings/index.html") : ""}
-
-                ${canUse("clothing")
-                    ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
-                    : ""
-                }
-            </nav>
-
-            <div class="mt-auto border-t border-slate-200 px-4 py-4">
-                <button
-                    id="logoutBtn"
-                    type="button"
-                    class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                    Cerrar sesión
-                </button>
-            </div>
-        </aside>
-    `;
-}
-
 function buildMobileHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 md:hidden">
 <div class="flex items-center justify-between px-4 py-3">
     <div class="flex min-w-0 items-center gap-3">
         ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
         <div class="min-w-0">
-            <div class="truncate text-sm font-semibold text-slate-900">
+            <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                 ${escapeHtml(getCompanyName() || "Mi club")}
             </div>
 
-            <div class="truncate text-xs text-slate-500">
+            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                 ${escapeHtml(getStudentFullName() || "Alumno")}
             </div>
         </div>
@@ -434,7 +378,7 @@ function buildMobileHeader() {
         <!-- 📲 botón instalar -->
 <button
     id="installAppButton"
-    class="hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-base text-slate-700 shadow-sm hover:bg-slate-50"
+    class="hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white dark:bg-slate-900 text-base text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
     aria-label="Instalar app"
     title="Instalar app"
 >
@@ -468,13 +412,13 @@ function buildMobileBottomNav() {
 
 function buildTopBar() {
     return `
-        <section class="hidden md:block rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+        <section class="hidden md:block rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-14 w-14")}
 
                     <div class="min-w-0">
-                        <h1 class="truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <h1 class="truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getCompanyName() || "—")}
                         </h1>
                     </div>
@@ -491,20 +435,22 @@ function buildStudentCard() {
     const registrationCompleted = !!student?.isRegistrationCompleted;
 
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex min-w-0 items-center gap-4">
                     ${buildStudentAvatar("h-20 w-20")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <div class="truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getStudentFullName() || "—")}
                         </div>
 
                         <div class="mt-2 flex flex-wrap items-center gap-2">
                             ${
                                 memberNumber
-                                    ? `<span class="inline-flex rounded-full bg-slate-900 px-3 py-1 text-sm font-semibold text-white">Socio #${escapeHtml(memberNumber)}</span>`
+                                    ? `<span class="inline-flex rounded-full bg-slate-900 dark:bg-slate-100 px-3 py-1 text-sm font-semibold text-white dark:text-slate-950 shadow-sm">
+                                        Socio #${escapeHtml(memberNumber)}
+                                    </span>`
                                     : ""
                             }
 
@@ -519,7 +465,7 @@ function buildStudentCard() {
 
                         ${
                             getStudentEmail()
-                                ? `<div class="mt-2 truncate text-sm text-slate-500">${escapeHtml(getStudentEmail())}</div>`
+                                ? `<div class="mt-2 truncate text-sm text-slate-500 dark:text-slate-400">${escapeHtml(getStudentEmail())}</div>`
                                 : ""
                         }
                     </div>
@@ -528,13 +474,13 @@ function buildStudentCard() {
                 <div class="grid grid-cols-1 gap-2 text-sm text-slate-600 sm:text-right">
                     ${
                         getStudentDni()
-                            ? `<div><span class="font-semibold text-slate-900">DNI:</span> ${escapeHtml(getStudentDni())}</div>`
+                            ? `<div><span class="font-semibold text-slate-900 dark:text-white">DNI:</span> ${escapeHtml(getStudentDni())}</div>`
                             : ""
                     }
 
                     ${
                         getStudentPhone()
-                            ? `<div><span class="font-semibold text-slate-900">Contacto:</span> ${escapeHtml(getStudentPhone())}</div>`
+                            ? `<div><span class="font-semibold text-slate-900 dark:text-white">Contacto:</span> ${escapeHtml(getStudentPhone())}</div>`
                             : ""
                     }
                 </div>
@@ -556,8 +502,8 @@ function buildQuickAccess() {
     return `
         <section class="hidden md:block space-y-4">
             <div>
-                <h2 class="text-xl font-bold text-slate-900">Accesos rápidos</h2>
-                <p class="mt-1 text-sm text-slate-500">Entrá rápido a tus secciones principales.</p>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Accesos rápidos</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Entrá rápido a tus secciones principales.</p>
             </div>
 
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -570,10 +516,10 @@ function buildQuickAccess() {
 function buildSectionHeader(title, actionText = "") {
     return `
         <div class="flex items-center justify-between gap-3">
-            <h2 class="text-xl font-bold text-slate-900">${escapeHtml(title)}</h2>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">${escapeHtml(title)}</h2>
             ${
                 actionText
-                    ? `<button type="button" class="text-sm font-semibold text-slate-700 hover:text-slate-900">${escapeHtml(actionText)}</button>`
+                    ? `<button type="button" class="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white">${escapeHtml(actionText)}</button>`
                     : ""
             }
         </div>
@@ -616,7 +562,7 @@ function getFeaturedMatch() {
 
 function buildLogoPlaceholder(alt) {
     return `
-        <div class="flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl shadow-sm">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-2xl shadow-sm">
             ⚽
         </div>
     `;
@@ -628,7 +574,7 @@ function buildCompanyMatchLogoImage(url, alt) {
     }
 
     return `
-        <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+        <div class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             <img
                 src="${escapeHtml(url)}"
                 alt="${escapeHtml(alt || "Logo empresa")}"
@@ -645,7 +591,7 @@ function buildOpponentMatchLogoImage(url, alt) {
     }
 
     return `
-        <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+        <div class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             <img
                 src="${escapeHtml(url)}"
                 alt="${escapeHtml(alt || "Logo rival")}"
@@ -664,12 +610,12 @@ function buildMatchCard(match, compact = false) {
         <button
             type="button"
             data-match-id="${escapeHtml(match.id)}"
-            class="match-card w-full rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            class="match-card w-full rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
             <div class="flex items-start justify-center gap-5 sm:gap-8">
                 <div class="flex min-w-0 flex-1 flex-col items-center text-center">
                     ${buildCompanyMatchLogoImage(companyLogo, companyName)}
-                    <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
+                    <div class="mt-2 text-sm font-semibold leading-5 text-slate-900 dark:text-white">
                         ${escapeHtml(companyName)}
                     </div>
                 </div>
@@ -680,21 +626,21 @@ function buildMatchCard(match, compact = false) {
 
                 <div class="flex min-w-0 flex-1 flex-col items-center text-center">
                     ${buildOpponentMatchLogoImage(match.opponentLogoUrl, match.opponentName || "Rival")}
-                    <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
+                    <div class="mt-2 text-sm font-semibold leading-5 text-slate-900 dark:text-white">
                         ${escapeHtml(match.opponentName || "Rival")}
                     </div>
                 </div>
             </div>
 
             <div class="mt-4 text-sm">
-                <div class="font-medium text-slate-700">
+                <div class="font-medium text-slate-700 dark:text-slate-200">
                     ${escapeHtml(formatMatchDate(match.matchDateUtc))}
                 </div>
 
                 ${
                     match.locationName
                         ? `
-                            <div class="text-slate-500">
+                            <div class="text-slate-500 dark:text-slate-400">
                                 ${escapeHtml(match.locationName)}
                             </div>
                         `
@@ -724,13 +670,13 @@ function buildMatchDetailModal() {
     return `
         <div id="matchDetailOverlay" class="fixed inset-0 z-[70] bg-slate-950/60 p-4">
             <div class="mx-auto flex w-full max-w-2xl items-center justify-center">
-                <div class="w-full rounded-[28px] bg-white p-5 shadow-2xl">
+                <div class="w-full rounded-[28px] bg-white dark:bg-slate-900 p-5 shadow-2xl">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                                 Partido
                             </div>
-                            <h3 class="mt-1 text-2xl font-bold text-slate-900">
+                            <h3 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
                                 ${escapeHtml(companyName)} vs ${escapeHtml(selectedMatch.opponentName || "Rival")}
                             </h3>
                         </div>
@@ -738,7 +684,7 @@ function buildMatchDetailModal() {
                         <button
                             id="closeMatchDetailBtn"
                             type="button"
-                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             ✕
                         </button>
@@ -747,7 +693,7 @@ function buildMatchDetailModal() {
                     <div class="mt-5 flex items-start justify-center gap-5 sm:gap-8">
                         <div class="flex min-w-0 flex-1 flex-col items-center text-center">
                             ${buildCompanyMatchLogoImage(companyLogo, companyName)}
-                            <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
+                            <div class="mt-2 text-sm font-semibold leading-5 text-slate-900 dark:text-white">
                                 ${escapeHtml(companyName)}
                             </div>
                         </div>
@@ -758,14 +704,14 @@ function buildMatchDetailModal() {
 
                         <div class="flex min-w-0 flex-1 flex-col items-center text-center">
                             ${buildOpponentMatchLogoImage(selectedMatch.opponentLogoUrl, selectedMatch.opponentName || "Rival")}
-                            <div class="mt-2 text-sm font-semibold leading-5 text-slate-900">
+                            <div class="mt-2 text-sm font-semibold leading-5 text-slate-900 dark:text-white">
                                 ${escapeHtml(selectedMatch.opponentName || "Rival")}
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-5 space-y-3">
-                        <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                                 Fecha y lugar
                             </div>
@@ -774,12 +720,12 @@ function buildMatchDetailModal() {
                             </div>
                             ${
                                 selectedMatch.locationName
-                                    ? `<div class="mt-1 text-base font-semibold text-slate-900">${escapeHtml(selectedMatch.locationName)}</div>`
+                                    ? `<div class="mt-1 text-base font-semibold text-slate-900 dark:text-white">${escapeHtml(selectedMatch.locationName)}</div>`
                                     : ""
                             }
                             ${
                                 selectedMatch.address
-                                    ? `<div class="mt-1 text-sm text-slate-500">${escapeHtml(selectedMatch.address)}</div>`
+                                    ? `<div class="mt-1 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(selectedMatch.address)}</div>`
                                     : ""
                             }
                         </div>
@@ -800,11 +746,11 @@ function buildMatchDetailModal() {
                                 : ""
                         }
 
-                        <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                                 Alcance
                             </div>
-                            <div class="mt-1 text-base font-bold text-slate-700">
+                            <div class="mt-1 text-base font-bold text-slate-700 dark:text-slate-200">
                                 ${selectedMatch.isGlobal ? "Global" : escapeHtml((selectedMatch.courseNames || []).join(", ") || "Por curso")}
                             </div>
                         </div>
@@ -812,7 +758,7 @@ function buildMatchDetailModal() {
                         ${
                             selectedMatch.ticketInfo
                                 ? `
-                                <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
                                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                                         Información de entrada
                                     </div>
@@ -827,7 +773,7 @@ function buildMatchDetailModal() {
                         ${
                             selectedMatch.notes
                                 ? `
-                                <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
                                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                                         Notas
                                     </div>
@@ -848,7 +794,7 @@ function buildMatchDetailModal() {
                                     href="${escapeHtml(selectedMatch.googleMapsUrl)}"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 dark:bg-white px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
                                 >
                                     Abrir Maps
                                 </a>
@@ -859,7 +805,7 @@ function buildMatchDetailModal() {
                         <button
                             id="closeMatchDetailSecondaryBtn"
                             type="button"
-                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             Cerrar
                         </button>
@@ -877,7 +823,7 @@ function buildMatchLineupBox() {
     const data = selectedMatchLineup;
 
     return `
-        <div id="matchLineupBox" class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <div id="matchLineupBox" class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-3">
             <div class="text-xs font-semibold uppercase text-slate-400">
                 Organización del partido
             </div>
@@ -893,7 +839,7 @@ function buildMatchLineupBox() {
             <button
                 id="openLineupBtn"
                 type="button"
-                class="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-sm text-white"
+                class="mt-3 w-full rounded-xl bg-slate-900 dark:bg-white px-3 py-2 text-sm text-white"
             >
                 Ver formación
             </button>
@@ -920,9 +866,9 @@ function openLineupModal(data) {
     modal.className = "fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-4";
 
     modal.innerHTML = `
-        <div class="lineup-modal-in max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl">
+        <div class="lineup-modal-in max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-2xl">
             <div class="mb-3 flex items-center justify-between">
-                <h2 class="text-base font-bold text-slate-900">
+                <h2 class="text-base font-bold text-slate-900 dark:text-white">
                     Formación ${data.formationName ? `· ${escapeHtml(data.formationName)}` : ""}
                 </h2>
                 <button id="closeLineupModal" class="rounded-xl border px-3 py-1 text-sm text-slate-600">
@@ -962,13 +908,13 @@ function openLineupModal(data) {
 
     ${p.profileImageUrl
         ? `<img src="${escapeHtml(p.profileImageUrl)}" class="h-9 w-9 rounded-full border-2 ${isMe ? "border-yellow-300 ring-2 ring-yellow-300/70 shadow-[0_0_10px_rgba(253,224,71,0.7)]" : "border-white"} object-cover shadow" />`
-        : `<div class="flex h-9 w-9 items-center justify-center rounded-full border-2 ${isMe ? "border-yellow-300 ring-2 ring-yellow-300/70 shadow-[0_0_10px_rgba(253,224,71,0.7)]" : "border-white bg-slate-900"} text-[10px] font-bold text-white shadow">
+        : `<div class="flex h-9 w-9 items-center justify-center rounded-full border-2 ${isMe ? "border-yellow-300 ring-2 ring-yellow-300/70 shadow-[0_0_10px_rgba(253,224,71,0.7)]" : "border-white bg-slate-900 dark:bg-white"} text-[10px] font-bold text-white shadow">
             ${escapeHtml(getInitials(p.fullName))}
         </div>`
     }
 </div>
 
-<div class="mt-1 max-w-[82px] rounded-lg bg-white px-1.5 py-0.5 text-[9px] font-bold leading-tight text-slate-900 shadow">
+<div class="mt-1 max-w-[82px] rounded-lg bg-white dark:bg-slate-900 px-1.5 py-0.5 text-[9px] font-bold leading-tight text-slate-900 dark:text-white shadow">
     ${escapeHtml(getShortPlayerName(p.fullName))}
 </div>
 
@@ -1021,38 +967,38 @@ function buildStartersPreview(data) {
     if (!starters.length) return "";
 
     return `
-        <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+        <div class="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
             <div class="flex items-center justify-between">
-                <div class="text-sm font-bold text-slate-900">
+                <div class="text-sm font-bold text-slate-900 dark:text-white">
                     Titulares (${starters.length})
                 </div>
 
-                <button id="toggleStartersBtn" type="button" class="text-xs font-bold text-slate-700">
+                <button id="toggleStartersBtn" type="button" class="text-xs font-bold text-slate-700 dark:text-slate-200">
                     Ver todos
                 </button>
             </div>
 
             <div id="extraStartersList" class="mt-3 hidden max-h-64 space-y-2 overflow-y-auto pr-1">
                 ${starters.map(p => `
-                    <div class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2">
 ${p.profileImageUrl
-    ? `<img src="${escapeHtml(p.profileImageUrl)}" class="h-8 w-8 rounded-full object-cover border border-slate-200" />`
-    : `<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+    ? `<img src="${escapeHtml(p.profileImageUrl)}" class="h-8 w-8 rounded-full object-cover border border-slate-200 dark:border-slate-800" />`
+    : `<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 dark:bg-white text-xs font-bold text-white">
         ${escapeHtml(getInitials(p.fullName))}
     </div>`
 }
 
                         <div class="min-w-0 flex-1">
-                            <div class="truncate text-sm font-bold text-slate-900">
+                            <div class="truncate text-sm font-bold text-slate-900 dark:text-white">
                                 ${escapeHtml(p.fullName)}
                             </div>
-                            <div class="truncate text-xs text-slate-500">
+                            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                                 ${escapeHtml(p.positionLabel || "Titular")}
                             </div>
                         </div>
 
                         ${p.isCaptain
-                            ? `<span class="ml-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-slate-900">C</span>`
+                            ? `<span class="ml-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-slate-900 dark:text-white">C</span>`
                             : ""
                         }
                     </div>
@@ -1067,20 +1013,20 @@ function buildSubstitutesPreview(data) {
 
     if (!substitutes.length) {
         return `
-            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-400">
+            <div class="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-400">
                 Sin suplentes
             </div>
         `;
     }
 
     return `
-        <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+        <div class="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
             <div class="flex items-center justify-between">
-                <div class="text-sm font-bold text-slate-900">
+                <div class="text-sm font-bold text-slate-900 dark:text-white">
                     Suplentes (${substitutes.length})
                 </div>
 
-                <button id="toggleSubsBtn" type="button" class="text-xs font-bold text-slate-700">
+                <button id="toggleSubsBtn" type="button" class="text-xs font-bold text-slate-700 dark:text-slate-200">
                     Ver todos
                 </button>
             </div>
@@ -1094,7 +1040,7 @@ function buildSubstitutesPreview(data) {
 
 function substituteRowHtml(player) {
     return `
-        <div class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
+        <div class="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2">
             ${player.profileImageUrl
                 ? `<img src="${escapeHtml(player.profileImageUrl)}" class="h-8 w-8 rounded-full object-cover" />`
                 : `<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
@@ -1123,7 +1069,7 @@ function buildMatchesModal() {
     return `
         <div id="matchesModalOverlay" class="fixed inset-0 z-[65] bg-slate-950/60 px-4 py-6">
             <div class="mx-auto flex w-full max-w-4xl items-center justify-center">
-                <div class="w-full rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl">
+                <div class="w-full rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-2xl">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
@@ -1134,7 +1080,7 @@ function buildMatchesModal() {
                         <button
                             id="closeMatchesModalBtn"
                             type="button"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             ✕
                         </button>
@@ -1142,22 +1088,22 @@ function buildMatchesModal() {
 
                     <div class="mt-6 space-y-6 max-h-[75vh] overflow-y-auto pr-1">
                         <section class="space-y-3">
-                            <h4 class="text-base font-bold text-slate-900">Próximos</h4>
+                            <h4 class="text-base font-bold text-slate-900 dark:text-white">Próximos</h4>
 
                             ${
                                 upcoming.length
                                     ? upcoming.map(x => buildMatchCard(x, true)).join("")
-                                    : `<div class="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No hay próximos partidos.</div>`
+                                    : `<div class="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-500 dark:text-slate-400">No hay próximos partidos.</div>`
                             }
                         </section>
 
                         <section class="space-y-3">
-                            <h4 class="text-base font-bold text-slate-900">Historial</h4>
+                            <h4 class="text-base font-bold text-slate-900 dark:text-white">Historial</h4>
 
                             ${
                                 history.length
                                     ? history.map(x => buildMatchCard(x, true)).join("")
-                                    : `<div class="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No hay partidos anteriores.</div>`
+                                    : `<div class="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-500 dark:text-slate-400">No hay partidos anteriores.</div>`
                             }
                         </section>
                     </div>
@@ -1175,13 +1121,13 @@ function buildAnnouncementsModal() {
     return `
         <div id="announcementsModalOverlay" class="fixed inset-0 z-[65] bg-slate-950/60 px-4 py-6">
             <div class="mx-auto flex w-full max-w-4xl items-center justify-center">
-                <div class="w-full rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl">
+                <div class="w-full rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-2xl">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                                 Novedades
                             </div>
-                            <h3 class="mt-1 text-xl font-bold text-slate-900">
+                            <h3 class="mt-1 text-xl font-bold text-slate-900 dark:text-white">
                                 Historial de novedades
                             </h3>
                         </div>
@@ -1189,7 +1135,7 @@ function buildAnnouncementsModal() {
                         <button
                             id="closeAnnouncementsModalBtn"
                             type="button"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             ✕
                         </button>
@@ -1199,7 +1145,7 @@ function buildAnnouncementsModal() {
                         ${
                             items.length
                                 ? items.map(x => buildNewsCard(x, true)).join("")
-                                : `<div class="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No hay novedades.</div>`
+                                : `<div class="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-500 dark:text-slate-400">No hay novedades.</div>`
                         }
                     </div>
                 </div>
@@ -1214,7 +1160,7 @@ function buildAnnouncementDetailModal() {
     return `
         <div id="announcementDetailOverlay" class="fixed inset-0 z-[70] bg-slate-950/60 px-4 py-6">
             <div class="mx-auto flex w-full max-w-2xl items-center justify-center">
-                <div class="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white shadow-2xl">
+                <div class="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white dark:bg-slate-900 shadow-2xl">
                     ${
                         selectedAnnouncement.imageUrl
                             ? `
@@ -1234,7 +1180,7 @@ function buildAnnouncementDetailModal() {
                                     ${formatDate(selectedAnnouncement.createdAtUtc)}
                                 </div>
 
-                                <h3 class="mt-2 text-2xl font-bold text-slate-900">
+                                <h3 class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
                                     ${escapeHtml(selectedAnnouncement.title || "Novedad")}
                                 </h3>
                             </div>
@@ -1242,7 +1188,7 @@ function buildAnnouncementDetailModal() {
                             <button
                                 id="closeAnnouncementDetailBtn"
                                 type="button"
-                                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                             >
                                 ✕
                             </button>
@@ -1266,7 +1212,7 @@ function buildAnnouncementDetailModal() {
                             <button
                                 id="closeAnnouncementDetailSecondaryBtn"
                                 type="button"
-                                class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                                class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                             >
                                 Cerrar
                             </button>
@@ -1285,18 +1231,18 @@ function buildFeaturedMatch() {
         return `
             <section class="space-y-4">
                 <div class="flex items-center justify-between gap-3">
-                    <h2 class="text-xl font-bold text-slate-900">Partidos</h2>
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Partidos</h2>
                     <button
                         id="openMatchesModalBtn"
                         type="button"
-                        class="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                        class="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
                     >
                         Ver todos
                     </button>
                 </div>
 
-                <div class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="text-sm text-slate-500">
+                <div class="rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+                    <div class="text-sm text-slate-500 dark:text-slate-400">
                         Todavía no hay partidos próximos para mostrar.
                     </div>
                 </div>
@@ -1307,11 +1253,11 @@ function buildFeaturedMatch() {
     return `
         <section class="space-y-4">
             <div class="flex items-center justify-between gap-3">
-                <h2 class="text-xl font-bold text-slate-900">Partidos</h2>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Partidos</h2>
                 <button
                     id="openMatchesModalBtn"
                     type="button"
-                    class="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                    class="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
                     >
                     Ver todos
                 </button>
@@ -1320,6 +1266,232 @@ function buildFeaturedMatch() {
             ${buildMatchCard(match)}
         </section>
     `;
+}
+
+function buildTournamentHighlights() {
+    if (!tournamentHighlights.length) {
+        return "";
+    }
+
+    return `
+        <section class="space-y-4">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">
+                    Torneos y Ligas
+                </h2>
+
+                <button
+                    type="button"
+                    class="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
+                >
+                    Ver todos
+                </button>
+            </div>
+
+            <div class="flex w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
+                ${tournamentHighlights.map(buildTournamentCard).join("")}
+            </div>
+        </section>
+    `;
+}
+
+function buildTournamentCard(item) {
+    const tournament = item.tournament || {};
+    const highlight = item.highlight || {};
+    const match = item.match || null;
+
+    const type = highlight.type || "Active";
+    const countdown = getTournamentCountdown(match?.dateUtc);
+
+    const homeTeam = match?.homeTeam || null;
+    const awayTeam = match?.awayTeam || null;
+
+    const statusStyles = {
+        Today: {
+            badge: "bg-red-500 text-white"
+        },
+        Finished: {
+            badge: "bg-emerald-500 text-white"
+        },
+        Upcoming: {
+            badge: "bg-blue-500 text-white"
+        },
+        Active: {
+            badge: "bg-amber-400 text-slate-950"
+        }
+    };
+
+    const style = statusStyles[type] || statusStyles.Active;
+
+    const tournamentId =
+        tournament.id ||
+        tournament.tournamentId ||
+        item.tournamentId ||
+        item.id ||
+        "";
+
+    return `
+<button
+    type="button"
+    onclick="sessionStorage.setItem('selectedTournamentId', '${escapeHtml(tournamentId)}')"
+    data-tournament-id="${escapeHtml(tournamentId)}"
+    data-match-id="${escapeHtml(match?.id || "")}"
+    class="tournament-card group relative w-full min-w-full snap-center overflow-hidden rounded-[26px] bg-slate-950 text-left text-white shadow-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl"
+>
+${
+    tournament.useBannerAsHomeBackground && tournament.bannerUrl
+        ? `
+            <img
+                src="${escapeHtml(tournament.bannerUrl)}"
+                alt="${escapeHtml(tournament.name || "Torneo")}"
+                class="absolute inset-0 h-full w-full object-cover opacity-30 transition duration-500 group-hover:scale-105"
+            />
+        `
+        : `
+<div class="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(59,130,246,0.28),transparent_32%),radial-gradient(circle_at_85%_25%,rgba(251,191,36,0.20),transparent_28%),radial-gradient(circle_at_50%_90%,rgba(14,165,233,0.18),transparent_36%),linear-gradient(135deg,#020617_0%,#07111f_45%,#020617_100%)]"></div>
+
+<div class="absolute inset-0 opacity-[0.16] bg-[linear-gradient(120deg,transparent_0%,transparent_46%,rgba(255,255,255,0.55)_47%,transparent_49%,transparent_100%)]"></div>
+
+<div class="absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"></div>
+            <div class="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"></div>
+            <div class="absolute -left-16 -top-20 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl"></div>
+            <div class="absolute -right-16 -bottom-24 h-64 w-64 rounded-full bg-amber-400/15 blur-3xl"></div>
+            <div class="absolute inset-x-6 bottom-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+        `
+}
+
+<div class="absolute inset-0 bg-gradient-to-b from-slate-950/25 via-slate-950/35 to-slate-950/85"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-slate-950/45 via-transparent to-slate-950/30"></div>
+<div class="hero-shine absolute inset-0 opacity-35"></div>
+    <div class="relative p-4">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                    ${
+                        tournament.logoUrl
+                            ? `
+                                <img
+                                    src="${escapeHtml(tournament.logoUrl)}"
+                                    alt="${escapeHtml(tournament.name || "Torneo")}"
+                                    class="h-5 w-5 rounded-md border border-white/20 object-cover"
+                                />
+                            `
+                            : ""
+                    }
+
+                    <div class="min-w-0">
+                        <div class="truncate text-[10px] font-black uppercase tracking-[0.18em] text-white/65">
+                            ${escapeHtml(tournament.name || "Torneo")}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            ${
+                match?.roundNumber
+                    ? `
+                        <div class="rounded-full border border-white/15 bg-white dark:bg-slate-900/15 px-2.5 py-0.5 text-[10px] font-black text-white backdrop-blur">
+                            Jornada ${match.roundNumber}
+                        </div>
+                    `
+                    : ""
+            }
+        </div>
+
+        ${
+            match
+                ? `
+                    <div class="mt-5 mx-auto grid max-w-[340px] grid-cols-[1fr_74px_1fr] items-center gap-2">
+                        <div class="min-w-0 text-center">
+                            <div class="mx-auto w-fit">
+                                ${buildTournamentTeamLogo(homeTeam?.logoUrl, homeTeam?.name)}
+                            </div>
+
+                            <div class="mt-2 truncate text-xs font-black leading-4">
+                                ${escapeHtml(homeTeam?.shortName || homeTeam?.name || "Equipo")}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-center">
+                            ${
+                                highlight.hasResult && match.score
+                                    ? `
+                                <div class="rounded-xl bg-white dark:bg-slate-900 px-2.5 py-1.5 text-center text-slate-950 dark:text-white shadow-lg transition duration-300 group-hover:scale-[1.02]">
+                                    <div class="flex items-center justify-center text-xl font-black leading-none tracking-tight">
+                                        ${match.score.home}
+                                        <span class="mx-1 text-slate-300">-</span>
+                                        ${match.score.away}
+                                    </div>
+                                </div>
+                                    `
+                                    : `
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white dark:bg-slate-900 text-[9px] font-black tracking-[0.18em] text-white/80 backdrop-blur-md shadow-[0_0_22px_rgba(255,255,255,0.08)]">
+                                            VS
+                                        </div>
+                                    `
+                            }
+                        </div>
+
+                        <div class="min-w-0 text-center">
+                            <div class="mx-auto w-fit">
+                                ${buildTournamentTeamLogo(awayTeam?.logoUrl, awayTeam?.name)}
+                            </div>
+
+                            <div class="mt-2 truncate text-xs font-black leading-4">
+                                ${escapeHtml(awayTeam?.shortName || awayTeam?.name || "Equipo")}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 mx-auto max-w-[340px] rounded-2xl border border-white/10 bg-white/12 px-3 py-3 backdrop-blur-md">
+                        <div class="text-[13px] font-black leading-5 text-white/90">
+                            ${escapeHtml(formatTournamentMatchDate(match.dateUtc))}
+                        </div>
+
+                        ${
+                            match.venue
+                                ? `
+                                    <div class="mt-1 text-xs font-semibold text-white/75">
+                                        📍 ${escapeHtml(match.venue)}
+                                    </div>
+                                `
+                                : ""
+                        }
+
+                        ${
+                            countdown && !highlight.isFinished
+                                ? `
+                                    <div class="mt-2 inline-flex rounded-full bg-amber-300 px-2.5 py-1 text-[10px] font-black text-slate-950">
+                                        ${escapeHtml(countdown)}
+                                    </div>
+                                `
+                                : ""
+                        }
+                    </div>
+                `
+                : `
+                    <div class="mt-5 rounded-2xl border border-white/10 bg-white dark:bg-slate-900 p-3 text-xs font-bold text-white/85 backdrop-blur-md">
+                        Competencia activa
+                    </div>
+                `
+        }
+
+        <div class="mt-4 mx-auto flex max-w-[340px] items-center justify-between gap-3">
+            <span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-black shadow-md ${style.badge}">
+                ${
+                    tournament.competitionFormat === "League"
+                        ? "🏆 Liga en curso"
+                        : "🏆 Torneo en curso"
+                }
+            </span>
+
+            <div class="inline-flex items-center rounded-xl bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-black text-slate-950 dark:text-white shadow-md">
+                ${escapeHtml(highlight.ctaText || "Ver torneo")}
+            </div>
+        </div>
+    </div>
+</button>
+`;
 }
 
 function getNewsItems() {
@@ -1342,13 +1514,72 @@ function formatDate(value) {
     }).format(date);
 }
 
+function formatTournamentMatchDate(value) {
+    if (!value) return "Sin fecha";
+
+    return new Intl.DateTimeFormat("es-AR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+    }).format(new Date(value));
+}
+
+function getTournamentCountdown(value) {
+    if (!value) return "";
+
+    const diff = new Date(value).getTime() - Date.now();
+
+    if (diff <= 0) return "";
+
+    const totalMinutes = Math.floor(diff / 60000);
+
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) {
+        return `Empieza en ${days}d ${hours}h`;
+    }
+
+    if (hours > 0) {
+        return `Empieza en ${hours}h ${minutes}m`;
+    }
+
+    return `Empieza en ${minutes}m`;
+}
+
+function buildTournamentTeamLogo(url, alt) {
+    const initials = getInitials(alt);
+
+    if (!url) {
+        return `
+            <div class="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white dark:bg-slate-900 text-xl font-black text-white shadow-lg ring-4 ring-white/5">
+                ${escapeHtml(initials || "EQ")}
+            </div>
+        `;
+    }
+
+    return `
+        <div class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white dark:bg-slate-900 shadow-lg ring-4 ring-white/10">
+            <img
+                src="${escapeHtml(url)}"
+                alt="${escapeHtml(alt || "Equipo")}"
+                class="h-full w-full object-cover"
+                onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center bg-white dark:bg-slate-900 text-xl font-black text-slate-900 dark:text-white&quot;>${escapeHtml(initials || "EQ")}</div>';"
+            />
+        </div>
+    `;
+}
+
 function buildNewsCard(item, compact = false) {
     return `
         <button
             type="button"
             data-announcement-id="${escapeHtml(item.id)}"
             data-from-history="${compact ? "true" : "false"}"
-            class="announcement-card w-full overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            class="announcement-card w-full overflow-hidden rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
             <div class="flex items-center gap-4 p-5">
                 
@@ -1362,7 +1593,7 @@ function buildNewsCard(item, compact = false) {
                             />
                         `
                         : `
-                            <div class="h-24 w-24 shrink-0 rounded-2xl bg-slate-100 flex items-center justify-center text-xs text-slate-400">
+                            <div class="h-24 w-24 shrink-0 rounded-2xl bg-slate-100 dark:bg-slate-950 flex items-center justify-center text-xs text-slate-400">
                                 Sin imagen
                             </div>
                         `
@@ -1373,21 +1604,21 @@ function buildNewsCard(item, compact = false) {
                         ${formatDate(item.createdAtUtc)}
                     </div>
 
-                    <h3 class="mt-1 text-base font-bold text-slate-900 truncate">
+                    <h3 class="mt-1 text-base font-bold text-slate-900 dark:text-white truncate">
                         ${escapeHtml(item.title || "Novedad")}
                     </h3>
 
                     ${
                         item.text
                             ? `
-                                <p class="mt-1 text-sm text-slate-500 line-clamp-2">
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
                                     ${escapeHtml(item.text)}
                                 </p>
                             `
                             : ""
                     }
 
-                    <div class="mt-2 text-sm font-semibold text-slate-700">
+                    <div class="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                         Ver detalle
                     </div>
                 </div>
@@ -1402,12 +1633,12 @@ function buildNews() {
     return `
         <section class="space-y-4">
             <div class="flex items-center justify-between gap-3">
-                <h2 class="text-xl font-bold text-slate-900">Novedades</h2>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Novedades</h2>
 
                 <button
                     id="openAnnouncementsModalBtn"
                     type="button"
-                    class="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                    class="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
                 >
                     Ver todas
                 </button>
@@ -1416,8 +1647,8 @@ function buildNews() {
             ${
                 !latest
                     ? `
-                        <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-                            <div class="text-sm text-slate-500">
+                        <div class="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">
                                 Todavía no hay novedades publicadas.
                             </div>
                         </div>
@@ -1447,11 +1678,11 @@ function buildSponsors() {
     return `
         <section class="space-y-4">
             <div class="flex items-center justify-between gap-3">
-                <h2 class="text-xl font-bold text-slate-900">Sponsors</h2>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Sponsors</h2>
 
                 ${
                     items.length > 1
-                        ? `<span class="text-sm font-semibold text-slate-500">${items.length} sponsors</span>`
+                        ? `<span class="text-sm font-semibold text-slate-500 dark:text-slate-400">${items.length} sponsors</span>`
                         : ""
                 }
             </div>
@@ -1467,7 +1698,7 @@ function buildSponsors() {
                             type="button"
                             data-sponsor-id="${escapeHtml(sponsor.id)}"
                             data-index="${index}"
-                            class="sponsor-card relative h-32 min-w-full snap-center overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:h-36"
+                            class="sponsor-card relative h-32 min-w-full snap-center overflow-hidden rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:h-36"
                         >
                             ${
                                 sponsor.imageUrl
@@ -1479,7 +1710,7 @@ function buildSponsors() {
                                         />
                                     `
                                     : `
-                                        <div class="flex h-full w-full items-center justify-center bg-slate-100 text-sm text-slate-400">
+                                        <div class="flex h-full w-full items-center justify-center bg-slate-100 dark:bg-slate-950 text-sm text-slate-400">
                                             Sin imagen
                                         </div>
                                     `
@@ -1491,7 +1722,7 @@ function buildSponsors() {
                                 ${
                                     sponsor.overlayText
                                         ? `
-                                            <span class="inline-flex rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-slate-900 shadow-sm">
+                                            <span class="inline-flex rounded-full bg-white dark:bg-slate-900/95 px-3 py-1 text-xs font-bold text-slate-900 dark:text-white shadow-sm">
                                                 ${escapeHtml(sponsor.overlayText)}
                                             </span>
                                         `
@@ -1516,7 +1747,7 @@ function buildSponsors() {
                             <button
                                 id="prevSponsorBtn"
                                 type="button"
-                                class="hidden md:inline-flex absolute left-3 top-1/2 z-10 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-slate-900 shadow-md hover:bg-white"
+                                class="hidden md:inline-flex absolute left-3 top-1/2 z-10 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white dark:bg-slate-900/95 text-slate-900 dark:text-white shadow-md bg-white dark:bg-slate-900 dark:hover:bg-slate-800"
                                 aria-label="Sponsor anterior"
                             >
                                 ‹
@@ -1525,7 +1756,7 @@ function buildSponsors() {
                             <button
                                 id="nextSponsorBtn"
                                 type="button"
-                                class="hidden md:inline-flex absolute right-3 top-1/2 z-10 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-slate-900 shadow-md hover:bg-white"
+                                class="hidden md:inline-flex absolute right-3 top-1/2 z-10 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white dark:bg-slate-900/95 text-slate-900 dark:text-white shadow-md bg-white dark:bg-slate-900 dark:hover:bg-slate-800"
                                 aria-label="Sponsor siguiente"
                             >
                                 ›
@@ -1545,8 +1776,8 @@ function buildSponsors() {
                                     data-index="${index}"
                                     class="sponsor-dot h-2.5 rounded-full ${
                                         index === currentSponsorIndex
-                                            ? "w-6 bg-slate-900"
-                                            : "w-2.5 bg-slate-300"
+                                            ? "w-6 bg-slate-900 dark:bg-white"
+                                            : "w-2.5 bg-slate-300 dark:bg-slate-700"
                                     }"
                                 ></button>
                             `).join("")}
@@ -1577,8 +1808,8 @@ function buildSponsorDetailModal() {
     return `
         <div id="sponsorDetailOverlay" class="fixed inset-0 z-[70] bg-slate-950/60 px-4 py-6">
             <div class="mx-auto flex min-h-full w-full max-w-xl items-center justify-center">
-                <div class="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white shadow-2xl">
-                    <div class="relative bg-slate-100">
+                <div class="max-h-[88vh] w-full overflow-y-auto rounded-[28px] bg-white dark:bg-slate-900 shadow-2xl">
+                    <div class="relative bg-slate-100 dark:bg-slate-950">
                         ${
                             selectedSponsor.imageUrl
                                 ? `
@@ -1598,7 +1829,7 @@ function buildSponsorDetailModal() {
                         ${
                             selectedSponsor.overlayText
                                 ? `
-                                    <div class="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-slate-900 shadow-sm">
+                                    <div class="absolute left-4 top-4 rounded-full bg-white dark:bg-slate-900/95 px-3 py-1 text-xs font-bold text-slate-900 dark:text-white shadow-sm">
                                         ${escapeHtml(selectedSponsor.overlayText)}
                                     </div>
                                 `
@@ -1608,14 +1839,14 @@ function buildSponsorDetailModal() {
                         <button
                             id="closeSponsorDetailBtn"
                             type="button"
-                            class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/95 text-slate-700 shadow-sm"
+                            class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 shadow-sm"
                         >
                             ✕
                         </button>
                     </div>
 
                     <div class="p-5">
-                        <h3 class="text-2xl font-bold text-slate-900">
+                        <h3 class="text-2xl font-bold text-slate-900 dark:text-white">
                             ${escapeHtml(selectedSponsor.name || "Sponsor")}
                         </h3>
 
@@ -1733,7 +1964,7 @@ function buildSponsorDetailModal() {
                             <button
                                 id="closeSponsorDetailSecondaryBtn"
                                 type="button"
-                                class="ml-auto rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
+                                class="ml-auto rounded-2xl border border-slate-300 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200"
                             >
                                 Cerrar
                             </button>
@@ -1752,6 +1983,7 @@ function buildHomeContent() {
             ${buildStudentCard()}
             ${buildQuickAccess()}
             ${canUse("matches") ? buildFeaturedMatch() : ""}
+            ${canUse("tournaments") ? buildTournamentHighlights() : ""}
             ${canUse("news") ? buildNews() : ""}
             ${canUse("sponsors") ? buildSponsors() : ""}
         </div>
@@ -1760,12 +1992,12 @@ function buildHomeContent() {
 
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando panel del alumno...</div>
+                        <div class="rounded-[28px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Cargando panel del alumno...</div>
                         </div>
                     </div>
                 </main>
@@ -1781,13 +2013,13 @@ async function loadSponsors() {
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm">
-                            <div class="text-base font-semibold text-slate-900">No se pudo cargar el panel.</div>
-                            <div class="mt-2 text-sm text-slate-500">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
+                        <div class="rounded-[28px] border border-rose-200 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                            <div class="text-base font-semibold text-slate-900 dark:text-white">No se pudo cargar el panel.</div>
+                            <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
                         </div>
                     </div>
                 </main>
@@ -1801,12 +2033,16 @@ function render() {
     if (pageError) return buildError();
 
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             ${buildMobileHeader()}
             ${buildMobileMenu()}
 
             <div class="flex min-h-screen">
-                ${buildSidebar()}
+                ${buildStudentSidebar({
+                    company,
+                    student,
+                    activeItem: "home"
+                })}
 
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 pb-40 sm:px-6 lg:px-8 md:pb-6">
@@ -1862,6 +2098,7 @@ function syncBodyScrollLock() {
 }
 
 function bindEvents() {
+    bindStudentLayoutEvents();
     window.__studentHomePhotoError = () => {
         handleStudentPhotoError();
     };
@@ -1886,6 +2123,27 @@ window.__studentHomeOpponentLogoError = async (img) => {
         isRefreshingOpponentLogos = false;
     }
 };
+
+document.querySelectorAll(".tournament-card").forEach(card => {
+    card.addEventListener("click", () => {
+        const tournamentId = card.dataset.tournamentId;
+
+        console.log("CLICK TORNEO HOME", {
+            tournamentId,
+            dataset: { ...card.dataset }
+        });
+
+        if (!tournamentId) {
+            console.error("No llegó tournamentId");
+            return;
+        }
+
+sessionStorage.setItem("selectedTournamentId", tournamentId);
+
+window.location.href =
+    `/src/pages/student/tournaments/detail/?tournamentId=${encodeURIComponent(tournamentId)}`;
+    });
+});
 
 bindStudentMobileShellEvents({
     setMobileMenuOpen: (value) => {
@@ -1951,8 +2209,8 @@ function moveSponsorTo(index) {
 
         dot.className = `sponsor-dot h-2.5 rounded-full ${
             dotIndex === currentSponsorIndex
-                ? "w-6 bg-slate-900"
-                : "w-2.5 bg-slate-300"
+                ? "w-6 bg-slate-900 dark:bg-white"
+                : "w-2.5 bg-slate-300 dark:bg-slate-700"
         }`;
     });
 }
@@ -2039,8 +2297,8 @@ sponsorsCarousel?.addEventListener("scroll", () => {
             const index = Number(dot.dataset.index || 0);
             dot.className = `sponsor-dot h-2.5 rounded-full ${
                 index === currentSponsorIndex
-                    ? "w-6 bg-slate-900"
-                    : "w-2.5 bg-slate-300"
+                    ? "w-6 bg-slate-900 dark:bg-white"
+                    : "w-2.5 bg-slate-300 dark:bg-slate-700"
             }`;
         });
     }
@@ -2217,7 +2475,8 @@ async function refreshHomeDynamicData() {
 await Promise.all([
     canUse("matches") ? loadMatches() : Promise.resolve(),
     canUse("news") ? loadAnnouncements() : Promise.resolve(),
-    canUse("sponsors") ? loadSponsors() : Promise.resolve()
+    canUse("sponsors") ? loadSponsors() : Promise.resolve(),
+    canUse("tournaments") ? loadTournamentHighlights() : Promise.resolve(),
 ]);
 
         rerender();
@@ -2236,6 +2495,14 @@ async function loadMatches() {
 async function loadAnnouncements() {
     const result = await get(`/api/student/${companySlug}/announcements`);
     announcements = Array.isArray(result) ? result : [];
+}
+
+async function loadTournamentHighlights() {
+    const result = await get(`/api/student/${companySlug}/tournaments/home`);
+
+    tournamentHighlights = Array.isArray(result?.items)
+        ? result.items
+        : [];
 }
 
 function injectLineupAnimationsCss() {
@@ -2266,6 +2533,21 @@ function injectLineupAnimationsCss() {
             }
         }
 
+        @keyframes tournamentCardIn {
+            from {
+                opacity: 0;
+                transform: translateY(14px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .tournament-card {
+            animation: tournamentCardIn 360ms ease-out both;
+        }
+
         .lineup-modal-in {
             animation: lineupModalIn 260ms ease-out forwards;
         }
@@ -2280,6 +2562,8 @@ function injectLineupAnimationsCss() {
 }
 
 async function init() {
+    initTheme();
+
     try {
         if (!localStorage.getItem("cache_cleaned_v1")) {
     if ("serviceWorker" in navigator) {
@@ -2324,11 +2608,13 @@ if (company) {
 const [profile] = await Promise.all([
     loadStudentProfile(),
     canUse("matches") ? loadMatches() : Promise.resolve(),
+    canUse("tournaments") ? loadTournamentHighlights() : Promise.resolve(),
     canUse("news") ? loadAnnouncements() : Promise.resolve(),
     canUse("sponsors") ? loadSponsors() : Promise.resolve()
 ]);
 
         student = profile;
+        applyThemePreference(student.themePreference || "system");
 
         if (!student) {
             throw new Error("No se pudo obtener el perfil del alumno.");

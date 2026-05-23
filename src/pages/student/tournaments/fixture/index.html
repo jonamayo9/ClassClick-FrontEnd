@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Fixture completo | ClassClick</title>
+
+    <meta name="theme-color" content="#0f172a" />
+
+    <link rel="manifest" href="/public/manifest.json" />
+    <link rel="apple-touch-icon" href="/public/icons/icon-192.png" />
+    <link rel="icon" type="image/png" href="/public/icons/favicon.png" />
+    <link rel="stylesheet" href="/public/assets/app.css" />
+
+    <style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        @keyframes heroShine {
+            0% {
+                transform: translateX(-120%) skewX(-18deg);
+                opacity: 0;
+            }
+
+            25% {
+                opacity: 0.35;
+            }
+
+            55% {
+                opacity: 0.12;
+            }
+
+            100% {
+                transform: translateX(140%) skewX(-18deg);
+                opacity: 0;
+            }
+        }
+
+        .hero-shine {
+            background: linear-gradient(110deg,
+                    transparent 0%,
+                    transparent 42%,
+                    rgba(255, 255, 255, 0.35) 48%,
+                    transparent 55%,
+                    transparent 100%);
+            animation: heroShine 4.8s ease-in-out infinite;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950">
+    <div id="app"></div>
+
+    <script type="module" src="/src/pages/student/tournaments/fixture/index.js"></script>
+</body>
+
+</html>

@@ -20,6 +20,7 @@ import {
     getActiveCompany,
     setActiveCompany
 } from "../../../../shared/js/storage.js";
+import { initTheme, applyThemePreference } from "../../../../shared/js/theme.js";
 
 let session = null;
 let companySlug = null;
@@ -122,19 +123,32 @@ function getInitials(text) {
     return parts.map(x => x.charAt(0).toUpperCase()).join("");
 }
 
+function normalizeRequestStatus(status) {
+    const raw = String(status ?? "").trim().toLowerCase();
+
+    if (raw === "1" || raw === "pending") return "Pending";
+    if (raw === "2" || raw === "documentrequested" || raw === "documentationrequested") return "DocumentRequested";
+    if (raw === "3" || raw === "inreview") return "InReview";
+    if (raw === "4" || raw === "approved") return "Approved";
+    if (raw === "5" || raw === "rejected") return "Rejected";
+    if (raw === "6" || raw === "cancelled" || raw === "canceled") return "Cancelled";
+
+    return "";
+}
+
 function getRequestStatusLabel(status) {
-    switch (Number(status)) {
-        case 1:
+    switch (normalizeRequestStatus(status)) {
+        case "Pending":
             return "Pendiente";
-        case 2:
+        case "DocumentRequested":
             return "Documentación solicitada";
-        case 3:
+        case "InReview":
             return "En revisión";
-        case 4:
+        case "Approved":
             return "Aprobada";
-        case 5:
+        case "Rejected":
             return "Rechazada";
-        case 6:
+        case "Cancelled":
             return "Cancelada";
         default:
             return "Desconocido";
@@ -142,21 +156,27 @@ function getRequestStatusLabel(status) {
 }
 
 function getRequestStatusClasses(status) {
-    switch (Number(status)) {
-        case 1:
-            return "bg-amber-50 text-amber-700";
-        case 2:
-            return "bg-orange-50 text-orange-700";
-        case 3:
-            return "bg-sky-50 text-sky-700";
-        case 4:
-            return "bg-emerald-50 text-emerald-700";
-        case 5:
-            return "bg-rose-50 text-rose-700";
-        case 6:
-            return "bg-slate-100 text-slate-700";
+    switch (normalizeRequestStatus(status)) {
+        case "Pending":
+            return "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300";
+
+        case "DocumentRequested":
+            return "bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300";
+
+        case "InReview":
+            return "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300";
+
+        case "Approved":
+            return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300";
+
+        case "Rejected":
+            return "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300";
+
+        case "Cancelled":
+            return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
+
         default:
-            return "bg-slate-100 text-slate-700";
+            return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
     }
 }
 
@@ -245,13 +265,13 @@ function buildDocumentViewerModal() {
             class="fixed inset-0 z-[90] bg-slate-950/70 backdrop-blur-[2px]"
         >
             <div class="flex min-h-full items-center justify-center p-4 sm:p-6">
-                <div class="relative w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
-                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6">
+                <div class="relative w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 px-4 py-4 sm:px-6">
                         <div class="min-w-0">
-                            <div class="truncate text-base font-semibold text-slate-900">
+                            <div class="truncate text-base font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(currentDocumentView?.fileName || "Visor de documento")}
                             </div>
-                            <div class="mt-1 text-xs text-slate-500">
+                            <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 ${escapeHtml(currentDocumentView?.contentType || "")}
                             </div>
                         </div>
@@ -263,7 +283,7 @@ function buildDocumentViewerModal() {
                                         <button
                                             id="downloadDocumentBtn"
                                             type="button"
-                                            class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                                            class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                         >
                                             Descargar
                                         </button>
@@ -274,7 +294,7 @@ function buildDocumentViewerModal() {
                             <button
                                 id="closeDocumentViewerBtn"
                                 type="button"
-                                class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+                                class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                 aria-label="Cerrar visor"
                             >
                                 ✕
@@ -282,23 +302,23 @@ function buildDocumentViewerModal() {
                         </div>
                     </div>
 
-                    <div class="max-h-[80vh] overflow-auto bg-slate-100 p-4 sm:p-6">
+                    <div class="max-h-[80vh] overflow-auto bg-slate-100 p-4 sm:p-6 dark:bg-slate-950">
                         ${
                             documentViewerLoading
                                 ? `
-                                    <div class="flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500">
+                                    <div class="flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500 dark:text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
                                         Cargando documento...
                                     </div>
                                 `
                                 : documentViewerError
                                     ? `
-                                        <div class="flex min-h-[420px] items-center justify-center rounded-2xl border border-rose-200 bg-white px-6 text-center text-sm text-rose-600">
+                                        <div class="flex min-h-[420px] items-center justify-center rounded-2xl border border-rose-200 bg-white dark:border-rose-900 dark:bg-slate-900 px-6 text-center text-sm text-rose-600">
                                             ${escapeHtml(documentViewerError)}
                                         </div>
                                     `
                                     : currentDocumentView?.isImage
                                         ? `
-                                            <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                                            <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
                                                 <img
                                                     src="${escapeHtml(currentDocumentView.url)}"
                                                     alt="${escapeHtml(currentDocumentView.fileName || "Documento")}"
@@ -308,7 +328,7 @@ function buildDocumentViewerModal() {
                                         `
                                         : currentDocumentView?.isPdf
                                             ? `
-                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                                                     <iframe
                                                         src="${escapeHtml(currentDocumentView.url)}"
                                                         class="block h-[70vh] w-full"
@@ -317,11 +337,11 @@ function buildDocumentViewerModal() {
                                                 </div>
                                             `
                                             : `
-                                                <div class="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 text-center">
-                                                    <div class="text-base font-semibold text-slate-900">
+                                                <div class="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 px-6 text-center">
+                                                    <div class="text-base font-semibold text-slate-900 dark:text-white">
                                                         No se puede previsualizar este archivo.
                                                     </div>
-                                                    <div class="mt-2 text-sm text-slate-500">
+                                                    <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                                                         Podés descargarlo para verlo en tu dispositivo.
                                                     </div>
                                                 </div>
@@ -363,8 +383,8 @@ function navLink(label, href, active = false) {
             href="${href}"
             class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
                 active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
+                    ? "bg-white text-slate-950 shadow-sm dark:bg-slate-100 dark:text-slate-950"
+                    : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             }"
         >
             ${escapeHtml(label)}
@@ -374,19 +394,19 @@ function navLink(label, href, active = false) {
 
 function buildSidebar() {
     return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
-            <div class="border-b border-slate-200 px-5 py-5">
+        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-800 md:bg-slate-900">
+            <div class="border-b border-slate-200 dark:border-slate-800 px-5 py-5">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                     Alumno
                 </div>
 
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
+                <div class="mt-2 truncate text-base font-semibold text-slate-900 dark:text-white">
                     ${escapeHtml(getStudentFullName() || "—")}
                 </div>
 
                 ${
                     getStudentEmail()
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
+                        ? `<div class="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(getStudentEmail())}</div>`
                         : ""
                 }
             </div>
@@ -418,23 +438,23 @@ function buildSidebar() {
 
 function buildMobileHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
             <div class="flex items-center justify-between px-4 py-3">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getCompanyName() || "Mi club")}
                         </div>
 
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(getStudentFullName() || "Alumno")}
                         </div>
                     </div>
                 </div>
 
-                <div class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-700 shadow-sm">
+                <div class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-sm">
                     📄
                 </div>
             </div>
@@ -465,7 +485,7 @@ function buildMobileBottomNav() {
 
 function buildTopBar() {
     return `
-        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:block">
+        <section class="hidden rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-4 shadow-sm md:block">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-14 w-14")}
@@ -475,7 +495,7 @@ function buildTopBar() {
                             Empresa
                         </div>
 
-                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getCompanyName() || "—")}
                         </h1>
                     </div>
@@ -483,7 +503,7 @@ function buildTopBar() {
 
                 <a
                     href="/src/pages/student/siblings/index.html"
-                    class="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 md:inline-flex"
+                    class="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 md:inline-flex dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                     Volver
                 </a>
@@ -508,7 +528,7 @@ function getRequestHeaderProfileImageUrl() {
 
 function buildHeroCard() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-4">
                     ${buildStudentAvatar("h-16 w-16", getRequestHeaderProfileImageUrl())}
@@ -518,11 +538,11 @@ function buildHeroCard() {
                             Solicitud
                         </div>
 
-                        <h2 class="mt-1 truncate text-2xl font-bold text-slate-900">
+                        <h2 class="mt-1 truncate text-2xl font-bold text-slate-900 dark:text-white">
                             Detalle de solicitud
                         </h2>
 
-                        <p class="mt-2 text-sm text-slate-500">
+                        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                             Revisá el estado, la documentación y las observaciones de la gestión.
                         </p>
                     </div>
@@ -536,7 +556,7 @@ function buildHeroCard() {
                                     ${escapeHtml(getRequestStatusLabel(requestDetail.status))}
                                 </span>
 
-                                <span class="text-sm text-slate-500">
+                                <span class="text-sm text-slate-500 dark:text-slate-400">
                                     ${escapeHtml(formatDate(requestDetail.createdAtUtc))}
                                 </span>
                             </div>
@@ -552,16 +572,16 @@ function buildRequestParticipants() {
     if (!requestDetail) return "";
 
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Participantes</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Participantes</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Alumnos involucrados en la solicitud.
                 </p>
             </div>
 
             <div class="grid gap-4 lg:grid-cols-2">
-                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                     <div class="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                         Solicita
                     </div>
@@ -572,17 +592,17 @@ function buildRequestParticipants() {
                                 requestDetail.requestedByStudentProfileImageUrl
                             )}
                         <div class="min-w-0">
-                            <div class="truncate text-sm font-semibold text-slate-900">
+                            <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(requestDetail.requestedByStudentFullName || "-")}
                             </div>
-                            <div class="truncate text-xs text-slate-500">
+                            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                                 DNI: ${escapeHtml(requestDetail.requestedByDni || "-")}
                             </div>
                         </div>
                     </div>
                 </article>
 
-                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                     <div class="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                         Destino
                     </div>
@@ -593,10 +613,10 @@ function buildRequestParticipants() {
                             requestDetail.targetStudentProfileImageUrl
                         )}
                         <div class="min-w-0">
-                            <div class="truncate text-sm font-semibold text-slate-900">
+                            <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(requestDetail.targetStudentFullName || "-")}
                             </div>
-                            <div class="truncate text-xs text-slate-500">
+                            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                                 DNI: ${escapeHtml(requestDetail.targetDni || "-")}
                             </div>
                         </div>
@@ -611,10 +631,10 @@ function buildNotesSection() {
     if (!requestDetail) return "";
 
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Seguimiento</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Seguimiento</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Estado actual, notas y observaciones de la solicitud.
                 </p>
             </div>
@@ -623,7 +643,7 @@ function buildNotesSection() {
                 ${
                     requestDetail.note
                         ? `
-                            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                                 <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                                     Nota original
                                 </div>
@@ -666,29 +686,29 @@ function buildNotesSection() {
                 }
 
                 <div class="grid gap-4 md:grid-cols-3">
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                         <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                             Estado
                         </div>
-                        <div class="mt-2 text-sm font-semibold text-slate-900">
+                        <div class="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getRequestStatusLabel(requestDetail.status))}
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                         <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                             Creada
                         </div>
-                        <div class="mt-2 text-sm font-semibold text-slate-900">
+                        <div class="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(formatDate(requestDetail.createdAtUtc))}
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                         <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                             Revisada
                         </div>
-                        <div class="mt-2 text-sm font-semibold text-slate-900">
+                        <div class="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(formatDate(requestDetail.reviewedAtUtc))}
                         </div>
                     </div>
@@ -702,10 +722,10 @@ function buildUploadSection() {
     if (!requestDetail) return "";
 
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Documentación</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Documentación</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Subí archivos de respaldo como foto de DNI o documentación solicitada por administración.
                 </p>
             </div>
@@ -713,10 +733,10 @@ function buildUploadSection() {
             ${
                 canDeleteDocuments()
                     ? `
-                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                             <div class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
                                 <div>
-                                    <label for="documentFile" class="mb-1 block text-sm font-medium text-slate-700">
+                                    <label for="documentFile" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                                         Archivo
                                     </label>
 
@@ -724,10 +744,10 @@ function buildUploadSection() {
                                         id="documentFile"
                                         type="file"
                                         accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
-                                        class="block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
+                                        class="block w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none transition file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:file:bg-slate-100 dark:file:text-slate-950 dark:hover:file:bg-white"
                                     />
 
-                                    <p class="mt-1 text-xs text-slate-500">
+                                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                         Formatos permitidos: JPG, PNG, WEBP o PDF. Máximo 10 MB.
                                     </p>
                                 </div>
@@ -735,7 +755,7 @@ function buildUploadSection() {
                                 <button
                                     id="uploadDocumentBtn"
                                     type="button"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                    class="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-slate-100 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     ${isUploadingDocument ? "Subiendo..." : "Subir documento"}
                                 </button>
@@ -756,10 +776,10 @@ function buildUploadSection() {
 
 function buildDocumentsList() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Archivos subidos</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Archivos subidos</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Documentos adjuntos en esta gestión.
                 </p>
             </div>
@@ -767,14 +787,14 @@ function buildDocumentsList() {
             ${
                 !documents.length
                     ? `
-                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
                             Todavía no hay documentos cargados.
                         </div>
                     `
                     : `
                         <div class="space-y-4">
                             ${documents.map(item => `
-                                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <article class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                         <div class="min-w-0">
                                             <div class="flex flex-wrap items-center gap-2">
@@ -782,12 +802,12 @@ function buildDocumentsList() {
                                                     ${item.isPdf ? "PDF" : item.isImage ? "Imagen" : "Archivo"}
                                                 </span>
 
-                                                <span class="text-xs text-slate-500">
+                                                <span class="text-xs text-slate-500 dark:text-slate-400">
                                                     ${escapeHtml(formatDate(item.uploadedAtUtc))}
                                                 </span>
                                             </div>
 
-                                            <div class="mt-3 truncate text-sm font-semibold text-slate-900">
+                                            <div class="mt-3 truncate text-sm font-semibold text-slate-900 dark:text-white">
                                                 ${escapeHtml(item.fileName || "-")}
                                             </div>
                                         </div>
@@ -795,7 +815,7 @@ function buildDocumentsList() {
                                         <div class="flex shrink-0 flex-wrap gap-2">
                                             <button
                                                 type="button"
-                                                class="viewDocumentBtn inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                                                class="viewDocumentBtn inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                                 data-id="${item.id}"
                                             >
                                                 Ver
@@ -827,12 +847,12 @@ function buildDocumentsList() {
 
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
                         <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando detalle de solicitud...</div>
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Cargando detalle de solicitud...</div>
                         </div>
                     </div>
                 </main>
@@ -843,19 +863,19 @@ function buildLoading() {
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
                         <div class="space-y-4">
-                            <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm">
-                                <div class="text-base font-semibold text-slate-900">No se pudo cargar la solicitud.</div>
-                                <div class="mt-2 text-sm text-slate-500">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
+                            <div class="rounded-[28px] border border-rose-200 bg-white dark:border-rose-900 dark:bg-slate-900 p-6 shadow-sm">
+                                <div class="text-base font-semibold text-slate-900 dark:text-white">No se pudo cargar la solicitud.</div>
+                                <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
                             </div>
 
                             <a
                                 href="/src/pages/student/siblings/index.html"
-                                class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                                 Volver a hermanos
                             </a>
@@ -869,7 +889,7 @@ function buildError() {
 
 function buildPage() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             ${buildMobileHeader()}
             ${buildMobileMenu()}
 
@@ -1180,6 +1200,7 @@ bindStudentCarnetEvents({
 }
 
 async function init() {
+    initTheme();
     try {
         await loadConfig();
         enableStudentSoftNavigation();
@@ -1223,6 +1244,7 @@ if (company) {
             loadRequestDetail(),
             loadDocuments()
         ]);
+        applyThemePreference(student?.themePreference || "system");
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información.";
     } finally {

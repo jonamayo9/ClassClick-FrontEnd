@@ -5,6 +5,7 @@ import {
   getUser,
   getActiveCompanySlug,
   getActiveRole,
+  getActiveContext,
   clearSession
 } from "./storage.js";
 
@@ -18,7 +19,8 @@ export function getSession() {
     accessTokenExpiresAtUtc: getAccessTokenExpiresAtUtc(),
     user: getUser(),
     activeCompanySlug: getActiveCompanySlug(),
-    activeRole: getActiveRole()
+    activeRole: getActiveRole(),
+    activeContext: getActiveContext(),
   };
 }
 

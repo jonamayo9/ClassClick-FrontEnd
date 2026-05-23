@@ -39,7 +39,9 @@ export async function fetchAdminCompanies() {
         ? response.data
         : [];
 
-  return companies.map(normalizeCompany).filter(Boolean);
+return companies
+  .map(normalizeCompany)
+  .filter(Boolean);
 }
 
 export function getStoredActiveAdminCompany() {
@@ -56,6 +58,14 @@ export function setStoredActiveAdminCompany(company) {
 
   setActiveCompany(company);
   setActiveCompanySlug(company.slug);
+
+localStorage.setItem(
+  "classclick_active_context",
+  JSON.stringify({
+    companySlug: company.slug,
+    role: "Admin"
+  })
+);
   return company;
 }
 

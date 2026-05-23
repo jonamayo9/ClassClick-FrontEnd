@@ -24,12 +24,22 @@ import {
     getPayments,
     setPayments
 } from "../../../shared/js/storage.js";
+import {
+    buildStudentSidebar,
+    bindStudentLayoutEvents
+} from "../../../shared/js/student-layout.js";
+import { initTheme, applyThemePreference } from "../../../shared/js/theme.js";
 
 let companySlug = null;
 let company = null;
 let student = null;
 let payments = [];
 let transferInfo = null;
+let paymentMethods = [];
+let selectedPayChargeId = null;
+let selectedPayMethod = null;
+let selectedTransferPaymentMethod = null;
+let selectedPayPreview = null;
 let mobileMenuOpen = false;
 let loading = true;
 let pageError = "";
@@ -44,7 +54,10 @@ let uiMessage = {
 let carnetOpen = false;
 let isUploadingProof = false;
 let selectedProofFile = null;
-
+let chargeDetailModal = {
+    open: false,
+    item: null
+};
 let proofViewer = {
     open: false,
     loading: false,
@@ -57,6 +70,30 @@ let proofViewer = {
 };
 
 const REQUEST_TIMEOUT_MS = 45000;
+
+function openChargeDetailModal(chargeId) {
+    const item = payments.find(x =>
+        String(x.chargeId || "") === String(chargeId)
+    );
+
+    if (!item) return;
+
+    chargeDetailModal = {
+        open: true,
+        item
+    };
+
+    rerender();
+}
+
+function closeChargeDetailModal() {
+    chargeDetailModal = {
+        open: false,
+        item: null
+    };
+
+    rerender();
+}
 
 function withTimeout(promise, message = "La solicitud tardó demasiado. Cerrá y volvé a abrir la pantalla.") {
     return Promise.race([
@@ -115,7 +152,7 @@ function buildUiMessage() {
             ? "border-rose-200 bg-rose-50 text-rose-700"
             : uiMessage.type === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 bg-slate-50 text-slate-700";
+                : "border-slate-200 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200";
 
     return `
         <section class="rounded-2xl border px-4 py-3 text-sm font-medium ${classes}">
@@ -173,7 +210,7 @@ function buildCompanyLogo(size = "h-16 w-16", rounded = "rounded-2xl") {
 
     if (!logoUrl) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
@@ -185,24 +222,9 @@ function buildCompanyLogo(size = "h-16 w-16", rounded = "rounded-2xl") {
                 src="${escapeHtml(logoUrl)}"
                 alt="Logo empresa"
                 class="block h-full w-full object-cover"
-                onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center text-xs font-bold text-slate-700&quot;>${escapeHtml(initials || "—")}</div>';"
+                onerror="this.remove(); this.parentElement.innerHTML='<div class=&quot;flex h-full w-full items-center justify-center text-xs font-bold text-slate-700 dark:text-slate-200&quot;>${escapeHtml(initials || "—")}</div>';"
             />
         </div>
-    `;
-}
-
-function navLink(label, href, active = false) {
-    return `
-        <a
-            href="${href}"
-            class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
-            }"
-        >
-            ${escapeHtml(label)}
-        </a>
     `;
 }
 
@@ -213,7 +235,7 @@ function buildSidebarLink(label, href, active = false) {
             class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
                 active
                     ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             }"
         >
             ${escapeHtml(label)}
@@ -221,79 +243,9 @@ function buildSidebarLink(label, href, active = false) {
     `;
 }
 
-function buildSidebar() {
-    return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
-            <div class="border-b border-slate-200 px-5 py-5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Alumno
-                </div>
-
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
-                    ${escapeHtml(getStudentFullName() || "—")}
-                </div>
-
-                ${
-                    getStudentEmail()
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
-                        : ""
-                }
-            </div>
-
-            <div class="flex min-h-0 flex-1 flex-col">
-<nav class="space-y-2 px-4 py-4">
-    ${buildSidebarLink("Inicio", "/src/pages/student/home/index.html")}
-
-    ${
-        company?.modules?.courses !== false
-            ? buildSidebarLink("Cursos", "/src/pages/student/courses/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.payments === true
-            ? buildSidebarLink("Pagos", "/src/pages/student/payments/index.html", true)
-            : ""
-    }
-
-    ${
-        company?.modules?.documents === true
-            ? buildSidebarLink("Documentos", "/src/pages/student/documents/index.html")
-            : ""
-    }
-
-    ${buildSidebarLink("Perfil", "/src/pages/student/profile/index.html")}
-
-    ${
-        company?.modules?.siblings !== false
-            ? buildSidebarLink("Hermanos", "/src/pages/student/siblings/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.clothing === true
-            ? buildSidebarLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
-            : ""
-    }
-</nav>
-
-                <div class="mt-auto border-t border-slate-200 p-4">
-                    <button
-                        id="logoutBtn"
-                        type="button"
-                        class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                        Cerrar sesión
-                    </button>
-                </div>
-            </div>
-        </aside>
-    `;
-}
-
 function buildMobileHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
             <div class="flex items-center justify-between px-4 py-3">
 
                 <div class="flex min-w-0 items-center gap-3">
@@ -301,11 +253,11 @@ function buildMobileHeader() {
                     ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getCompanyName() || "Mi club")}
                         </div>
 
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(getStudentFullName() || "Alumno")}
                         </div>
                     </div>
@@ -322,7 +274,7 @@ function buildMobileHeader() {
 
 function buildTopBar() {
     return `
-        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:block">
+        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-16 w-16")}
@@ -332,7 +284,7 @@ function buildTopBar() {
                             Empresa
                         </div>
 
-                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getCompanyName() || "—")}
                         </h1>
                     </div>
@@ -416,20 +368,20 @@ const pending = payments.filter(x => {
 }).length;
 
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                         Panel alumno
                     </div>
-                    <h2 class="mt-1 text-2xl font-bold text-slate-900">Mis pagos</h2>
-                    <p class="mt-2 text-sm text-slate-500">
+                    <h2 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">Mis pagos</h2>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                         Acá vas a poder ver tus facturas, elegir transferencia y subir comprobantes.
                     </p>
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                    <div class="inline-flex rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
+                    <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                         ${total} ${total === 1 ? "factura" : "facturas"}
                     </div>
                     <div class="inline-flex rounded-full bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
@@ -482,8 +434,73 @@ function getBillingStatusLabel(item) {
 
     return {
         text: "Pendiente",
-        classes: "bg-slate-100 text-slate-600"
+        classes: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200"
     };
+}
+
+function hasScholarship(item) {
+    return !!item?.hasScholarship && Number(item?.scholarshipDiscountAmount || 0) > 0;
+}
+
+function scholarshipValueText(item) {
+    const type = String(item?.scholarshipDiscountType ?? "").toLowerCase();
+
+    if (type === "percentage" || Number(item?.scholarshipDiscountType) === 1) {
+        return `${Number(item?.scholarshipDiscountValue || 0)}%`;
+    }
+
+    return money(item?.scholarshipDiscountValue || 0);
+}
+
+function buildPaymentBadges(item) {
+    const badges = [];
+
+    if (Number(item?.lateChargeAmount || 0) > 0) {
+        badges.push(`
+            <span class="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-800">
+                <span>⏰</span> Mora ${money(item.lateChargeAmount)}
+            </span>
+        `);
+    }
+
+    if (Number(item?.siblingDiscountAmount || 0) > 0) {
+        badges.push(`
+            <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-800">
+                <span>👥</span> Hermanos ${Number(item.siblingDiscountPercent || 0)}%
+            </span>
+        `);
+    }
+
+    if (hasScholarship(item)) {
+        badges.push(`
+            <span class="inline-flex items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-[11px] font-bold text-violet-800">
+                <span>🎓</span> Beca ${scholarshipValueText(item)}
+            </span>
+        `);
+    }
+
+    return badges.length
+        ? `<div class="flex flex-wrap gap-1.5">${badges.join("")}</div>`
+        : "";
+}
+
+function getPaymentCardClasses(item) {
+    const paymentStatus = normalizePaymentStatus(item?.paymentStatus);
+    const chargeStatus = normalizeChargeStatus(item?.chargeStatus);
+
+    if (paymentStatus === "approved" || chargeStatus === "paid") {
+        return "rounded-3xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/60 dark:bg-slate-900";
+    }
+
+    if (paymentStatus === "inreview") {
+        return "rounded-3xl border border-amber-200 bg-white p-4 shadow-sm dark:border-amber-900/60 dark:bg-slate-900";
+    }
+
+    if (chargeStatus === "overdue") {
+        return "rounded-3xl border border-rose-200 bg-white p-4 shadow-sm dark:border-rose-900/60 dark:bg-slate-900";
+    }
+
+    return "rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900";
 }
 
 function buildPaymentCard(item) {
@@ -496,139 +513,106 @@ function buildPaymentCard(item) {
     const showPayButton = paymentStatus !== "approved";
     const disablePayButton = paymentStatus === "inreview";
 
-    const amountClass =
-        chargeStatus === "overdue" && paymentStatus !== "approved"
-            ? "text-rose-600"
-            : "text-slate-900";
+    const isOverdue = chargeStatus === "overdue" && paymentStatus !== "approved";
 
     const payButtonLabel =
         paymentStatus === "rejected"
             ? "Volver a subir comprobante"
-            : "Pagar por transferencia";
+            : "Pagar";
 
     return `
-        <article class="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="min-w-0">
-                    <h3 class="text-xl font-bold text-slate-900 sm:text-lg">
-                        ${escapeHtml(item?.courseName || "Cuota")}
-                    </h3>
+        <article class="${getPaymentCardClasses(item)}">
+            <div class="flex flex-col gap-4">
 
-                    <div class="mt-2 flex flex-wrap gap-2">
-                        <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 sm:text-xs">
-                            ${escapeHtml(formatMonthYear(item?.month, item?.year))}
-                        </span>
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <h3 class="truncate text-xl font-black text-slate-950 dark:text-white">
+                            ${escapeHtml(item?.courseName || "Cuota")}
+                        </h3>
 
-                        <span class="inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${status.classes} sm:text-xs">
-                            ${escapeHtml(status.text)}
-                        </span>
-
-                        <span class="inline-flex rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700 sm:text-xs">
-                            ${escapeHtml(getPaymentMethodLabel(item))}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="text-left lg:text-right">
-                    <div class="text-sm text-slate-500">Importe</div>
-                    <div class="text-2xl font-bold ${amountClass} sm:text-xl">
-                        ${escapeHtml(money(item?.finalAmount))}
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-2xl bg-slate-50 px-4 py-3">
-                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Vencimiento
-                    </div>
-                    <div class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
-                        ${escapeHtml(formatDate(item?.dueDateUtc))}
-                    </div>
-                </div>
-
-                <div class="rounded-2xl bg-slate-50 px-4 py-3">
-                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Pago registrado
-                    </div>
-                    <div class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
-                        ${escapeHtml(formatDate(item?.paidAtUtc))}
-                    </div>
-                </div>
-
-                <div class="rounded-2xl bg-slate-50 px-4 py-3">
-                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Comprobante
-                    </div>
-                    <div class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
-                        ${hasProof ? "Cargado" : "Sin subir"}
-                    </div>
-                </div>
-
-                <div class="rounded-2xl bg-slate-50 px-4 py-3">
-                    <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Estado cuota
-                    </div>
-                    <div class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
-                        ${
-                            paymentStatus === "inreview"
-                                ? "Esperando aprobación del administrador"
-                                : escapeHtml(status.text)
-                        }
-                    </div>
-                </div>
-            </div>
-
-            ${
-                paymentStatus === "rejected" && rejectionNote
-                    ? `
-                        <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
-                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-500">
-                                Motivo de rechazo
-                            </div>
-                            <div class="mt-1 text-sm font-medium text-rose-700">
-                                ${escapeHtml(rejectionNote)}
-                            </div>
+                        <div class="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">
+                            Período ${escapeHtml(formatMonthYear(item?.month, item?.year))}
                         </div>
-                    `
-                    : ""
-            }
+                    </div>
 
-            <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+                    <span class="shrink-0 rounded-full px-3 py-1 text-[11px] font-black ${status.classes}">
+                        ${escapeHtml(status.text)}
+                    </span>
+                </div>
+
+                ${buildPaymentBadges(item)}
+
+                <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-950/70 dark:border dark:border-slate-700">
+                    <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Total cuota
+                    </div>
+
+                    <div class="mt-1 text-4xl font-black leading-none ${isOverdue ? "text-rose-600" : "text-slate-950 dark:text-white"}">
+                        ${escapeHtml(money(item?.finalAmountPaid || item?.finalAmount))}
+                    </div>
+
+                    <div class="mt-3 flex items-center gap-1.5 text-sm font-black ${isOverdue ? "text-rose-600" : "text-slate-600 dark:text-slate-300"}">
+                        <span>📅</span>
+                        VTO: ${escapeHtml(formatDate(item?.dueDateUtc))}
+                    </div>
+                </div>
+
                 ${
-                    showPayButton
+                    paymentStatus === "rejected" && rejectionNote
                         ? `
-                            <button
-                                type="button"
-                                data-action="open-transfer"
-                                data-charge-id="${escapeHtml(item.chargeId)}"
-                                class="inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition sm:w-auto sm:py-2 ${
-                                    disablePayButton
-                                        ? "cursor-not-allowed bg-slate-200 text-slate-500"
-                                        : "bg-slate-900 text-white hover:bg-slate-800"
-                                }"
-                                ${disablePayButton ? "disabled" : ""}
-                            >
-                                ${disablePayButton ? "Esperando revisión" : escapeHtml(payButtonLabel)}
-                            </button>
+                            <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-900/60 dark:bg-rose-950/20">
+                                <div class="text-[11px] font-bold uppercase tracking-wide text-rose-500">
+                                    Motivo de rechazo
+                                </div>
+                                <div class="mt-1 text-sm font-medium text-rose-700 dark:text-rose-300">
+                                    ${escapeHtml(rejectionNote)}
+                                </div>
+                            </div>
                         `
                         : ""
                 }
 
-                ${
-                    hasProof
-                        ? `
-                            <button
-                                type="button"
-                                data-action="view-proof"
-                                data-payment-id="${escapeHtml(item.paymentId || item.id || "")}"
-                                class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto sm:py-2"
-                            >
-                                Ver comprobante
-                            </button>
-                        `
-                        : ""
-                }
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                    ${
+    showPayButton
+        ? `
+            <button
+                type="button"
+                data-action="open-pay-methods"
+                data-charge-id="${escapeHtml(item.chargeId)}"
+                class="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-black text-white shadow-sm transition hover:bg-black dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                ${disablePayButton ? "disabled" : ""}
+            >
+                ${disablePayButton ? "Esperando revisión" : escapeHtml(payButtonLabel)}
+            </button>
+        `
+        : ""
+}
+
+<button
+    type="button"
+    data-action="view-detail"
+    data-charge-id="${escapeHtml(item.chargeId)}"
+    class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+>
+    Ver detalle
+</button>
+
+${
+    hasProof
+        ? `
+            <button
+                type="button"
+                data-action="view-proof"
+                data-payment-id="${escapeHtml(item.paymentId || item.id || "")}"
+                class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+                Ver comprobante
+            </button>
+        `
+        : ""
+}
+                </div>
             </div>
         </article>
     `;
@@ -637,9 +621,9 @@ function buildPaymentCard(item) {
 function buildPaymentsSection() {
     if (!payments.length) {
         return `
-            <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div class="text-lg font-semibold text-slate-900">Todavía no tenés facturas generadas.</div>
-                <p class="mt-2 text-sm text-slate-500">
+            <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div class="text-lg font-semibold text-slate-900 dark:text-white">Todavía no tenés facturas generadas.</div>
+                <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                     Cuando el sistema genere tus cuotas o pagos, los vas a ver acá.
                 </p>
             </section>
@@ -660,39 +644,61 @@ const payment = selectedTransferItem || payments.find(x =>
     String(x.paymentId || x.id || "") === String(selectedPaymentId) ||
     String(x.chargeId || "") === String(selectedPaymentId)
 );
-    const alias = transferInfo?.alias?.trim() || "";
-    const cbu = transferInfo?.cbu?.trim() || "";
-    const holder = transferInfo?.accountHolder?.trim() || "";
-    const bank = transferInfo?.bankName?.trim() || "";
+const paymentMethodInfo = selectedTransferPaymentMethod || {};
+
+const paymentMethodInfo = selectedTransferPaymentMethod || {};
+
+const alias =
+    paymentMethodInfo?.alias?.trim() ||
+    transferInfo?.alias?.trim() ||
+    "";
+
+const cbu =
+    paymentMethodInfo?.cbu?.trim() ||
+    transferInfo?.cbu?.trim() ||
+    "";
+
+const holder =
+    paymentMethodInfo?.holderName?.trim() ||
+    transferInfo?.accountHolder?.trim() ||
+    "";
+
+const bank =
+    transferInfo?.bankName?.trim() ||
+    "";
 
     return `
         <div id="transferModalOverlay" class="fixed inset-0 z-[140] overflow-y-auto bg-slate-950/40 p-4 pb-32 backdrop-blur-[1px]">
-            <div class="mx-auto my-6 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl">
+            <div class="mx-auto my-6 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                             Pago por transferencia
                         </div>
-                        <h3 class="mt-1 text-xl font-bold text-slate-900">
+                        <h3 class="mt-1 text-xl font-bold text-slate-900 dark:text-white">
                             ${escapeHtml(payment?.courseName || "Pago")}
                         </h3>
-                        <div class="mt-2 text-sm text-slate-500">
+                        <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                             Período: ${escapeHtml(formatMonthYear(payment?.month, payment?.year))}
-                            · Importe: ${escapeHtml(money(payment?.finalAmount ?? payment?.amount))}
+                            · Importe: ${escapeHtml(money(
+                                selectedTransferPaymentMethod
+                                    ? calculatePaymentMethodPreview(payment, selectedTransferPaymentMethod).total
+                                    : (payment?.finalAmount ?? payment?.amount)
+                            ))}
                         </div>
                     </div>
 
                     <button
                         type="button"
                         id="closeTransferModalBtn"
-                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                         ✕
                     </button>
                 </div>
 
                 <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                    <div class="rounded-2xl bg-slate-50 px-4 py-3 sm:col-span-2">
+                    <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3 sm:col-span-2">
                         <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Alias
                         </div>
@@ -702,7 +708,7 @@ const payment = selectedTransferItem || payments.find(x =>
                                 Alias copiado correctamente.
                             </div>
                         ` : ""}
-                            <div class="break-all text-base font-semibold text-slate-900">
+                            <div class="break-all text-base font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(alias || "No configurado")}
                             </div>
 
@@ -712,7 +718,7 @@ const payment = selectedTransferItem || payments.find(x =>
                                         <button
                                             type="button"
                                             id="copyAliasBtn"
-                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                         >
                                             Copiar alias
                                         </button>
@@ -723,11 +729,11 @@ const payment = selectedTransferItem || payments.find(x =>
                     </div>
 
                     ${
-                        cbu
+                        CBU / CVU
                             ? `
-                                <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">CBU</div>
-                                    <div class="mt-1 text-sm font-semibold text-slate-900 break-all">${escapeHtml(cbu)}</div>
+                                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white break-all">${escapeHtml(cbu)}</div>
                                 </div>
                             `
                             : ""
@@ -736,9 +742,9 @@ const payment = selectedTransferItem || payments.find(x =>
                     ${
                         holder
                             ? `
-                                <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Titular</div>
-                                    <div class="mt-1 text-sm font-semibold text-slate-900">${escapeHtml(holder)}</div>
+                                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">${escapeHtml(holder)}</div>
                                 </div>
                             `
                             : ""
@@ -747,18 +753,18 @@ const payment = selectedTransferItem || payments.find(x =>
                     ${
                         bank
                             ? `
-                                <div class="rounded-2xl bg-slate-50 px-4 py-3 sm:col-span-2">
+                                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3 sm:col-span-2">
                                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Banco / billetera</div>
-                                    <div class="mt-1 text-sm font-semibold text-slate-900">${escapeHtml(bank)}</div>
+                                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">${escapeHtml(bank)}</div>
                                 </div>
                             `
                             : ""
                     }
                 </div>
 
-                <div class="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <div class="text-sm font-semibold text-slate-900">Subir comprobante</div>
-                    <p class="mt-1 text-sm text-slate-500">
+                <div class="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
+                    <div class="text-sm font-semibold text-slate-900 dark:text-white">Subir comprobante</div>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                         Podés subir una imagen o PDF de hasta 5MB.
                     </p>
 
@@ -766,25 +772,25 @@ const payment = selectedTransferItem || payments.find(x =>
                         id="paymentProofFileInput"
                         type="file"
                         accept=".jpg,.jpeg,.png,.webp,.pdf"
-                        class="mt-4 block w-full text-sm text-slate-700"
+                        class="mt-4 block w-full text-sm text-slate-700 dark:text-slate-200"
                     />
                 </div>
 
-                <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
                     <button
                         type="button"
                         id="cancelTransferBtn"
-                        class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                         Cancelar
                     </button>
 
-                    <button
-                        type="button"
-                        id="submitProofBtn"
-                        class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 ${uploadingProof ? "opacity-60" : ""}"
-                        ${uploadingProof ? "disabled" : ""}
-                    >
+                        <button
+                            type="button"
+                            id="submitProofBtn"
+                            class="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 dark:bg-emerald-500 dark:text-white dark:hover:bg-emerald-400 ${uploadingProof ? "opacity-60" : ""}"
+                            ${uploadingProof ? "disabled" : ""}
+                        >
                         ${uploadingProof ? "Subiendo..." : "Enviar comprobante"}
                     </button>
                 </div>
@@ -797,20 +803,20 @@ function buildProofViewerModal() {
     if (!proofViewer.open) return "";
 
     let bodyHtml = `
-        <div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-sm text-slate-500">
+        <div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-sm text-slate-500 dark:text-slate-400">
             No se pudo visualizar el comprobante.
         </div>
     `;
 
     if (proofViewer.loading) {
         bodyHtml = `
-            <div class="flex h-full items-center justify-center rounded-2xl bg-white text-sm font-medium text-slate-500">
+            <div class="flex h-full items-center justify-center rounded-2xl bg-white dark:bg-slate-900 text-sm font-medium text-slate-500 dark:text-slate-400">
                 Cargando comprobante...
             </div>
         `;
     } else if (proofViewer.isImage) {
         bodyHtml = `
-            <div class="flex h-full items-center justify-center overflow-auto rounded-2xl bg-white p-3">
+            <div class="flex h-full items-center justify-center overflow-auto rounded-2xl bg-white dark:bg-slate-900 p-3">
                 <img
                     src="${escapeHtml(proofViewer.url)}"
                     alt="Comprobante"
@@ -820,7 +826,7 @@ function buildProofViewerModal() {
         `;
     } else if (proofViewer.isPdf) {
         bodyHtml = `
-            <div class="h-full overflow-hidden rounded-2xl bg-white">
+            <div class="h-full overflow-hidden rounded-2xl bg-white dark:bg-slate-900">
                 <iframe
                     src="${escapeHtml(proofViewer.url)}"
                     title="Comprobante PDF"
@@ -832,13 +838,13 @@ function buildProofViewerModal() {
 
     return `
         <div id="proofViewerOverlay" class="fixed inset-0 z-[120] bg-slate-950/60 p-4 backdrop-blur-[1px]">
-            <div class="mx-auto flex w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+            <div class="mx-auto flex w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
                 <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                     <div class="min-w-0">
                         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                             Comprobante
                         </div>
-                        <div class="mt-1 truncate text-base font-semibold text-slate-900">
+                        <div class="mt-1 truncate text-base font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(proofViewer.fileName || "Visualización")}
                         </div>
                     </div>
@@ -850,7 +856,7 @@ function buildProofViewerModal() {
                             download="${escapeHtml(proofViewer.fileName || "comprobante")}"
                             target="_blank"
                             rel="noreferrer"
-                            class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 ${proofViewer.loading || !proofViewer.url ? "pointer-events-none opacity-50" : ""}"
+                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 ${proofViewer.loading || !proofViewer.url ? "pointer-events-none opacity-50" : ""}"
                         >
                             Descargar
                         </a>
@@ -858,14 +864,14 @@ function buildProofViewerModal() {
                         <button
                             id="closeProofViewerBtn"
                             type="button"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                             ✕
                         </button>
                     </div>
                 </div>
 
-                <div class="bg-slate-100 p-4">
+                <div class="bg-slate-100 p-4 dark:bg-slate-800">
                     ${bodyHtml}
                 </div>
             </div>
@@ -884,14 +890,87 @@ function buildContent() {
     `;
 }
 
+function buildChargeDetailModal() {
+    if (!chargeDetailModal.open || !chargeDetailModal.item) return "";
+
+    const item = chargeDetailModal.item;
+
+    return `
+        <div id="chargeDetailOverlay" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+            <div class="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">
+                            Detalle de cuota
+                        </div>
+
+                        <h3 class="mt-1 text-xl font-black text-slate-900 dark:text-white">
+                            ${escapeHtml(item.courseName || "Cuota")}
+                        </h3>
+
+                        <div class="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            Período ${escapeHtml(formatMonthYear(item.month, item.year))}
+                        </div>
+                    </div>
+
+                    <button
+                        id="closeChargeDetailBtn"
+                        type="button"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div class="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+${detailRow("Precio base", money(item.basePrice))}
+${detailRow("Descuento hermanos", `- ${money(item.siblingDiscountAmount || 0)}`)}
+${detailRow("Beca", `- ${money(item.scholarshipDiscountAmount || 0)}`)}
+${detailRow("Mora", `+ ${money(item.lateChargeAmount || 0)}`)}
+${Number(item.paymentMethodSurchargeAmount || 0) > 0
+    ? detailRow(`Recargo por ${item.paymentMethodNameSnapshot || getPaymentMethodLabel(item)}`, `+ ${money(item.paymentMethodSurchargeAmount)}`)
+    : ""}
+                </div>
+
+<div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+    <div class="flex items-center justify-between gap-3">
+        <div class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Total final
+        </div>
+
+        <div class="text-2xl font-black text-slate-900 dark:text-white">
+            ${money(item.finalAmountPaid || item.finalAmount)}
+        </div>
+    </div>
+</div>
+            </div>
+        </div>
+    `;
+}
+
+function detailRow(label, value) {
+    return `
+        <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 last:border-b-0 dark:border-slate-700 dark:bg-slate-900">
+            <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                ${escapeHtml(label)}
+            </span>
+
+            <span class="text-sm font-black text-slate-900 dark:text-white">
+                ${escapeHtml(value)}
+            </span>
+        </div>
+    `;
+}
+
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando pagos...</div>
+                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Cargando pagos...</div>
                         </div>
                     </div>
                 </main>
@@ -902,13 +981,13 @@ function buildLoading() {
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
                         <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm">
-                            <div class="text-base font-semibold text-slate-900">No se pudieron cargar los pagos.</div>
-                            <div class="mt-2 text-sm text-slate-500">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
+                            <div class="text-base font-semibold text-slate-900 dark:text-white">No se pudieron cargar los pagos.</div>
+                            <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
                         </div>
                     </div>
                 </main>
@@ -932,12 +1011,16 @@ function render() {
     if (pageError) return buildError();
 
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             ${buildMobileCompanyHeader()}
             ${buildMobileMenu()}
 
             <div class="flex min-h-screen">
-                ${buildSidebar()}
+                ${buildStudentSidebar({
+                    company,
+                    student,
+                    activeItem: "payments"
+                })}
 
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
@@ -954,8 +1037,10 @@ function render() {
                 modules: company?.modules || {}
             })}
 
+            ${buildPayMethodsModal()}
             ${buildTransferModal()}
             ${buildProofViewerModal()}
+            ${buildChargeDetailModal()}
             ${buildStudentCarnetModal({
                 open: carnetOpen,
                 student,
@@ -979,7 +1064,7 @@ function rerender() {
 
 function buildMobileCompanyHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
             <div class="flex items-center justify-between gap-3 px-4 py-3">
 
                 <div class="flex min-w-0 items-center gap-3">
@@ -987,11 +1072,11 @@ function buildMobileCompanyHeader() {
                     ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getCompanyName() || "Empresa")}
                         </div>
 
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(getStudentFullName() || "Alumno")}
                         </div>
                     </div>
@@ -1005,7 +1090,175 @@ function buildMobileCompanyHeader() {
     `;
 }
 
+function openPayMethodsModal(chargeId) {
+    selectedPayChargeId = chargeId;
+    selectedPayMethod = null;
+    selectedPayPreview = null;
+    rerender();
+}
+
+function closePayMethodsModal() {
+    selectedPayChargeId = null;
+    selectedPayMethod = null;
+    selectedPayPreview = null;
+    selectedTransferPaymentMethod = null;
+    rerender();
+}
+
+function calculatePaymentMethodPreview(item, method) {
+    const base = Number(item?.finalAmount || item?.amount || 0);
+    const type = String(method?.surchargeType || "").toLowerCase();
+    const value = Number(method?.surchargeValue || 0);
+
+    let surcharge = 0;
+
+    if (value > 0 && type === "percentage") {
+        surcharge = Math.round((base * value / 100) * 100) / 100;
+    }
+
+    if (value > 0 && type === "fixedamount") {
+        surcharge = value;
+    }
+
+    return {
+        base,
+        surcharge,
+        total: base + surcharge
+    };
+}
+
+function buildPayMethodsModal() {
+    if (!selectedPayChargeId) return "";
+
+    const item = payments.find(x =>
+        String(x.chargeId || "") === String(selectedPayChargeId)
+    );
+
+    const enabledMethods = paymentMethods;
+
+    return `
+        <div id="payMethodsOverlay" class="fixed inset-0 z-[140] overflow-y-auto bg-slate-950/50 p-4 pb-32 backdrop-blur-[1px]">
+            <div class="mx-auto my-6 w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                            Pagar cuota
+                        </div>
+                        <h3 class="mt-1 text-xl font-bold text-slate-900 dark:text-white">
+                            ${escapeHtml(item?.courseName || "Cuota")}
+                        </h3>
+                        <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Período ${escapeHtml(formatMonthYear(item?.month, item?.year))}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        id="closePayMethodsBtn"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div class="mt-5 space-y-3">
+                    ${enabledMethods.length ? enabledMethods.map(method => {
+                        const preview = calculatePaymentMethodPreview(item, method);
+                        const selected = selectedPayMethod && String(selectedPayMethod.paymentMethod) === String(method.paymentMethod);
+
+                        return `
+                            <button
+                                type="button"
+                                data-action="select-pay-method"
+                                data-method="${escapeHtml(method.paymentMethod)}"
+                                class="w-full rounded-2xl border px-4 py-3 text-left transition ${
+                                    selected
+                                        ? "border-slate-900 bg-slate-100 dark:border-white dark:bg-slate-800"
+                                        : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                                }"
+                            >
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-sm font-black text-slate-900 dark:text-white">
+                                            ${escapeHtml(method.paymentMethodName || method.name || method.displayName || "-")}
+                                        </div>
+                                        <div class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                            ${preview.surcharge > 0 ? `Recargo ${money(preview.surcharge)}` : "Sin recargo"}
+                                        </div>
+                                    </div>
+
+                                    <div class="text-right">
+                                        <div class="text-xs font-bold uppercase text-slate-400">Total</div>
+                                        <div class="text-base font-black text-slate-900 dark:text-white">
+                                            ${money(preview.total)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        `;
+                    }).join("") : `
+                        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300">
+                            No hay medios de pago habilitados.
+                        </div>
+                    `}
+                </div>
+
+                ${selectedPayMethod ? buildSelectedPaymentPreview(item, selectedPayMethod) : ""}
+
+                <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                    <button
+                        type="button"
+                        id="cancelPayMethodsBtn"
+                        class="inline-flex items-center justify-center rounded-2xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 shadow-sm transition hover:bg-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function buildSelectedPaymentPreview(item, method) {
+    const preview = calculatePaymentMethodPreview(item, method);
+    const methodName = method.paymentMethodName || method.name || method.displayName || "-";
+
+    return `
+        <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+            <div class="text-sm font-black text-slate-900 dark:text-white">Detalle</div>
+
+            <div class="mt-3 space-y-2 text-sm">
+                <div class="flex justify-between text-slate-600 dark:text-slate-300">
+                    <span>Cuota</span>
+                    <span class="font-bold">${money(preview.base)}</span>
+                </div>
+
+                ${preview.surcharge > 0 ? `
+                    <div class="flex justify-between text-emerald-600 dark:text-emerald-400">
+                        <span>Recargo por ${escapeHtml(methodName)}</span>
+                        <span class="font-bold">+${money(preview.surcharge)}</span>
+                    </div>
+                ` : ""}
+
+                <div class="flex justify-between rounded-xl bg-white px-3 py-2 text-slate-900 dark:bg-slate-900 dark:text-white">
+                    <span class="font-black">Total a pagar</span>
+                    <span class="font-black">${money(preview.total)}</span>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                id="continuePayMethodBtn"
+                class="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 dark:bg-emerald-500 dark:text-white dark:hover:bg-emerald-400"
+            >
+                Continuar
+            </button>
+        </div>
+    `;
+}
+
 function bindEvents() {
+    bindStudentLayoutEvents();
 bindStudentMobileShellEvents({
     setMobileMenuOpen: (value) => {
         mobileMenuOpen = !!value;
@@ -1027,10 +1280,10 @@ bindStudentCarnetEvents({
     }
 });
 
-    document.querySelectorAll("[data-action='open-transfer']").forEach(btn => {
-        btn.addEventListener("click", async () => {
+    document.querySelectorAll("[data-action='open-pay-methods']").forEach(btn => {
+        btn.addEventListener("click", () => {
             const chargeId = btn.getAttribute("data-charge-id");
-            await openTransferModal(chargeId);
+            openPayMethodsModal(chargeId);
         });
     });
 
@@ -1082,13 +1335,74 @@ bindStudentCarnetEvents({
         }
     });
 
-    initNotificationsBell({
-    rootId: "studentNotificationsBellMobile"
+    document.querySelectorAll("[data-action='view-detail']").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const chargeId = btn.getAttribute("data-charge-id");
+
+        if (!chargeId) return;
+
+        openChargeDetailModal(chargeId);
+    });
 });
 
-initNotificationsBell({
-    rootId: "studentNotificationsBellDesktop"
+document.getElementById("closeChargeDetailBtn")?.addEventListener("click", () => {
+    closeChargeDetailModal();
 });
+
+document.getElementById("chargeDetailOverlay")?.addEventListener("click", (e) => {
+    if (e.target.id === "chargeDetailOverlay") {
+        closeChargeDetailModal();
+    }
+});
+document.getElementById("closePayMethodsBtn")?.addEventListener("click", closePayMethodsModal);
+document.getElementById("cancelPayMethodsBtn")?.addEventListener("click", closePayMethodsModal);
+
+document.getElementById("payMethodsOverlay")?.addEventListener("click", (e) => {
+    if (e.target.id === "payMethodsOverlay") {
+        closePayMethodsModal();
+    }
+});
+
+document.querySelectorAll("[data-action='select-pay-method']").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const method = btn.getAttribute("data-method");
+        selectedPayMethod = paymentMethods.find(x => String(x.paymentMethod) === String(method)) || null;
+        selectedPayPreview = selectedPayMethod
+            ? calculatePaymentMethodPreview(
+                payments.find(x => String(x.chargeId || "") === String(selectedPayChargeId)),
+                selectedPayMethod
+            )
+            : null;
+
+        rerender();
+    });
+});
+
+document.getElementById("continuePayMethodBtn")?.addEventListener("click", () => {
+    if (!selectedPayChargeId || !selectedPayMethod) return;
+
+    const selectedMethod = String(selectedPayMethod.paymentMethod).toLowerCase();
+
+    if (selectedMethod !== "transfer") {
+        setUiMessage("error", "Este medio de pago todavía no está implementado para alumnos.");
+        closePayMethodsModal();
+        return;
+    }
+
+    selectedTransferItem = payments.find(x =>
+        String(x.chargeId || "") === String(selectedPayChargeId)
+    ) || null;
+
+    selectedPaymentId = String(selectedPayChargeId);
+    selectedTransferPaymentMethod = selectedPayMethod;
+    aliasCopied = false;
+    selectedPayChargeId = null;
+
+    rerender();
+});
+
+    initNotificationsBell({rootId: "studentNotificationsBellMobile"});
+    initNotificationsBell({rootId: "studentNotificationsBellDesktop"});
 }
 
 async function loadStudentProfile() {
@@ -1122,6 +1436,13 @@ async function loadPayments(force = false) {
     return data;
 }
 
+async function loadPaymentMethods() {
+    return await withTimeout(
+        get(`/api/student/${companySlug}/payment-methods?_=${Date.now()}`),
+        "No se pudieron cargar los medios de pago."
+    );
+}
+
 async function loadTransferInfo() {
     return await withTimeout(
         get(`/api/student/${companySlug}/payment-transfer-info?_=${Date.now()}`),
@@ -1129,7 +1450,7 @@ async function loadTransferInfo() {
     );
 }
 
-async function openTransferModal(chargeId) {
+async function openTransferModal(chargeId, companyPaymentMethodId = null) {
     if (!chargeId) return;
 
     clearUiMessage();
@@ -1149,21 +1470,7 @@ async function openTransferModal(chargeId) {
             if (String(selectedPaymentId) !== String(chargeId)) return;
             rerender();
         }
-
-        const ensured = await withTimeout(
-            post(`/api/student/${companySlug}/charges/${chargeId}/ensure-payment`, {}),
-            "No se pudo iniciar el pago. Probá nuevamente."
-        );
-
-        if (String(selectedPaymentId) !== String(chargeId)) return;
-
-        const paymentId = ensured?.paymentId;
-
-        if (!paymentId) {
-            throw new Error("No se pudo crear o recuperar el pago.");
-        }
-
-        selectedPaymentId = paymentId;
+        selectedPaymentId = String(chargeId);
         rerender();
     } catch (error) {
         if (String(selectedPaymentId) !== String(chargeId)) return;
@@ -1181,6 +1488,7 @@ function closeTransferModal() {
     uploadingProof = false;
     isUploadingProof = false;
     selectedProofFile = null;
+    selectedTransferPaymentMethod = null;
     rerender();
 }
 
@@ -1287,11 +1595,22 @@ async function submitProof() {
     rerender();
 
     try {
-        const formData = new FormData();
-        formData.append("file", file);
+    const methodId =
+        selectedTransferPaymentMethod?.companyPaymentMethodId ||
+        selectedTransferPaymentMethod?.id;
+
+    if (!methodId) {
+        setUiMessage("error", "No se encontró el medio de pago seleccionado.");
+        rerender();
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("companyPaymentMethodId", methodId);
 
         await withTimeout(
-            postForm(`/api/student/payments/${selectedPaymentId}/proof`, formData),
+            postForm(`/api/student/${companySlug}/charges/${selectedPaymentId}/proof`, formData),
             "La subida tardó demasiado. Probá nuevamente."
         );
 
@@ -1316,6 +1635,7 @@ async function submitProof() {
 }
 
 async function init() {
+    initTheme();
     try {
         clearUiMessage();
         await loadConfig();
@@ -1348,11 +1668,13 @@ async function init() {
         }
 
         student = await loadStudentProfile();
+        applyThemePreference(student.themePreference || "system");
 
         if (!student) {
             throw new Error("No se pudo obtener el perfil del alumno.");
         }
 
+        paymentMethods = await loadPaymentMethods();
         payments = await loadPayments(true);
 
     } catch (error) {

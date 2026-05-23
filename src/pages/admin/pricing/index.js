@@ -17,17 +17,26 @@ let paymentSettings = null;
 let coursePricings = [];
 let latePaymentConfigs = [];
 let siblingDiscounts = [];
-
+let scholarships = [];
+let selectedStudentScholarships = [];
+let scholarshipStudents = [];
+let scholarshipStudentSearch = "";
+let isSavingScholarship = false;
+let isAssigningScholarship = false;
+let selectedScholarshipStudentId = null;
+let scholarshipAssignments = [];
+let scholarshipAssignmentsSearch = "";
 let pricingEditKey = null;
 let siblingEditId = null;
 let lateEditId = null;
-
+let scholarshipsSearch = "";
 let isSavingSettings = false;
 let isSavingPricing = false;
 let isSavingLateFee = false;
 let isSavingSibling = false;
 let isSavingTransfer = false;
-
+let paymentMethods = [];
+let isSavingPaymentMethods = false;
 let deletingPricingId = null;
 let deletingLateFeeId = null;
 let deletingSiblingId = null;
@@ -52,6 +61,25 @@ function money(value) {
         currency: "ARS",
         maximumFractionDigits: 0
     }).format(Number(value || 0));
+}
+
+function scholarshipTypeLabel(value) {
+    const text = String(value ?? "").toLowerCase();
+
+    if (text === "percentage" || Number(value) === 1) return "Porcentaje";
+    if (text === "fixedamount" || Number(value) === 2) return "Monto fijo";
+
+    return "-";
+}
+
+function scholarshipValueLabel(item) {
+    const type = String(item?.discountType ?? "").toLowerCase();
+
+    if (type === "percentage" || Number(item?.discountType) === 1) {
+        return `${Number(item.discountValue || 0)}%`;
+    }
+
+    return money(item?.discountValue || 0);
 }
 
 function formatDate(date) {
@@ -528,6 +556,24 @@ function buildContent() {
                                 <p class="text-slate-500">Día de vencimiento</p>
                                 <p id="summaryDueDay" class="mt-1 font-medium text-slate-900">-</p>
                             </div>
+
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p class="text-slate-500">Medios de pago</p>
+                                            <p id="summaryPaymentMethods" class="mt-1 text-xl font-semibold text-slate-900">0</p>
+                                            <p id="summaryPaymentMethodsDetail" class="mt-1 text-xs text-slate-500">-</p>
+                                        </div>
+
+                                        <button
+                                            id="openPaymentMethodsBtn"
+                                            type="button"
+                                            class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800"
+                                        >
+                                            Configurar
+                                        </button>
+                                    </div>
+                                </div>
                         </div>
                     </section>
 
@@ -594,6 +640,35 @@ function buildContent() {
                         <div id="siblingsEmptyState" class="hidden py-8 text-center">
                             <p class="text-sm text-slate-500">Todavía no hay descuentos configurados.</p>
                         </div>
+                    </section>
+
+                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div class="mb-5">
+                            <h3 class="text-lg font-semibold text-slate-900">Becas</h3>
+                            <p class="mt-1 text-sm text-slate-500">
+                                Creá becas y asignálas a alumnos de forma global o por curso.
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <p class="text-sm text-slate-500">Becas configuradas</p>
+                                <p id="summaryScholarships" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
+                            </div>
+
+                            <div class="rounded-2xl bg-slate-50 p-4">
+                                <p class="text-sm text-slate-500">Becas otorgadas</p>
+                                <p id="summaryScholarshipAssignments" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
+                            </div>
+                        </div>
+
+                        <button
+                            id="openScholarshipsBtn"
+                            type="button"
+                            class="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                        >
+                            Gestionar becas
+                        </button>
                     </section>
 
                     <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -816,6 +891,39 @@ function renderStats() {
     qs("summarySiblings").textContent = String(siblingCount);
     qs("summaryGenerationDay").textContent = paymentSettings?.generationDayOfMonth || "-";
     qs("summaryDueDay").textContent = paymentSettings?.dueDayOfMonth || "-";
+    qs("summaryScholarships").textContent = String(scholarships.length);
+    qs("summaryScholarshipAssignments").textContent = String(scholarshipAssignments.length);
+    const enabledPaymentMethods = paymentMethods.filter(x => x.isEnabledByAdmin);
+
+qs("summaryPaymentMethods").textContent = String(enabledPaymentMethods.length);
+
+qs("summaryPaymentMethodsDetail").textContent = enabledPaymentMethods.length
+    ? enabledPaymentMethods.map(x => x.paymentMethodName).join(", ")
+    : "Sin medios activos";
+}
+
+async function loadScholarships() {
+    scholarships = await get(`/api/admin/${company.slug}/scholarships`);
+}
+
+async function loadScholarshipStudents() {
+    const response = await get(`/api/admin/${company.slug}/students`);
+    scholarshipStudents = Array.isArray(response)
+        ? response
+        : (response.items || []);
+}
+
+async function loadScholarshipAssignments() {
+    scholarshipAssignments = await get(`/api/admin/${company.slug}/scholarships/assignments`);
+}
+
+async function loadStudentScholarships(studentId) {
+    if (!studentId) {
+        selectedStudentScholarships = [];
+        return;
+    }
+
+    selectedStudentScholarships = await get(`/api/admin/${company.slug}/scholarships/students/${studentId}`);
 }
 
 function renderCourseOptions() {
@@ -861,6 +969,14 @@ function renderSettings() {
 
     toggleGraceDaysVisibility();
     applySettingsReadonlyState();
+}
+
+async function loadPaymentMethods() {
+    paymentMethods = await get(`/api/admin/${company.slug}/payment-methods`);
+}
+
+async function savePaymentMethods(payload) {
+    return await put(`/api/admin/${company.slug}/payment-methods`, payload);
 }
 
 function renderTransferSettings() {
@@ -1065,6 +1181,779 @@ function renderLateFeeTable() {
     tbody.querySelectorAll(".delete-late-fee-btn").forEach(btn => {
         btn.addEventListener("click", () => openDeleteLateFeeModal(btn.dataset.id));
     });
+}
+
+function openScholarshipsModal() {
+    setModal(`
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div class="max-h-[90vh] w-full max-w-7xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+                <div class="flex items-start justify-between gap-4">
+<div>
+    <div class="flex items-center gap-3">
+        <h3 class="text-xl font-semibold text-slate-900">Gestión de becas</h3>
+
+        <button
+            id="openScholarshipsHelpBtn"
+            type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-sm font-bold text-slate-600 hover:bg-slate-50"
+            title="Ayuda"
+        >
+            ?
+        </button>
+    </div>
+
+    <p class="mt-1 text-sm text-slate-500">
+        Primero creá un tipo de beca y después asignásela a un alumno.
+    </p>
+</div>
+
+                    <button
+                        id="closeScholarshipsModalBtn"
+                        type="button"
+                        class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+
+                <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+                    <section class="rounded-3xl border border-slate-200 p-5">
+                        <h4 class="text-lg font-semibold text-slate-900">1. Crear tipo de beca</h4>
+                            <p class="mt-1 text-sm text-slate-500">
+                                Definí el descuento: puede ser porcentaje o monto fijo.
+                            </p>
+
+                        <form id="scholarshipForm" class="mt-4 space-y-4">
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Nombre</label>
+                                <input
+                                    id="scholarshipName"
+                                    type="text"
+                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                    placeholder="Ej: Beca deportiva 50%"
+                                />
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Tipo</label>
+                                    <select
+                                        id="scholarshipDiscountType"
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                    >
+                                        <option value="1">Porcentaje</option>
+                                        <option value="2">Monto fijo</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Valor</label>
+                                    <input
+                                        id="scholarshipDiscountValue"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                        placeholder="Ej: 50"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                                <input id="scholarshipIsActive" type="checkbox" checked class="h-4 w-4" />
+                                <label for="scholarshipIsActive" class="text-sm font-medium text-slate-700">
+                                    Beca activa
+                                </label>
+                            </div>
+
+                            <p id="scholarshipError" class="hidden text-sm text-rose-600"></p>
+
+                            <button
+                                id="saveScholarshipBtn"
+                                type="submit"
+                                class="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                            >
+                                Guardar beca
+                            </button>
+                        </form>
+
+                        <div class="mt-6">
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Buscar beca</label>
+                            <input
+                                id="scholarshipsSearch"
+                                type="text"
+                                class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                placeholder="Buscar por nombre o valor"
+                            />
+                        </div>
+
+                        <div class="mt-6 space-y-3" id="scholarshipsList"></div>
+                    </section>
+
+                    <section class="rounded-3xl border border-slate-200 p-5">
+                        <h4 class="text-lg font-semibold text-slate-900">2. Asignar beca a alumno</h4>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Elegí el alumno, la beca y si aplica a todos sus cursos o solo a uno.
+                        </p>
+
+                        <form id="assignScholarshipForm" class="mt-4 space-y-4">
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Buscar alumno</label>
+                            <input
+                                id="assignScholarshipStudentSearch"
+                                type="text"
+                                class="mb-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                placeholder="Buscar por nombre, apellido, email o DNI"
+                            />
+
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Alumno</label>
+                            <select
+                                id="assignScholarshipStudentId"
+                                class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                            ></select>
+
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Beca</label>
+                                <select
+                                    id="assignScholarshipId"
+                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                ></select>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Curso donde aplica</label>
+                                <select
+                                    id="assignScholarshipCourseId"
+                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                ></select>
+                                <p class="mt-1 text-xs text-slate-500">Si lo dejás vacío, la beca será global para el alumno.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Inicio</label>
+                                    <input
+                                        id="assignScholarshipStartDate"
+                                        type="date"
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Fin</label>
+                                    <input
+                                        id="assignScholarshipEndDate"
+                                        type="date"
+                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Nota</label>
+                                <textarea
+                                    id="assignScholarshipNotes"
+                                    rows="3"
+                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                    placeholder="Opcional"
+                                ></textarea>
+                            </div>
+
+                            <p id="assignScholarshipError" class="hidden text-sm text-rose-600"></p>
+
+                            <button
+                                id="assignScholarshipBtn"
+                                type="submit"
+                                class="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                            >
+                                Asignar beca
+                            </button>
+                        </form>
+
+                        <div class="mt-6">
+                            <h5 class="font-semibold text-slate-900">Becas del alumno</h5>
+                            <div id="studentScholarshipsList" class="mt-3 space-y-3"></div>
+                        </div>
+                    </section>
+
+                    <section class="rounded-3xl border border-slate-200 p-5">
+                        <h4 class="text-lg font-semibold text-slate-900">3. Becas otorgadas</h4>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Consultá todas las becas asignadas en la empresa.
+                        </p>
+
+                        <div class="mt-4">
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Buscar</label>
+                            <input
+                                id="scholarshipAssignmentsSearch"
+                                type="text"
+                                class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                                placeholder="Alumno, beca, curso, email o DNI"
+                            />
+                        </div>
+
+                        <div id="scholarshipAssignmentsList" class="mt-5 space-y-3"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    `);
+
+    bindScholarshipsModal();
+    renderScholarshipsModalData();
+}
+
+function bindScholarshipsModal() {
+    qs("closeScholarshipsModalBtn").addEventListener("click", closeModal);
+    qs("scholarshipForm").addEventListener("submit", saveScholarship);
+    qs("assignScholarshipForm").addEventListener("submit", assignScholarship);
+    qs("assignScholarshipStudentSearch").addEventListener("input", () => {
+    scholarshipStudentSearch = qs("assignScholarshipStudentSearch").value.trim().toLowerCase();
+    renderScholarshipSelects();
+    });
+    qs("openScholarshipsHelpBtn").addEventListener("click", openScholarshipsHelpModal);
+    qs("assignScholarshipStudentId").addEventListener("change", async () => {
+        selectedScholarshipStudentId = qs("assignScholarshipStudentId").value || null;
+        await loadStudentScholarships(selectedScholarshipStudentId);
+        renderStudentScholarships();
+    });
+    qs("scholarshipAssignmentsSearch").addEventListener("input", () => {
+    scholarshipAssignmentsSearch = qs("scholarshipAssignmentsSearch").value.trim().toLowerCase();
+    renderScholarshipAssignments();
+    });
+    qs("scholarshipsSearch").addEventListener("input", () => {
+    scholarshipsSearch = qs("scholarshipsSearch").value.trim().toLowerCase();
+    renderScholarshipsList();
+    });
+}
+
+function renderScholarshipsModalData() {
+    renderScholarshipsList();
+    renderScholarshipSelects();
+
+    const today = new Date().toISOString().slice(0, 10);
+    qs("assignScholarshipStartDate").value = today;
+
+    selectedScholarshipStudentId = qs("assignScholarshipStudentId").value || null;
+
+    if (selectedScholarshipStudentId) {
+        loadStudentScholarships(selectedScholarshipStudentId).then(renderStudentScholarships);
+    } else {
+        renderStudentScholarships();
+    }
+    renderScholarshipAssignments();
+}
+
+function renderScholarshipAssignments() {
+    const list = qs("scholarshipAssignmentsList");
+    if (!list) return;
+
+    const filtered = [...scholarshipAssignments]
+        .filter(item => {
+            const text = [
+                item.studentFullName,
+                item.studentEmail,
+                item.studentDni,
+                item.scholarshipName,
+                item.courseName,
+                item.isGlobal ? "global todos cursos" : ""
+            ].join(" ").toLowerCase();
+
+            return !scholarshipAssignmentsSearch || text.includes(scholarshipAssignmentsSearch);
+        })
+        .sort((a, b) => {
+            if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+            return (a.studentFullName || "").localeCompare(b.studentFullName || "");
+        });
+
+    if (!filtered.length) {
+        list.innerHTML = `
+            <p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                No se encontraron becas otorgadas.
+            </p>
+        `;
+        return;
+    }
+
+    list.innerHTML = `
+        <div class="mb-2 flex items-center justify-between">
+            <p class="text-sm font-semibold text-slate-900">Total otorgadas</p>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                ${filtered.length}
+            </span>
+        </div>
+
+        ${filtered.map(item => `
+            <div class="rounded-2xl border border-slate-200 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-medium text-slate-900">${escapeHtml(item.studentFullName)}</p>
+                        <p class="mt-1 text-sm text-slate-500">
+                            ${escapeHtml(item.scholarshipName)}
+                            · ${escapeHtml(scholarshipValueLabel(item))}
+                        </p>
+                        <p class="mt-1 text-xs text-slate-500">
+                            ${item.isGlobal ? "Global - todos sus cursos" : escapeHtml(item.courseName || "Curso específico")}
+                        </p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            Desde ${formatDateOnly(item.startDateUtc)} hasta ${item.endDateUtc ? formatDateOnly(item.endDateUtc) : "sin fin"}
+                        </p>
+                        ${item.studentEmail ? `<p class="mt-1 text-xs text-slate-400">${escapeHtml(item.studentEmail)}</p>` : ""}
+                        ${item.studentDni ? `<p class="mt-1 text-xs text-slate-400">DNI: ${escapeHtml(item.studentDni)}</p>` : ""}
+                    </div>
+
+                    <div class="shrink-0">
+                        ${item.isActive
+                            ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Activa</span>`
+                            : `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Inactiva</span>`
+                        }
+                    </div>
+                </div>
+
+                ${item.isActive
+                    ? `
+                        <button
+                            type="button"
+                            data-id="${item.id}"
+                            class="deactivate-assignment-btn mt-3 w-full rounded-2xl border border-rose-300 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                        >
+                            Desactivar beca
+                        </button>
+                    `
+                    : ""
+                }
+            </div>
+        `).join("")}
+    `;
+
+    list.querySelectorAll(".deactivate-assignment-btn").forEach(btn => {
+        btn.addEventListener("click", () => deactivateStudentScholarship(btn.dataset.id));
+    });
+}
+
+function renderScholarshipSelects() {
+    const orderedScholarships = [...scholarships]
+        .filter(x => x.isActive)
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    qs("assignScholarshipId").innerHTML = orderedScholarships.length
+        ? `
+            <option value="">Seleccionar beca</option>
+            ${orderedScholarships.map(item => `
+                <option value="${item.id}">
+                    ${escapeHtml(item.name)} - ${escapeHtml(scholarshipValueLabel(item))}
+                </option>
+            `).join("")}
+        `
+        : `<option value="">No hay becas activas</option>`;
+
+    const filteredStudents = [...scholarshipStudents]
+        .filter(item => {
+            const text = [
+                item.firstName,
+                item.lastName,
+                item.fullName,
+                item.email,
+                item.dni,
+                item.memberNumber
+            ].join(" ").toLowerCase();
+
+            return !scholarshipStudentSearch || text.includes(scholarshipStudentSearch);
+        })
+        .sort((a, b) => {
+            const an = `${a.lastName || ""} ${a.firstName || ""}`;
+            const bn = `${b.lastName || ""} ${b.firstName || ""}`;
+            return an.localeCompare(bn);
+        });
+
+    qs("assignScholarshipStudentId").innerHTML = filteredStudents.length
+        ? `
+            <option value="">Seleccionar alumno</option>
+            ${filteredStudents.map(item => `
+                <option value="${item.id}">
+                    ${escapeHtml(item.fullName || `${item.lastName || ""}, ${item.firstName || ""}`)}
+                    ${item.email ? ` - ${escapeHtml(item.email)}` : ""}
+                    ${item.dni ? ` - DNI ${escapeHtml(item.dni)}` : ""}
+                </option>
+            `).join("")}
+        `
+        : `<option value="">No se encontraron alumnos</option>`;
+
+    const orderedCourses = [...courses].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    qs("assignScholarshipCourseId").innerHTML = `
+        <option value="">Todos sus cursos - Beca Global</option>
+        ${orderedCourses.map(course => `
+            <option value="${course.id}">
+                ${escapeHtml(course.name)}${course.isActive ? "" : " (Inactivo)"}
+            </option>
+        `).join("")}
+    `;
+}
+
+function renderScholarshipsList() {
+    const list = qs("scholarshipsList");
+
+    const filtered = [...scholarships]
+        .filter(item => {
+            const text = [
+                item.name,
+                scholarshipTypeLabel(item.discountType),
+                scholarshipValueLabel(item),
+                item.isActive ? "activa" : "inactiva"
+            ].join(" ").toLowerCase();
+
+            return !scholarshipsSearch || text.includes(scholarshipsSearch);
+        })
+        .sort((a, b) => {
+            if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+            return (a.name || "").localeCompare(b.name || "");
+        });
+
+    if (!filtered.length) {
+        list.innerHTML = `<p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No se encontraron becas.</p>`;
+        return;
+    }
+
+    list.innerHTML = `
+        <div class="mb-2 flex items-center justify-between">
+            <p class="text-sm font-semibold text-slate-900">Becas creadas</p>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                ${filtered.length}
+            </span>
+        </div>
+
+        <div class="max-h-[320px] space-y-3 overflow-y-auto pr-1">
+            <div class="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+            ${filtered.map(item => `
+                <div class="rounded-2xl border border-slate-200 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-medium text-slate-900">${escapeHtml(item.name)}</p>
+                            <p class="mt-1 text-sm text-slate-500">
+                                ${escapeHtml(scholarshipTypeLabel(item.discountType))}: ${escapeHtml(scholarshipValueLabel(item))}
+                            </p>
+                        </div>
+
+                        ${item.isActive
+                            ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Activa</span>`
+                            : `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Inactiva</span>`
+                        }
+                    </div>
+                </div>
+            `).join("")}
+            </div>
+        </div>
+    `;
+}
+
+function renderStudentScholarships() {
+    const list = qs("studentScholarshipsList");
+
+    if (!selectedScholarshipStudentId) {
+        list.innerHTML = `<p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Seleccioná un alumno para ver sus becas asignadas.</p>`;
+        return;
+    }
+
+    const selectedStudent = scholarshipStudents.find(x => x.id === selectedScholarshipStudentId);
+    const studentName = selectedStudent?.fullName
+        || `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim()
+        || "Alumno";
+
+    if (!selectedStudentScholarships.length) {
+        list.innerHTML = `
+            <div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                <p class="font-medium text-slate-700">${escapeHtml(studentName)}</p>
+                <p class="mt-1">Este alumno todavía no tiene becas asignadas.</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = `
+        <div class="mb-2">
+            <p class="text-sm font-semibold text-slate-900">${escapeHtml(studentName)}</p>
+            <p class="text-xs text-slate-500">Becas asignadas al alumno</p>
+        </div>
+
+        ${selectedStudentScholarships.map(item => `
+            <div class="rounded-2xl border border-slate-200 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-medium text-slate-900">${escapeHtml(item.scholarshipName)}</p>
+                        <p class="mt-1 text-sm text-slate-500">
+                            ${item.isGlobal ? "Global - todos sus cursos" : escapeHtml(item.courseName || "Curso específico")}
+                            · ${escapeHtml(scholarshipTypeLabel(item.discountType))}
+                            · ${escapeHtml(scholarshipValueLabel(item))}
+                        </p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            Desde ${formatDateOnly(item.startDateUtc)} hasta ${item.endDateUtc ? formatDateOnly(item.endDateUtc) : "sin fin"}
+                        </p>
+                        ${item.notes ? `<p class="mt-2 text-xs text-slate-500">${escapeHtml(item.notes)}</p>` : ""}
+                    </div>
+
+                    <button
+                        type="button"
+                        data-id="${item.id}"
+                        class="deactivate-student-scholarship-btn rounded-2xl border border-rose-300 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        ${!item.isActive ? "disabled" : ""}
+                    >
+                        ${item.isActive ? "Desactivar" : "Inactiva"}
+                    </button>
+                </div>
+            </div>
+        `).join("")}
+    `;
+
+    list.querySelectorAll(".deactivate-student-scholarship-btn").forEach(btn => {
+        btn.addEventListener("click", () => deactivateStudentScholarship(btn.dataset.id));
+    });
+}
+
+function formatDateOnly(date) {
+    if (!date) return "-";
+
+    try {
+        return new Date(date).toLocaleDateString("es-AR");
+    } catch {
+        return "-";
+    }
+}
+
+function setScholarshipLoading(loading) {
+    isSavingScholarship = loading;
+
+    qs("scholarshipName").disabled = loading;
+    qs("scholarshipDiscountType").disabled = loading;
+    qs("scholarshipDiscountValue").disabled = loading;
+    qs("scholarshipIsActive").disabled = loading;
+    qs("saveScholarshipBtn").disabled = loading;
+
+    qs("saveScholarshipBtn").textContent = loading ? "Guardando..." : "Guardar beca";
+}
+
+function setAssignScholarshipLoading(loading) {
+    isAssigningScholarship = loading;
+
+    qs("assignScholarshipStudentId").disabled = loading;
+    qs("assignScholarshipId").disabled = loading;
+    qs("assignScholarshipCourseId").disabled = loading;
+    qs("assignScholarshipStartDate").disabled = loading;
+    qs("assignScholarshipEndDate").disabled = loading;
+    qs("assignScholarshipNotes").disabled = loading;
+    qs("assignScholarshipBtn").disabled = loading;
+
+    qs("assignScholarshipBtn").textContent = loading ? "Asignando..." : "Asignar beca";
+}
+
+function validateScholarshipForm() {
+    clearFieldError("scholarshipError");
+
+    const name = qs("scholarshipName").value.trim();
+    const type = Number(qs("scholarshipDiscountType").value);
+    const value = Number(qs("scholarshipDiscountValue").value);
+
+    if (!name) {
+        showFieldError("scholarshipError", "El nombre es obligatorio.");
+        return false;
+    }
+
+    if (!value || value <= 0) {
+        showFieldError("scholarshipError", "El valor debe ser mayor a cero.");
+        return false;
+    }
+
+    if (type === 1 && value > 100) {
+        showFieldError("scholarshipError", "El porcentaje no puede superar el 100%.");
+        return false;
+    }
+
+    return true;
+}
+
+function validateAssignScholarshipForm() {
+    clearFieldError("assignScholarshipError");
+
+    if (!qs("assignScholarshipStudentId").value) {
+        showFieldError("assignScholarshipError", "Seleccioná un alumno.");
+        return false;
+    }
+
+    if (!qs("assignScholarshipId").value) {
+        showFieldError("assignScholarshipError", "Seleccioná una beca.");
+        return false;
+    }
+
+    if (!qs("assignScholarshipStartDate").value) {
+        showFieldError("assignScholarshipError", "Indicá la fecha de inicio.");
+        return false;
+    }
+
+    const start = qs("assignScholarshipStartDate").value;
+    const end = qs("assignScholarshipEndDate").value;
+
+    if (end && end < start) {
+        showFieldError("assignScholarshipError", "La fecha de fin no puede ser menor al inicio.");
+        return false;
+    }
+
+    return true;
+}
+
+function openScholarshipsHelpModal() {
+    setModal(`
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-semibold text-slate-900">¿Cómo funcionan las becas?</h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Las becas sirven para aplicar descuentos individuales a alumnos.
+                        </p>
+                    </div>
+
+                    <button
+                        id="closeScholarshipsHelpBtn"
+                        type="button"
+                        class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+
+                <div class="mt-6 space-y-4 text-sm text-slate-600">
+                    <div class="rounded-2xl bg-slate-50 p-4">
+                        <p class="font-semibold text-slate-900">1. Crear tipo de beca</p>
+                        <p class="mt-1">
+                            Primero creás una beca base. Por ejemplo: <strong>Beca 50%</strong> o
+                            <strong>Beca $10.000</strong>.
+                        </p>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-50 p-4">
+                        <p class="font-semibold text-slate-900">2. Asignarla a un alumno</p>
+                        <p class="mt-1">
+                            Después elegís el alumno y la beca que querés aplicar.
+                        </p>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-50 p-4">
+                        <p class="font-semibold text-slate-900">3. Global o por curso</p>
+                        <p class="mt-1">
+                            Si dejás el curso vacío, la beca aplica a todos los cursos del alumno.
+                            Si elegís un curso, aplica solo a ese curso.
+                        </p>
+                    </div>
+
+                    <div class="rounded-2xl bg-amber-50 p-4 text-amber-800">
+                        <p class="font-semibold">Importante</p>
+                        <p class="mt-1">
+                            Por ahora esta pantalla solo crea y asigna becas. El impacto en cuotas lo conectamos después,
+                            para hacerlo seguro y no romper el cálculo actual.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+
+    qs("closeScholarshipsHelpBtn").addEventListener("click", openScholarshipsModal);
+}
+
+async function saveScholarship(event) {
+    event.preventDefault();
+
+    if (isSavingScholarship) return;
+    if (!validateScholarshipForm()) return;
+
+    const payload = {
+        name: qs("scholarshipName").value.trim(),
+        discountType: Number(qs("scholarshipDiscountType").value),
+        discountValue: Number(qs("scholarshipDiscountValue").value),
+        isActive: qs("scholarshipIsActive").checked
+    };
+
+    try {
+        setScholarshipLoading(true);
+
+        await post(`/api/admin/${company.slug}/scholarships`, payload);
+
+        await loadScholarships();
+
+        qs("scholarshipForm").reset();
+        qs("scholarshipIsActive").checked = true;
+
+        renderScholarshipsList();
+        renderScholarshipSelects();
+        renderStats();
+
+        showPageMessage("La beca se creó correctamente.");
+    } catch (error) {
+        showFieldError("scholarshipError", error.message || "No se pudo guardar la beca.");
+    } finally {
+        setScholarshipLoading(false);
+    }
+}
+
+async function assignScholarship(event) {
+    event.preventDefault();
+
+    if (isAssigningScholarship) return;
+    if (!validateAssignScholarshipForm()) return;
+
+    const startDate = qs("assignScholarshipStartDate").value;
+    const endDate = qs("assignScholarshipEndDate").value;
+
+    const payload = {
+        studentId: qs("assignScholarshipStudentId").value,
+        courseId: qs("assignScholarshipCourseId").value || null,
+        scholarshipId: qs("assignScholarshipId").value,
+        startDateUtc: `${startDate}T00:00:00.000Z`,
+        endDateUtc: endDate ? `${endDate}T00:00:00.000Z` : null,
+        notes: qs("assignScholarshipNotes").value.trim() || null
+    };
+
+    try {
+        setAssignScholarshipLoading(true);
+
+        await post(`/api/admin/${company.slug}/scholarships/assign`, payload);
+
+        selectedScholarshipStudentId = payload.studentId;
+        await loadStudentScholarships(selectedScholarshipStudentId);
+        await loadScholarshipAssignments();
+
+        qs("assignScholarshipCourseId").value = "";
+        qs("assignScholarshipId").value = "";
+        qs("assignScholarshipEndDate").value = "";
+        qs("assignScholarshipNotes").value = "";
+
+        renderStudentScholarships();
+        renderScholarshipAssignments();
+        renderStats();
+
+        showPageMessage("La beca se asignó correctamente.");
+    } catch (error) {
+        showFieldError("assignScholarshipError", error.message || "No se pudo asignar la beca.");
+    } finally {
+        setAssignScholarshipLoading(false);
+    }
+}
+
+async function deactivateStudentScholarship(id) {
+    if (!id) return;
+
+    try {
+        await put(`/api/admin/${company.slug}/scholarships/student-scholarships/${id}/deactivate`, {});
+
+        await loadStudentScholarships(selectedScholarshipStudentId);
+        await loadScholarshipAssignments();
+        renderStudentScholarships();
+        renderScholarshipAssignments();
+        renderStats();
+
+        showPageMessage("La beca del alumno se desactivó correctamente.");
+    } catch (error) {
+        showPageMessage(error.message || "No se pudo desactivar la beca.", "error");
+    }
 }
 
 function renderSiblings() {
@@ -1340,7 +2229,11 @@ async function loadAllData() {
         loadPaymentSettings(),
         loadCoursePricings(),
         loadLatePaymentConfigs(),
-        loadSiblingDiscounts()
+        loadSiblingDiscounts(),
+        loadScholarships(),
+        loadScholarshipStudents(),
+        loadScholarshipAssignments(),
+        loadPaymentMethods()
     ]);
 
     renderAll();
@@ -1476,6 +2369,186 @@ function validateSiblingForm() {
 function validateTransferForm() {
     clearFieldError("transferSettingsError");
     return true;
+}
+
+function openPaymentMethodsModal() {
+    setModal(`
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div class="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-semibold text-slate-900">Medios de pago</h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Configurá qué medios verá el alumno y si aplican recargo.
+                        </p>
+                    </div>
+
+                    <button
+                        id="closePaymentMethodsModalBtn"
+                        type="button"
+                        class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+
+                <form id="paymentMethodsForm" class="mt-6 space-y-4">
+                    ${paymentMethods.map(item => `
+                        <section class="rounded-3xl border border-slate-200 p-4">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h4 class="font-semibold text-slate-900">${escapeHtml(item.paymentMethodName)}</h4>
+                                    <p class="text-xs text-slate-500">
+                                        ${item.enabledBySuperAdmin ? "Habilitado por SuperAdmin" : "No disponible"}
+                                    </p>
+                                </div>
+
+                                <label class="flex items-center gap-2 text-sm text-slate-700">
+                                    <span>Activo para alumnos</span>
+                                    <input
+                                        type="checkbox"
+                                        class="payment-method-enabled h-5 w-5"
+                                        data-id="${escapeHtml(item.id)}"
+                                        ${item.isEnabledByAdmin ? "checked" : ""}
+                                        ${!item.enabledBySuperAdmin ? "disabled" : ""}
+                                    />
+                                </label>
+                            </div>
+
+                            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Tipo de recargo</label>
+                                    <select
+                                        class="payment-method-surcharge-type w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                                        data-id="${escapeHtml(item.id)}"
+                                        ${!item.enabledBySuperAdmin ? "disabled" : ""}
+                                    >
+                                        <option value="None" ${String(item.surchargeType).toLowerCase() === "none" || Number(item.surchargeType) === 0 ? "selected" : ""}>Sin recargo</option>
+                                        <option value="Percentage" ${String(item.surchargeType).toLowerCase() === "percentage" || Number(item.surchargeType) === 1 ? "selected" : ""}>Porcentaje</option>
+                                        <option value="FixedAmount" ${String(item.surchargeType).toLowerCase() === "fixedamount" || Number(item.surchargeType) === 2 ? "selected" : ""}>Monto fijo</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Valor</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="payment-method-surcharge-value w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                                        data-id="${escapeHtml(item.id)}"
+                                        value="${Number(item.surchargeValue || 0)}"
+                                        ${!item.enabledBySuperAdmin ? "disabled" : ""}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Alias</label>
+                                    <input
+                                        type="text"
+                                        class="payment-method-alias w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                                        data-id="${escapeHtml(item.id)}"
+                                        value="${escapeHtml(item.alias || "")}"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">CBU / CVU</label>
+                                    <input
+                                        type="text"
+                                        class="payment-method-cbu w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                                        data-id="${escapeHtml(item.id)}"
+                                        value="${escapeHtml(item.cbu || "")}"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Titular</label>
+                                    <input
+                                        type="text"
+                                        class="payment-method-holder w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                                        data-id="${escapeHtml(item.id)}"
+                                        value="${escapeHtml(item.holderName || "")}"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">Instrucciones</label>
+                                    <textarea
+                                        class="payment-method-instructions w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                                        data-id="${escapeHtml(item.id)}"
+                                        rows="2"
+                                    >${escapeHtml(item.instructions || "")}</textarea>
+                                </div>
+                            </div>
+                        </section>
+                    `).join("")}
+
+                    <p id="paymentMethodsError" class="hidden text-sm text-rose-600"></p>
+
+                    <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                        <button
+                            id="cancelPaymentMethodsBtn"
+                            type="button"
+                            class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            id="savePaymentMethodsBtn"
+                            type="submit"
+                            class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                            Guardar medios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `);
+
+    qs("closePaymentMethodsModalBtn").addEventListener("click", closeModal);
+    qs("cancelPaymentMethodsBtn").addEventListener("click", closeModal);
+    qs("paymentMethodsForm").addEventListener("submit", submitPaymentMethods);
+}
+
+async function submitPaymentMethods(event) {
+    event.preventDefault();
+
+    if (isSavingPaymentMethods) return;
+
+    const payload = paymentMethods.map(item => {
+        const id = item.id;
+
+        return {
+            companyPaymentMethodId: id,
+            isEnabledByAdmin: document.querySelector(`.payment-method-enabled[data-id="${id}"]`)?.checked === true,
+            surchargeType: document.querySelector(`.payment-method-surcharge-type[data-id="${id}"]`)?.value || "None",
+            surchargeValue: Number(document.querySelector(`.payment-method-surcharge-value[data-id="${id}"]`)?.value || 0),
+            alias: document.querySelector(`.payment-method-alias[data-id="${id}"]`)?.value?.trim() || null,
+            cbu: document.querySelector(`.payment-method-cbu[data-id="${id}"]`)?.value?.trim() || null,
+            holderName: document.querySelector(`.payment-method-holder[data-id="${id}"]`)?.value?.trim() || null,
+            instructions: document.querySelector(`.payment-method-instructions[data-id="${id}"]`)?.value?.trim() || null
+        };
+    });
+
+    try {
+        isSavingPaymentMethods = true;
+        qs("savePaymentMethodsBtn").disabled = true;
+        qs("savePaymentMethodsBtn").textContent = "Guardando...";
+
+        await savePaymentMethods(payload);
+        await loadPaymentMethods();
+
+        renderStats();
+        closeModal();
+        showPageMessage("Los medios de pago se guardaron correctamente.");
+    } catch (error) {
+        showFieldError("paymentMethodsError", error.message || "No se pudieron guardar los medios de pago.");
+    } finally {
+        isSavingPaymentMethods = false;
+    }
 }
 
 async function saveSettings(event) {
@@ -1776,7 +2849,7 @@ async function init() {
     qs("lateFeeForm").addEventListener("submit", saveLateFee);
     qs("siblingsForm").addEventListener("submit", saveSibling);
     qs("transferSettingsForm").addEventListener("submit", saveTransferSettings);
-
+    qs("openPaymentMethodsBtn").addEventListener("click", openPaymentMethodsModal);
     qs("cancelPricingEditBtn").addEventListener("click", resetPricingForm);
     qs("cancelLateFeeEditBtn").addEventListener("click", resetLateFeeForm);
     qs("cancelSiblingEditBtn").addEventListener("click", resetSiblingForm);
@@ -1784,6 +2857,7 @@ async function init() {
     qs("editSettingsBtn").addEventListener("click", startSettingsEdit);
     qs("cancelSettingsEditBtn").addEventListener("click", cancelSettingsEdit);
     qs("settingsNewStudentRespectOriginalDueDateForLateFee").addEventListener("change", toggleGraceDaysVisibility);
+    qs("openScholarshipsBtn").addEventListener("click", openScholarshipsModal);
 
     await loadAllData();
     resetPricingForm();

@@ -20,6 +20,11 @@ import {
     getActiveCompany,
     setActiveCompany
 } from "../../../shared/js/storage.js";
+import {
+    buildStudentSidebar,
+    bindStudentLayoutEvents
+} from "../../../shared/js/student-layout.js";
+import { initTheme, applyThemePreference } from "../../../shared/js/theme.js";
 
 
 let session = null;
@@ -119,19 +124,32 @@ function getInitials(text) {
     return parts.map(x => x.charAt(0).toUpperCase()).join("");
 }
 
+function normalizeRequestStatus(status) {
+    const raw = String(status ?? "").trim().toLowerCase();
+
+    if (raw === "1" || raw === "pending") return "Pending";
+    if (raw === "2" || raw === "documentrequested" || raw === "documentationrequested") return "DocumentRequested";
+    if (raw === "3" || raw === "inreview") return "InReview";
+    if (raw === "4" || raw === "approved") return "Approved";
+    if (raw === "5" || raw === "rejected") return "Rejected";
+    if (raw === "6" || raw === "cancelled" || raw === "canceled") return "Cancelled";
+
+    return "";
+}
+
 function getRequestStatusLabel(status) {
-    switch (Number(status)) {
-        case 1:
+    switch (normalizeRequestStatus(status)) {
+        case "Pending":
             return "Pendiente";
-        case 2:
+        case "DocumentRequested":
             return "Documentación solicitada";
-        case 3:
+        case "InReview":
             return "En revisión";
-        case 4:
+        case "Approved":
             return "Aprobada";
-        case 5:
+        case "Rejected":
             return "Rechazada";
-        case 6:
+        case "Cancelled":
             return "Cancelada";
         default:
             return "Desconocido";
@@ -139,21 +157,21 @@ function getRequestStatusLabel(status) {
 }
 
 function getRequestStatusClasses(status) {
-    switch (Number(status)) {
-        case 1:
-            return "bg-amber-50 text-amber-700";
-        case 2:
-            return "bg-orange-50 text-orange-700";
-        case 3:
-            return "bg-sky-50 text-sky-700";
-        case 4:
-            return "bg-emerald-50 text-emerald-700";
-        case 5:
-            return "bg-rose-50 text-rose-700";
-        case 6:
-            return "bg-slate-100 text-slate-700";
+    switch (normalizeRequestStatus(status)) {
+        case "Pending":
+            return "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300";
+        case "DocumentRequested":
+            return "bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300";
+        case "InReview":
+            return "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300";
+        case "Approved":
+            return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300";
+        case "Rejected":
+            return "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300";
+        case "Cancelled":
+            return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
         default:
-            return "bg-slate-100 text-slate-700";
+            return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
     }
 }
 
@@ -163,14 +181,14 @@ function buildCompanyLogo(size = "h-14 w-14", rounded = "rounded-2xl") {
 
     if (!logoUrl) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 text-xs font-bold text-slate-700 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
     }
 
     return `
-        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm">
+        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-sm">
             <img
                 src="${escapeHtml(logoUrl)}"
                 alt="Logo empresa"
@@ -228,101 +246,19 @@ function buildPersonAvatar(name, imageUrl, size = "h-12 w-12") {
     `;
 }
 
-function navLink(label, href, active = false) {
-    return `
-        <a
-            href="${href}"
-            class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
-            }"
-        >
-            ${escapeHtml(label)}
-        </a>
-    `;
-}
-
-function buildSidebar() {
-    return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
-            <div class="border-b border-slate-200 px-5 py-5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Alumno
-                </div>
-
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
-                    ${escapeHtml(getStudentFullName() || "—")}
-                </div>
-
-                ${
-                    getStudentEmail()
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
-                        : ""
-                }
-            </div>
-
-<nav class="flex-1 space-y-2 px-4 py-4">
-    ${navLink("Inicio", "/src/pages/student/home/index.html")}
-
-    ${
-        company?.modules?.courses !== false
-            ? navLink("Cursos", "/src/pages/student/courses/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.payments === true
-            ? navLink("Pagos", "/src/pages/student/payments/index.html")
-            : ""
-    }
-
-    ${
-        company?.modules?.documents === true
-            ? navLink("Documentos", "/src/pages/student/documents/index.html")
-            : ""
-    }
-
-    ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-
-    ${
-        company?.modules?.siblings !== false
-            ? navLink("Hermanos", "/src/pages/student/siblings/index.html", true)
-            : ""
-    }
-
-    ${
-        company?.modules?.clothing === true
-            ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
-            : ""
-    }
-</nav>
-            <div class="mt-auto border-t border-slate-200 px-4 py-4">
-                <button
-                    id="logoutBtn"
-                    type="button"
-                    class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                    Cerrar sesión
-                </button>
-            </div>
-        </aside>
-    `;
-}
-
 function buildMobileHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
             <div class="flex items-center justify-between px-4 py-3">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getCompanyName() || "Mi club")}
                         </div>
 
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(getStudentFullName() || "Alumno")}
                         </div>
                     </div>
@@ -359,7 +295,7 @@ function buildMobileBottomNav() {
 
 function buildTopBar() {
     return `
-        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:block">
+        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-14 w-14")}
@@ -369,13 +305,13 @@ function buildTopBar() {
                             Empresa
                         </div>
 
-                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getCompanyName() || "—")}
                         </h1>
                     </div>
                 </div>
 
-                <div class="hidden rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 md:inline-flex">
+                <div class="hidden rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200 md:inline-flex">
                     Hermanos
                 </div>
             </div>
@@ -385,46 +321,46 @@ function buildTopBar() {
 
 function buildHeroCard() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between dark:text-white">
                 <div class="min-w-0">
                     <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                         Gestión familiar
                     </div>
 
-                    <h2 class="mt-1 truncate text-2xl font-bold text-slate-900">
+                    <h2 class="mt-1 truncate text-2xl font-bold text-slate-900 dark:text-white">
                         Hermanos vinculados
                     </h2>
 
-                    <p class="mt-2 text-sm text-slate-500">
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                         Buscá alumnos, enviá solicitudes de vinculación y seguí el estado de cada gestión.
                     </p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 px-4 py-3">
                         <div class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                             Hermanos
                         </div>
-                        <div class="mt-2 text-xl font-bold text-slate-900">
+                        <div class="mt-2 text-xl font-bold text-slate-900 dark:text-white">
                             ${siblings.length}
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 px-4 py-3">
                         <div class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                             Solicitudes
                         </div>
-                        <div class="mt-2 text-xl font-bold text-slate-900">
+                        <div class="mt-2 text-xl font-bold text-slate-900 dark:text-white">
                             ${requests.length}
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 col-span-2 sm:col-span-1">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 px-4 py-3 col-span-2 sm:col-span-1">
                         <div class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                             Pendientes
                         </div>
-                        <div class="mt-2 text-xl font-bold text-slate-900">
+                        <div class="mt-2 text-xl font-bold text-slate-900 dark:text-white">
                             ${requests.filter(x => Number(x.status) === 1 || Number(x.status) === 2 || Number(x.status) === 3).length}
                         </div>
                     </div>
@@ -437,25 +373,25 @@ function buildHeroCard() {
 function buildSearchResults() {
     if (!searchResults.length) {
         return `
-            <div id="searchResults" class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white"></div>
+            <div id="searchResults" class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"></div>
         `;
     }
 
     return `
-        <div id="searchResults" class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div id="searchResults" class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             ${searchResults.map(item => `
                 <button
                     type="button"
-                    class="search-result-item flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 last:border-b-0"
+                    class="search-result-item flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800 last:border-b-0"
                     data-id="${item.studentId}"
                 >
                     <div class="flex min-w-0 items-center gap-3">
                         ${buildPersonAvatar(item.fullName, item.profileImageUrl, "h-11 w-11")}
                         <div class="min-w-0">
-                            <div class="truncate text-sm font-semibold text-slate-900">
+                            <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(item.fullName)}
                             </div>
-                            <div class="truncate text-xs text-slate-500">
+                            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                                 ${escapeHtml(item.dni || "-")}
                                 ${item.memberNumber ? ` · Socio #${escapeHtml(item.memberNumber)}` : ""}
                             </div>
@@ -480,20 +416,20 @@ function buildSearchResults() {
 function buildSelectedStudentBox() {
     if (!selectedStudent) {
         return `
-            <div id="selectedStudentBox" class="hidden rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"></div>
+            <div id="selectedStudentBox" class="hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 px-4 py-4"></div>
         `;
     }
 
     return `
-        <div id="selectedStudentBox" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+        <div id="selectedStudentBox" class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 px-4 py-4">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildPersonAvatar(selectedStudent.fullName, selectedStudent.profileImageUrl, "h-12 w-12")}
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(selectedStudent.fullName)}
                         </div>
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(selectedStudent.dni || "-")}
                             ${selectedStudent.memberNumber ? ` · Socio #${escapeHtml(selectedStudent.memberNumber)}` : ""}
                         </div>
@@ -503,7 +439,7 @@ function buildSelectedStudentBox() {
                 <button
                     id="clearSelectedStudentBtn"
                     type="button"
-                    class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-white"
+                    class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                     Quitar
                 </button>
@@ -514,17 +450,17 @@ function buildSelectedStudentBox() {
 
 function buildCreateRequestSection() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Solicitar vínculo</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Solicitar vínculo</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Buscá otro alumno por nombre, apellido o DNI para enviar una solicitud de vinculación de hermanos.
                 </p>
             </div>
 
             <div class="space-y-4">
                 <div>
-                    <label for="searchStudentInput" class="mb-1 block text-sm font-medium text-slate-700">
+                    <label for="searchStudentInput" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                         Buscar alumno
                     </label>
 
@@ -532,7 +468,7 @@ function buildCreateRequestSection() {
     id="searchStudentInput"
     type="text"
     value="${escapeHtml(searchTerm)}"
-    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
     placeholder="Ej: Juan Pérez o 40111222"
 />
                 </div>
@@ -541,14 +477,14 @@ function buildCreateRequestSection() {
                 ${buildSelectedStudentBox()}
 
                 <div>
-                    <label for="requestNote" class="mb-1 block text-sm font-medium text-slate-700">
+                    <label for="requestNote" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                         Nota para la solicitud
                     </label>
 
                     <textarea
                         id="requestNote"
                         rows="4"
-                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                         placeholder="Podés agregar una aclaración para el administrador."
                     ></textarea>
                 </div>
@@ -559,7 +495,7 @@ function buildCreateRequestSection() {
                     <button
                         id="createRequestBtn"
                         type="button"
-                        class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        class="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-slate-100 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                         ${selectedStudent && !selectedStudent.alreadySibling && !selectedStudent.hasPendingRequest ? "" : "disabled"}
                     >
                         ${isCreatingRequest ? "Enviando..." : "Enviar solicitud"}
@@ -568,7 +504,7 @@ function buildCreateRequestSection() {
                     <button
                         id="clearSearchBtn"
                         type="button"
-                        class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                         Limpiar
                     </button>
@@ -580,10 +516,10 @@ function buildCreateRequestSection() {
 
 function buildSiblingsSection() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Mis hermanos</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Mis hermanos</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Alumnos que ya están vinculados dentro de tu grupo familiar.
                 </p>
             </div>
@@ -591,21 +527,21 @@ function buildSiblingsSection() {
             ${
                 !siblings.length
                     ? `
-                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
                             Todavía no tenés hermanos vinculados.
                         </div>
                     `
                     : `
                         <div class="grid gap-4 md:grid-cols-2">
                             ${siblings.map(item => `
-                                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <article class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                                     <div class="flex items-center gap-3">
                                         ${buildPersonAvatar(item.fullName, item.profileImageUrl)}
                                         <div class="min-w-0">
-                                            <div class="truncate text-sm font-semibold text-slate-900">
+                                            <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                                                 ${escapeHtml(item.fullName)}
                                             </div>
-                                            <div class="truncate text-xs text-slate-500">
+                                            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                                                 DNI: ${escapeHtml(item.dni || "-")}
                                             </div>
                                         </div>
@@ -621,10 +557,10 @@ function buildSiblingsSection() {
 
 function buildRequestsSection() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
             <div class="mb-5">
-                <h2 class="text-lg font-semibold text-slate-900">Mis solicitudes</h2>
-                <p class="mt-1 text-sm text-slate-500">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Mis solicitudes</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Seguimiento de solicitudes enviadas o recibidas.
                 </p>
             </div>
@@ -632,14 +568,14 @@ function buildRequestsSection() {
             ${
                 !requests.length
                     ? `
-                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">
                             Todavía no hay solicitudes registradas.
                         </div>
                     `
                     : `
                         <div class="space-y-4">
                             ${requests.map(item => `
-                                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <article class="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800 p-4">
                                     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div class="space-y-3">
                                             <div class="flex flex-wrap items-center gap-2">
@@ -647,27 +583,27 @@ function buildRequestsSection() {
                                                     ${escapeHtml(getRequestStatusLabel(item.status))}
                                                 </span>
 
-                                                <span class="text-xs text-slate-500">
+                                                <span class="text-xs text-slate-500 dark:text-slate-400">
                                                     ${escapeHtml(formatDate(item.createdAtUtc))}
                                                 </span>
                                             </div>
 
-                                            <div class="text-sm text-slate-700">
-                                                <span class="font-semibold text-slate-900">Solicita:</span>
+                                            <div class="text-sm text-slate-700 dark:text-slate-200">
+                                                <span class="font-semibold text-slate-900 dark:text-white">Solicita:</span>
                                                 ${escapeHtml(item.requestedByStudentFullName || "-")}
-                                                <span class="text-slate-500">(${escapeHtml(item.requestedByDni || "-")})</span>
+                                                <span class="text-slate-500 dark:text-slate-300">(${escapeHtml(item.requestedByDni || "-")})</span>
                                             </div>
 
-                                            <div class="text-sm text-slate-700">
-                                                <span class="font-semibold text-slate-900">Destino:</span>
+                                            <div class="text-sm text-slate-700 dark:text-slate-200">
+                                                <span class="font-semibold text-slate-900 dark:text-white">Destino:</span>
                                                 ${escapeHtml(item.targetStudentFullName || "-")}
-                                                <span class="text-slate-500">(${escapeHtml(item.targetDni || "-")})</span>
+                                                <span class="text-slate-500 dark:text-slate-300">(${escapeHtml(item.targetDni || "-")})</span>
                                             </div>
 
                                             ${
                                                 item.note
                                                     ? `
-                                                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                                                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
                                                             ${escapeHtml(item.note)}
                                                         </div>
                                                     `
@@ -678,7 +614,7 @@ function buildRequestsSection() {
                                         <div class="flex shrink-0 flex-wrap gap-2">
                                         <button
                                             type="button"
-                                            class="openRequestDetailBtn inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                                            class="openRequestDetailBtn inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-slate-100 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                                             data-id="${escapeHtml(item.id)}"
                                         >
                                             Ver detalle
@@ -703,12 +639,12 @@ function openRequestDetail(requestId) {
 
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando sección de hermanos...</div>
+                        <div class="rounded-[28px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-6 shadow-sm">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Cargando sección de hermanos...</div>
                         </div>
                     </div>
                 </main>
@@ -719,13 +655,13 @@ function buildLoading() {
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm">
-                            <div class="text-base font-semibold text-slate-900">No se pudo cargar la sección.</div>
-                            <div class="mt-2 text-sm text-slate-500">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
+                        <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm dark:border-rose-900 dark:bg-slate-900">
+                            <div class="text-base font-semibold text-slate-900 dark:text-white">No se pudo cargar la sección.</div>
+                            <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(pageError || "Ocurrió un error inesperado.")}</div>
                         </div>
                     </div>
                 </main>
@@ -736,12 +672,16 @@ function buildError() {
 
 function buildPage() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             ${buildMobileHeader()}
             ${buildMobileMenu()}
 
             <div class="flex min-h-screen">
-                ${buildSidebar()}
+                ${buildStudentSidebar({
+                    company,
+                    student,
+                    activeItem: "siblings"
+                })}
 
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 pb-[190px] sm:px-6 lg:px-8 md:pb-6">
@@ -917,6 +857,7 @@ function clearSearchState() {
 }
 
 function bindEvents() {
+    bindStudentLayoutEvents();
 bindStudentMobileShellEvents({
     setMobileMenuOpen: (value) => {
         mobileMenuOpen = !!value;
@@ -998,6 +939,7 @@ document.querySelectorAll("#logoutBtn").forEach(btn => {
 }
 
 async function init() {
+    initTheme();
     try {
         await loadConfig();
         session = requireAuth();
@@ -1030,6 +972,7 @@ if (!company) {
             loadSiblings(),
             loadRequests()
         ]);
+        applyThemePreference(student?.themePreference || "system");
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información.";
     } finally {

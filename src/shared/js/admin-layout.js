@@ -41,7 +41,9 @@ function getMenu(activeKey, activeCompany = null) {
     { key: "sponsors", label: "Sponsors", href: "/src/pages/admin/sponsors/index.html", enabled: hasModule(activeCompany, "sponsors")},
     { key: "clothing", label: "Indumentaria", href: "/src/pages/admin/clothing/index.html", enabled: hasModule(activeCompany, "clothing")},
     { key: "company-settings", label: "Mi empresa", href: "/src/pages/admin/company-settings/index.html", enabled: true },
-    { key: "profile", label: "Mi perfil", href: "/src/pages/admin/profile/index.html", enabled: true }
+    { key: "profile", label: "Mi perfil", href: "/src/pages/admin/profile/index.html", enabled: true },
+    { key: "tournaments", label: "Torneos", href: "/src/pages/admin/tournaments/index.html", enabled: hasModule(activeCompany, "tournaments")},
+    { key: "sports-teams", label: "Equipos deportivos", href: "/src/pages/admin/teams/index.html", enabled: hasModule(activeCompany, "tournaments")},
   ];
 
   return items
@@ -289,8 +291,16 @@ if (
     } else {
       selector.innerHTML = companies
         .map(company => `
-          <option value="${company.slug}" ${company.slug === activeCompany?.slug ? "selected" : ""}>
-            ${company.name}
+          <option 
+            value="${company.slug}::${company.role}" 
+            ${
+              company.slug === activeCompany?.slug &&
+              company.role === activeCompany?.role
+                ? "selected"
+                : ""
+            }
+          >
+            ${company.name} — ${company.role}
           </option>
         `)
         .join("");
@@ -300,18 +310,46 @@ if (
       let lastCompanySlug = activeCompany?.slug || "";
 
 selector.addEventListener("change", async (event) => {
-  const nextSlug = event.target.value;
+  const [nextSlug, nextRole] = event.target.value.split("::");
 
   // evita reload fantasma
-  if (nextSlug === lastCompanySlug) {
+  let lastAccessKey =
+  `${activeCompany?.slug || ""}::${activeCompany?.role || ""}`;
+
+  const nextAccessKey = `${nextSlug}::${nextRole}`;
+
+  if (nextAccessKey === lastAccessKey) {
     return;
   }
 
+  lastAccessKey = nextAccessKey;
+
   lastCompanySlug = nextSlug;
 
-  const selected = changeActiveAdminCompany(companies, nextSlug);
+  const selected = companies.find(x =>
+    x.slug === nextSlug &&
+    x.role === nextRole
+  );
 
   if (!selected) return;
+
+  localStorage.setItem(
+  "classclick_active_company_slug",
+  nextSlug
+);
+
+localStorage.setItem(
+  "classclick_active_role",
+  nextRole
+);
+
+localStorage.setItem(
+  "classclick_active_context",
+  JSON.stringify({
+    companySlug: nextSlug,
+    role: nextRole
+  })
+);
 
   fillBrand("adminSidebarBrand", selected);
   fillBrand("adminMobileBrand", selected);
@@ -321,11 +359,27 @@ selector.addEventListener("change", async (event) => {
     activeCompanyText.textContent = `${selected.name} · ${selected.slug}`;
   }
 
+if (
+  window.location.pathname.includes("/src/pages/admin/tournaments/detail")
+) {
+  window.location.href = "/src/pages/admin/tournaments/index.html";
+  return;
+}
+
+if (nextRole === "Student") {
+  window.location.href = "/src/pages/student/home/index.html";
+  return;
+}
+
+if (nextRole === "Admin") {
   if (typeof onCompanyChanged === "function") {
     await onCompanyChanged(selected);
   } else {
-    window.location.reload();
+    window.location.href = "/src/pages/admin/dashboard/index.html";
   }
+
+  return;
+}
 
   closeMobileMenu();
 });

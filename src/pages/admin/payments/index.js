@@ -9,6 +9,8 @@ let currentPayments = [];
 let currentSelectedPayment = null;
 let currentProofSubmissions = [];
 let currentSelectedSubmission = null;
+let currentCourses = [];
+let currentPaymentMethods = [];
 
 function money(value) {
   const n = Number(value || 0);
@@ -31,43 +33,77 @@ function formatDateTime(value) {
   }).format(d);
 }
 
-function paymentMethodLabel(value) {
-  if (Number(value) === 1) return "Efectivo";
-  if (Number(value) === 2) return "Transferencia";
-  return "-";
+function paymentMethodLabel(value, fallbackName = null) {
+  if (fallbackName) return fallbackName;
+
+  const found = currentPaymentMethods.find(
+    x => String(x.paymentMethod).toLowerCase() === String(value).toLowerCase()
+  );
+
+  return found?.paymentMethodName || found?.name || found?.displayName || "-";
 }
 
 function paymentStatusLabel(value) {
-  const status = Number(value);
+  const normalized = String(value ?? "").toLowerCase();
 
-  if (status === 1) return "Pendiente";
-  if (status === 2) return "En revisión";
-  if (status === 3) return "Aprobado";
-  if (status === 4) return "Rechazado";
+  if (normalized === "1" || normalized === "pending") return "Pendiente";
+  if (normalized === "2" || normalized === "inreview" || normalized === "in_review") return "En revisión";
+  if (normalized === "3" || normalized === "approved") return "Aprobado";
+  if (normalized === "4" || normalized === "rejected") return "Rechazado";
 
   return "-";
 }
 
 function paymentStatusBadge(value) {
-  const status = Number(value);
+  const normalized = String(value ?? "").toLowerCase();
 
-  if (status === 1) {
+  if (normalized === "1" || normalized === "pending") {
     return `<span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">Pendiente</span>`;
   }
 
-  if (status === 2) {
+  if (normalized === "2" || normalized === "inreview" || normalized === "in_review") {
     return `<span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">En revisión</span>`;
   }
 
-  if (status === 3) {
+  if (normalized === "3" || normalized === "approved") {
     return `<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Aprobado</span>`;
   }
 
-  if (status === 4) {
+  if (normalized === "4" || normalized === "rejected") {
     return `<span class="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Rechazado</span>`;
   }
 
   return `<span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">-</span>`;
+}
+
+function renderPaymentExtras(item) {
+  const badges = [];
+
+  if (item.hasScholarship || Number(item.scholarshipDiscountAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">🎓 Beca</span>`);
+  }
+
+  if (item.hasSiblingDiscount || Number(item.siblingDiscountAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">👥 Hermanos</span>`);
+  }
+
+  if (item.hasPromotion || Number(item.promotionAmount || item.promotionDiscountAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">🏷️ Promo</span>`);
+  }
+
+  if (Number(item.lateChargeAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">⏰ Mora</span>`);
+  }
+
+  if (Number(item.paymentMethodSurchargeAmount || 0) > 0) {
+    badges.push(`<span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">💳 Recargo</span>`);
+  }
+
+  if (!badges.length) {
+    return `<span class="text-xs text-slate-400">—</span>`;
+  }
+
+  return `<div class="flex flex-wrap gap-1.5">${badges.join("")}</div>`;
 }
 
 function showMessage(message, type = "success") {
@@ -149,12 +185,9 @@ function buildContent() {
 
           <div>
             <label for="filterCourseQuery" class="mb-1 block text-sm font-medium text-slate-700">Curso</label>
-            <input
-              id="filterCourseQuery"
-              type="text"
-              placeholder="Nombre del curso"
-              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500"
-            />
+            <select id="filterCourseId" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500">
+              <option value="">Todos</option>
+            </select>
           </div>
 
           <div>
@@ -171,8 +204,6 @@ function buildContent() {
             <label for="filterPaymentMethod" class="mb-1 block text-sm font-medium text-slate-700">Método</label>
             <select id="filterPaymentMethod" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500">
               <option value="">Todos</option>
-              <option value="1">Efectivo</option>
-              <option value="2">Transferencia</option>
             </select>
           </div>
 
@@ -183,6 +214,16 @@ function buildContent() {
               <option value="2">En revisión</option>
               <option value="3">Aprobado</option>
               <option value="4">Rechazado</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="filterChargeType" class="mb-1 block text-sm font-medium text-slate-700">Tipo de cuota</label>
+            <select id="filterChargeType" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500">
+              <option value="">Todas</option>
+              <option value="scholarship">Con beca</option>
+              <option value="promotion">Con promoción</option>
+              <option value="normal">Normal</option>
             </select>
           </div>
         </div>
@@ -212,6 +253,7 @@ function buildContent() {
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Período</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Monto</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Método</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Adicionales</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Pagado</th>
                 <th class="px-4 py-3"></th>
@@ -259,13 +301,7 @@ function buildContent() {
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h4 class="text-sm font-semibold text-slate-900">Detalle de la cuota</h4>
 
-              <div class="mt-3 space-y-2 text-sm text-slate-700">
-                <p><span class="font-semibold">Clases por semana:</span> <span id="detailClassesPerWeek">-</span></p>
-                <p><span class="font-semibold">Precio base:</span> <span id="detailBasePrice">-</span></p>
-                <p><span class="font-semibold">Descuento hermano:</span> <span id="detailSiblingDiscount">-</span></p>
-                <p><span class="font-semibold">Recargo mora:</span> <span id="detailLateCharge">-</span></p>
-                <p><span class="font-semibold">Monto final:</span> <span id="detailFinalAmount">-</span></p>
-                <p><span class="font-semibold">Vencimiento:</span> <span id="detailDueDate">-</span></p>
+              <div id="paymentCalculationDetail" class="mt-3 space-y-2 text-sm text-slate-700">
               </div>
             </div>
 
@@ -355,15 +391,36 @@ function buildContent() {
   `;
 }
 
+async function loadCourses() {
+  if (!currentCompany?.slug) {
+    currentCourses = [];
+    return;
+  }
+
+  const courses = await get(`/api/admin/${currentCompany.slug}/dashboard/courses/options`);
+
+  currentCourses = Array.isArray(courses) ? courses : [];
+
+  const select = document.getElementById("filterCourseId");
+  if (!select) return;
+
+  select.innerHTML = `
+    <option value="">Todos</option>
+    ${currentCourses.map(course => `
+      <option value="${escapeHtml(course.id)}">${escapeHtml(course.name || "-")}</option>
+    `).join("")}
+  `;
+}
+
 function renderHeaderStats() {
   document.getElementById("paymentsHeaderText").textContent =
     currentCompany ? `${currentCompany.name} · ${currentCompany.slug}` : "Sin empresa activa";
 
   document.getElementById("heroPaymentsCount").textContent = String(currentPayments.length);
   document.getElementById("heroInReviewCount").textContent =
-    String(currentPayments.filter(x => Number(x.paymentStatus) === 2).length);
+    String(currentPayments.filter(x => ["2", "inreview", "in_review"].includes(String(x.paymentStatus ?? "").toLowerCase())).length);
   document.getElementById("heroApprovedCount").textContent =
-    String(currentPayments.filter(x => Number(x.paymentStatus) === 3).length);
+    String(currentPayments.filter(x => ["3", "approved"].includes(String(x.paymentStatus ?? "").toLowerCase())).length);
 }
 
 function normalizeText(value) {
@@ -376,15 +433,15 @@ function formatPeriod(item) {
 
 function applyFilters(items) {
   const studentQuery = normalizeText(document.getElementById("filterStudentQuery").value);
-  const courseQuery = normalizeText(document.getElementById("filterCourseQuery").value);
+  const courseId = document.getElementById("filterCourseId").value;
   const period = normalizeText(document.getElementById("filterPeriod").value);
   const paymentMethod = document.getElementById("filterPaymentMethod").value;
   const paymentStatus = document.getElementById("filterPaymentStatus").value;
+  const chargeType = document.getElementById("filterChargeType").value;
 
   return items.filter(item => {
     const studentName = normalizeText(item.studentFullName);
     const studentDni = normalizeText(item.studentDni);
-    const courseName = normalizeText(item.courseName);
     const itemPeriod = normalizeText(formatPeriod(item));
 
     if (studentQuery) {
@@ -394,10 +451,22 @@ function applyFilters(items) {
       if (!matchesName && !matchesDni) return false;
     }
 
-    if (courseQuery && !courseName.includes(courseQuery)) return false;
+    if (courseId && String(item.courseId) !== courseId) return false;
     if (period && itemPeriod !== period) return false;
     if (paymentMethod && String(item.paymentMethod) !== paymentMethod) return false;
-    if (paymentStatus && String(item.paymentStatus) !== paymentStatus) return false;
+    if (paymentStatus) {
+      const status = String(item.paymentStatus ?? "").toLowerCase();
+
+      const matches =
+        (paymentStatus === "2" && ["2", "inreview", "in_review"].includes(status)) ||
+        (paymentStatus === "3" && ["3", "approved"].includes(status)) ||
+        (paymentStatus === "4" && ["4", "rejected"].includes(status));
+
+      if (!matches) return false;
+    }
+    if (chargeType === "scholarship" && !item.hasScholarship) return false;
+    if (chargeType === "promotion" && !item.hasPromotion) return false;
+    if (chargeType === "normal" && (item.hasScholarship || item.hasPromotion)) return false;
 
     return true;
   });
@@ -412,7 +481,7 @@ function renderPaymentsTable() {
   if (!filtered.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">
+        <td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">
           No se encontraron pagos.
         </td>
       </tr>
@@ -426,7 +495,8 @@ function renderPaymentsTable() {
       <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(item.courseName || "-")}</td>
       <td class="px-4 py-3 text-sm text-slate-600">${formatPeriod(item)}</td>
       <td class="px-4 py-3 text-sm font-semibold text-slate-900">${money(item.amount)}</td>
-      <td class="px-4 py-3 text-sm text-slate-600">${paymentMethodLabel(item.paymentMethod)}</td>
+      <td class="px-4 py-3 text-sm text-slate-600">${paymentMethodLabel(item.paymentMethod, item.paymentMethodNameSnapshot)}</td>
+      <td class="px-4 py-3 text-sm">${renderPaymentExtras(item)}</td>
       <td class="px-4 py-3 text-sm">${paymentStatusBadge(item.paymentStatus)}</td>
       <td class="px-4 py-3 text-sm text-slate-600">${formatDateTime(item.paidAtUtc)}</td>
       <td class="px-4 py-3 text-right">
@@ -452,11 +522,34 @@ async function loadPayments() {
     return;
   }
 
+  currentPaymentMethods =
+  await get(`/api/admin/${currentCompany.slug}/payment-methods`);
+  renderPaymentMethodsFilter();
   hideMessage();
+
+  await loadCourses();
 
   currentPayments = await get(`/api/admin/${currentCompany.slug}/payments`);
   renderHeaderStats();
   renderPaymentsTable();
+}
+
+function renderPaymentMethodsFilter() {
+  const select = document.getElementById("filterPaymentMethod");
+  if (!select) return;
+
+  select.innerHTML = `
+    <option value="">Todos</option>
+
+    ${currentPaymentMethods
+      .filter(x => x.enabledBySuperAdmin)
+      .map(x => `
+        <option value="${escapeHtml(x.paymentMethod)}">
+          ${escapeHtml(x.paymentMethodName || x.name || x.displayName || "-")}
+        </option>
+      `)
+      .join("")}
+  `;
 }
 
 function renderProofPreviewEmpty(message = "Sin comprobante disponible") {
@@ -519,6 +612,82 @@ function renderProofSubmissions() {
   });
 }
 
+function renderPaymentCalculationDetail(payment) {
+  const basePrice = Number(payment.basePrice || 0);
+  const siblingDiscount = Number(payment.siblingDiscountAmount || 0);
+  const siblingPercent = Number(payment.siblingDiscountPercent || 0);
+  const scholarshipDiscount = Number(payment.scholarshipDiscountAmount || 0);
+  const scholarshipValue = Number(payment.scholarshipDiscountValue || 0);
+  const lateCharge = Number(payment.lateChargeAmount || 0);
+  const manualDiscount = Number(payment.manualDiscountAmount || 0);
+  const manualIncrease = Number(payment.manualIncreaseAmount || 0);
+  const finalAmount = Number(payment.finalAmount || payment.amount || 0);
+  const surcharge = Number(payment.paymentMethodSurchargeAmount || 0);
+  const totalPaid = Number(payment.finalAmountPaid || payment.amount || finalAmount || 0);
+  const methodName = payment.paymentMethodNameSnapshot || paymentMethodLabel(payment.paymentMethod);
+
+  return `
+    <div class="space-y-2">
+      <div class="flex justify-between">
+        <span class="text-slate-500">Precio base</span>
+        <span class="font-semibold text-slate-900">${money(basePrice)}</span>
+      </div>
+
+      ${siblingDiscount > 0 ? `
+        <div class="flex justify-between text-rose-500">
+          <span>Descuento hermano ${siblingPercent > 0 ? `(${siblingPercent}%)` : ""}</span>
+          <span class="font-semibold">-${money(siblingDiscount)}</span>
+        </div>
+      ` : ""}
+
+      ${scholarshipDiscount > 0 ? `
+        <div class="flex justify-between text-rose-500">
+          <span>Beca ${payment.scholarshipName ? `(${escapeHtml(payment.scholarshipName)})` : ""} ${scholarshipValue > 0 ? `(${scholarshipValue}%)` : ""}</span>
+          <span class="font-semibold">-${money(scholarshipDiscount)}</span>
+        </div>
+      ` : ""}
+
+      ${manualDiscount > 0 ? `
+        <div class="flex justify-between text-rose-500">
+          <span>Descuento manual</span>
+          <span class="font-semibold">-${money(manualDiscount)}</span>
+        </div>
+      ` : ""}
+
+      ${lateCharge > 0 ? `
+        <div class="flex justify-between text-amber-700">
+          <span>Recargo mora</span>
+          <span class="font-semibold">+${money(lateCharge)}</span>
+        </div>
+      ` : ""}
+
+      ${manualIncrease > 0 ? `
+        <div class="flex justify-between text-amber-700">
+          <span>Ajuste manual</span>
+          <span class="font-semibold">+${money(manualIncrease)}</span>
+        </div>
+      ` : ""}
+
+      <div class="flex justify-between border-t border-slate-200 pt-2">
+        <span class="font-semibold text-slate-900">Monto final cuota</span>
+        <span class="font-bold text-slate-900">${money(finalAmount)}</span>
+      </div>
+
+      ${surcharge > 0 ? `
+        <div class="flex justify-between text-amber-700">
+          <span>Recargo por ${escapeHtml(methodName)}</span>
+          <span class="font-semibold">+${money(surcharge)}</span>
+        </div>
+
+        <div class="flex justify-between rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
+          <span class="font-bold text-emerald-700">Total pagado</span>
+          <span class="font-black text-emerald-700">${money(totalPaid)}</span>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
 function fillPaymentDetail(payment) {
   document.getElementById("paymentDetailSubtitle").textContent =
     `${payment.studentFullName} · ${payment.courseName}`;
@@ -526,31 +695,25 @@ function fillPaymentDetail(payment) {
   document.getElementById("detailStudentFullName").textContent = payment.studentFullName || "-";
   document.getElementById("detailCourseName").textContent = payment.courseName || "-";
   document.getElementById("detailPeriod").textContent = formatPeriod(payment);
-  document.getElementById("detailAmount").textContent = money(payment.amount);
-  document.getElementById("detailMethod").textContent = paymentMethodLabel(payment.paymentMethod);
+  document.getElementById("detailAmount").textContent = money(payment.finalAmountPaid || payment.amount);
+  document.getElementById("detailMethod").textContent =
+    payment.paymentMethodNameSnapshot || paymentMethodLabel(payment.paymentMethod);
+
   document.getElementById("detailStatus").innerHTML = paymentStatusBadge(payment.paymentStatus);
   document.getElementById("detailPaidAt").textContent = formatDateTime(payment.paidAtUtc);
   document.getElementById("detailReviewedAt").textContent = formatDateTime(payment.reviewedAtUtc);
   document.getElementById("detailReviewNote").textContent = payment.reviewNote || "-";
   document.getElementById("approveReviewNote").value = payment.reviewNote || "";
 
-  document.getElementById("detailClassesPerWeek").textContent = payment.classesPerWeek ?? "-";
-  document.getElementById("detailBasePrice").textContent = payment.basePrice != null ? money(payment.basePrice) : "-";
-  document.getElementById("detailSiblingDiscount").textContent =
-    payment.siblingDiscountAmount != null
-      ? `${money(payment.siblingDiscountAmount)} (${Number(payment.siblingDiscountPercent || 0)}%)`
-      : "-";
-  document.getElementById("detailLateCharge").textContent =
-    payment.lateChargeAmount != null ? money(payment.lateChargeAmount) : "-";
-  document.getElementById("detailFinalAmount").textContent =
-    payment.finalAmount != null ? money(payment.finalAmount) : money(payment.amount);
-  document.getElementById("detailDueDate").textContent =
-    payment.dueDateUtc ? formatDateTime(payment.dueDateUtc) : "-";
+const calculationContainer = document.getElementById("paymentCalculationDetail");
+  if (calculationContainer) {
+    calculationContainer.innerHTML = renderPaymentCalculationDetail(payment);
+  }
 
-  const isTransfer = Number(payment.paymentMethod) === 2;
+  const isTransfer = String(payment.paymentMethod).toLowerCase() === "transfer";
 
   if (!isTransfer) {
-    renderProofPreviewEmpty("Este pago no tiene comprobante porque fue registrado en efectivo.");
+    renderProofPreviewEmpty("Este pago no tiene comprobante.");
     return;
   }
 
@@ -573,7 +736,7 @@ function closeModal() {
 }
 
 async function openProofViewer() {
-  if (!currentSelectedPayment || Number(currentSelectedPayment.paymentMethod) !== 2) {
+  if (!currentSelectedPayment || String(currentSelectedPayment.paymentMethod).toLowerCase() !== "transfer") {
     showMessage("Solo los pagos por transferencia tienen comprobante.", "error");
     return;
   }
@@ -667,7 +830,7 @@ function closeProofViewer() {
 }
 
 async function renderSelectedSubmissionPreview() {
-  if (!currentSelectedPayment || Number(currentSelectedPayment.paymentMethod) !== 2) {
+  if (!currentSelectedPayment || String(currentSelectedPayment.paymentMethod).toLowerCase() !== "transfer") {
     renderProofPreviewEmpty("Este pago no tiene comprobante porque fue registrado en efectivo.");
     return;
   }
@@ -765,10 +928,16 @@ function syncModalButtons() {
   if (!approveButton || !rejectButton || !viewButton || !downloadLink || !currentSelectedPayment) return;
 
   const isApproved = Number(currentSelectedPayment.paymentStatus) === 3;
-  const isTransfer = Number(currentSelectedPayment.paymentMethod) === 2;
+  const isTransfer = String(currentSelectedPayment.paymentMethod).toLowerCase() === "transfer";
+const submissionStatus = String(currentSelectedSubmission?.status ?? "").toLowerCase();
+
 const hasSubmissionInReview =
   currentSelectedSubmission &&
-  Number(currentSelectedSubmission.status) === 2;
+  (
+    Number(currentSelectedSubmission.status) === 2 ||
+    submissionStatus === "inreview" ||
+    submissionStatus === "in_review"
+  );
 
 approveButton.disabled = !hasSubmissionInReview;
 rejectButton.disabled = !isTransfer || !hasSubmissionInReview;
@@ -788,7 +957,15 @@ async function loadProofSubmissions(paymentId) {
     await get(`/api/admin/${currentCompany.slug}/payments/${paymentId}/proof-submissions`);
 
   currentSelectedSubmission =
-    currentProofSubmissions.find(x => Number(x.status) === 2)
+    currentProofSubmissions.find(x => {
+      const status = String(x.status ?? "").toLowerCase();
+
+      return (
+        Number(x.status) === 2 ||
+        status === "inreview" ||
+        status === "in_review"
+      );
+    })
     || currentProofSubmissions[0]
     || null;
 
@@ -810,7 +987,7 @@ async function openPaymentDetail(paymentId) {
   syncModalButtons();
   openModal();
 
-  const isTransfer = Number(payment.paymentMethod) === 2;
+  const isTransfer = String(payment.paymentMethod).toLowerCase() === "transfer";
 
   if (!isTransfer) {
     renderProofPreviewEmpty("Este pago no tiene comprobante porque fue registrado en efectivo.");
@@ -821,7 +998,15 @@ async function openPaymentDetail(paymentId) {
     const items = await get(`/api/admin/${currentCompany.slug}/payments/${paymentId}/proof-submissions`);
     currentProofSubmissions = Array.isArray(items) ? items : [];
     currentSelectedSubmission =
-      currentProofSubmissions.find(x => Number(x.status) === 2)
+      currentProofSubmissions.find(x => {
+        const status = String(x.status ?? "").toLowerCase();
+
+        return (
+          Number(x.status) === 2 ||
+          status === "inreview" ||
+          status === "in_review"
+        );
+      })
       || currentProofSubmissions[0]
       || null;
 
@@ -880,10 +1065,11 @@ function bindEvents() {
     .getElementById("clearPaymentsFiltersButton")
     .addEventListener("click", () => {
       document.getElementById("filterStudentQuery").value = "";
-      document.getElementById("filterCourseQuery").value = "";
+      document.getElementById("filterCourseId").value = "";
       document.getElementById("filterPeriod").value = "";
       document.getElementById("filterPaymentMethod").value = "";
       document.getElementById("filterPaymentStatus").value = "";
+      document.getElementById("filterChargeType").value = "";
 
       renderPaymentsTable();
     });

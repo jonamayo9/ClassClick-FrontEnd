@@ -66,6 +66,34 @@
         </div>
       </div>
 
+      <div class="card mb-6 p-4 sm:p-5">
+  <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h3 class="text-lg font-bold text-slate-900">
+        Vinculación entre empresas
+      </h3>
+      <p class="mt-1 text-sm text-slate-500">
+        Definí qué empresas pueden verse e invitarse entre sí para torneos.
+      </p>
+    </div>
+
+    <button
+      id="openCompanyLinkModalButton"
+      type="button"
+      class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black">
+      Nueva vinculación
+    </button>
+  </div>
+
+  <div id="companyLinksError" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+  <div id="companyLinksEmpty" class="hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+    Todavía no hay empresas vinculadas.
+  </div>
+
+  <div id="companyLinksList" class="grid gap-3 md:grid-cols-2"></div>
+</div>
+
       <div class="card p-4 sm:p-5">
         <div class="mb-5">
           <label for="searchInput" class="label">Buscar</label>
@@ -330,6 +358,21 @@
             </div>
             </div>
 
+            <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="mb-3">
+                <h3 class="text-sm font-bold text-slate-900">
+                  Medios de pago habilitados
+                </h3>
+            
+                <p class="mt-1 text-xs text-slate-500">
+                  Definí qué medios podrá configurar esta empresa.
+                </p>
+              </div>
+            
+              <div id="superAdminPaymentMethodsList" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              </div>
+            </div>
+
             <div id="companyFormError" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
 
             <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -409,6 +452,60 @@
       Estado
     </button>
   </div>
+
+  <div id="companyLinkModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-slate-900/60"></div>
+
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Nueva vinculación</h3>
+          <p class="mt-1 text-sm text-slate-500">
+            Seleccioná dos empresas. La relación funciona en ambos sentidos.
+          </p>
+        </div>
+
+        <button
+          id="closeCompanyLinkModalButton"
+          type="button"
+          class="rounded-xl p-2 text-slate-500 hover:bg-slate-100">
+          ✕
+        </button>
+      </div>
+
+      <div class="space-y-4 p-5">
+        <div>
+          <label class="label" for="companyLinkSourceInput">Empresa A</label>
+          <select id="companyLinkSourceInput" class="input"></select>
+        </div>
+
+        <div>
+          <label class="label" for="companyLinkTargetInput">Empresa B</label>
+          <select id="companyLinkTargetInput" class="input"></select>
+        </div>
+
+        <div id="companyLinkFormError" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            id="cancelCompanyLinkModalButton"
+            type="button"
+            class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Cancelar
+          </button>
+
+          <button
+            id="saveCompanyLinkButton"
+            type="button"
+            class="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+            Vincular empresas
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
   <script type="module" src="/src/pages/superadmin/companies/index.js"></script>
 </body>

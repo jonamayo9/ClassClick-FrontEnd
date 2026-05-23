@@ -18,7 +18,9 @@ export function mapAdmin(admin) {
     systemRole: admin.systemRole ?? "",
     isActive: !!admin.isActive,
     createdAtUtc: admin.createdAtUtc ?? null,
-    companies: Array.isArray(admin.companies) ? admin.companies.map(mapAdminCompany) : []
+    companies: Array.isArray(admin.companies)
+      ? admin.companies.map(mapAdminCompany)
+      : [],
   };
 }
 

@@ -63,31 +63,35 @@ async function resolveRedirect(result) {
   const companies = result.companies || [];
 
   if (user.isSuperAdmin) {
-    return "/src/pages/superadmin/dashboard/index.html";
+    return {
+      redirectUrl: "/src/pages/superadmin/dashboard/index.html"
+    };
   }
 
   if (!companies.length) {
-    return "/src/pages/auth/no-company.html";
+    return {
+      redirectUrl: "/src/pages/auth/no-company.html"
+    };
   }
 
-  const role = companies[0].role;
-  const slug = companies[0].companySlug;
+const access =
+  companies.find(x => x.role === "Admin") ||
+  companies[0];
 
-  if (role === "Admin") {
-    return "/src/pages/admin/dashboard/index.html";
+if (access) {
+
+    return {
+      redirectUrl:
+        access.role === "Admin"
+          ? "/src/pages/admin/dashboard/index.html"
+          : "/src/pages/student/home/index.html",
+      selectedAccess: access
+    };
   }
 
-  if (role === "Student") {
-    const status = await get(`/api/student/${slug}/registration/status`);
-
-    if (!status.registrationCompleted) {
-      return "/src/pages/student/registration/index.html";
-    }
-
-    return "/src/pages/student/home/index.html";
-  }
-
-  return "/src/pages/auth/no-company.html";
+  return {
+    redirectUrl: "/src/pages/auth/select-access/index.html"
+  };
 }
 
 async function init() {
@@ -138,7 +142,19 @@ async function init() {
         throw new Error("Ingresá email y contraseña.");
       }
 
-      const result = await login(email, password);
+    const result = await login(email, password);
+    const redirectResult = await resolveRedirect(result);
+
+    if (redirectResult.selectedAccess) {
+      localStorage.setItem(
+        "classclick_active_context",
+        JSON.stringify({
+          companySlug: redirectResult.selectedAccess.companySlug,
+          role: redirectResult.selectedAccess.role
+        })
+      );
+    }
+
       const session = getSession();
 
       if (!session.token) {
@@ -147,7 +163,7 @@ async function init() {
 
       ensurePushEnabled(session.token);
 
-      const redirectUrl = await resolveRedirect(result);
+      const redirectUrl = redirectResult.redirectUrl;
 
       if (!redirectUrl) {
         throw new Error("No se pudo resolver la pantalla inicial del usuario.");

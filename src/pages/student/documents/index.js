@@ -21,6 +21,11 @@ import {
     getActiveCompany,
     setActiveCompany
 } from "../../../shared/js/storage.js";
+import {
+    buildStudentSidebar,
+    bindStudentLayoutEvents
+} from "../../../shared/js/student-layout.js";
+import { initTheme, applyThemePreference } from "../../../shared/js/theme.js";
 
 let session = null;
 let companySlug = null;
@@ -116,7 +121,7 @@ function buildCompanyLogo(size = "h-16 w-16", rounded = "rounded-2xl") {
 
     if (!logoUrl && !initials) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-400 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-400 shadow-sm">
                 —
             </div>
         `;
@@ -124,14 +129,14 @@ function buildCompanyLogo(size = "h-16 w-16", rounded = "rounded-2xl") {
 
     if (!logoUrl) {
         return `
-            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm">
+            <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 shadow-sm">
                 ${escapeHtml(initials)}
             </div>
         `;
     }
 
     return `
-        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm">
+        <div class="${size} ${rounded} flex shrink-0 items-center justify-center overflow-hidden border dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             <img
                 src="${escapeHtml(logoUrl)}"
                 alt="Logo empresa"
@@ -142,80 +147,19 @@ function buildCompanyLogo(size = "h-16 w-16", rounded = "rounded-2xl") {
     `;
 }
 
-function navLink(label, href, active = false) {
-    return `
-        <a
-            href="${href}"
-            class="flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100"
-            }"
-        >
-            ${escapeHtml(label)}
-        </a>
-    `;
-}
-
-function buildSidebar() {
-    return `
-        <aside class="hidden md:flex md:w-[220px] md:flex-col md:border-r md:border-slate-200 md:bg-white">
-            <div class="border-b border-slate-200 px-5 py-5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Alumno
-                </div>
-
-                <div class="mt-2 truncate text-base font-semibold text-slate-900">
-                    ${escapeHtml(getStudentFullName() || "—")}
-                </div>
-
-                ${
-                    getStudentEmail()
-                        ? `<div class="mt-1 truncate text-xs text-slate-500">${escapeHtml(getStudentEmail())}</div>`
-                        : ""
-                }
-            </div>
-
-<nav class="flex-1 space-y-2 px-4 py-4">
-    ${navLink("Inicio", "/src/pages/student/home/index.html")}
-    ${navLink("Cursos", "/src/pages/student/courses/index.html")}
-    ${navLink("Pagos", "/src/pages/student/payments/index.html")}
-    ${navLink("Documentos", "/src/pages/student/documents/index.html", true)}
-    ${navLink("Perfil", "/src/pages/student/profile/index.html")}
-    ${navLink("Hermanos", "/src/pages/student/siblings/index.html")}
-
-    ${company?.isClothingEnabled === true
-        ? navLink("Indumentaria", "/src/pages/student/clothing/catalog/index.html")
-        : ""
-    }
-</nav>
-
-            <div class="mt-auto border-t border-slate-200 px-4 py-4">
-                <button
-                    id="logoutBtn"
-                    type="button"
-                    class="flex w-full items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                    Cerrar sesión
-                </button>
-            </div>
-        </aside>
-    `;
-}
-
 function buildMobileHeader() {
     return `
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white md:hidden">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
             <div class="flex items-center justify-between px-4 py-3">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-11 w-11", "rounded-2xl")}
 
                     <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold text-slate-900">
+                        <div class="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             ${escapeHtml(getCompanyName() || "Mi club")}
                         </div>
 
-                        <div class="truncate text-xs text-slate-500">
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                             ${escapeHtml(getStudentFullName() || "Alumno")}
                         </div>
                     </div>
@@ -240,7 +184,7 @@ function buildMobileBottomNav() {
 
 function buildTopBar() {
     return `
-        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:block">
+        <section class="hidden rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex min-w-0 items-center gap-3">
                     ${buildCompanyLogo("h-16 w-16")}
@@ -250,7 +194,7 @@ function buildTopBar() {
                             Empresa
                         </div>
 
-                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 sm:text-xl">
+                        <h1 class="mt-1 truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                             ${escapeHtml(getCompanyName() || "—")}
                         </h1>
                     </div>
@@ -289,11 +233,11 @@ function getStatusBadge(status) {
     const normalized = normalizeStatus(status);
 
     const map = {
-        Pending: "bg-amber-50 text-amber-700",
-        Submitted: "bg-blue-50 text-blue-700",
-        Approved: "bg-emerald-50 text-emerald-700",
-        Rejected: "bg-rose-50 text-rose-700",
-        Expired: "bg-slate-200 text-slate-700"
+        Pending: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+        Submitted: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+        Approved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+        Rejected: "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+        Expired: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
     };
 
     return `
@@ -337,13 +281,13 @@ function buildPreviewModal() {
 
             <div class="absolute inset-0 overflow-y-auto p-4">
                 <div class="mx-auto flex min-h-full max-w-6xl items-center justify-center">
-                    <div class="w-full rounded-[28px] bg-white shadow-2xl">
-                        <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                    <div class="w-full rounded-[28px] bg-white shadow-2xl dark:bg-slate-900">
+                        <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
                             <div class="min-w-0">
-                                <h3 class="truncate text-lg font-bold text-slate-900">
+                                <h3 class="truncate text-lg font-bold text-slate-900 dark:text-white">
                                     ${escapeHtml(previewFile.fileName || "Documento")}
                                 </h3>
-                                <p class="mt-1 text-sm text-slate-500">
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                     ${escapeHtml(previewFile.mimeType || "Vista previa")}
                                 </p>
                             </div>
@@ -352,7 +296,7 @@ function buildPreviewModal() {
                                 <button
                                     id="previewDownloadButton"
                                     type="button"
-                                    class="rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                                    class="rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                 >
                                     Descargar
                                 </button>
@@ -360,7 +304,7 @@ function buildPreviewModal() {
                                 <button
                                     id="closePreviewModalButton"
                                     type="button"
-                                    class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-300 text-slate-700 transition hover:bg-slate-50"
+                                    class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-300 text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                 >
                                     ✕
                                 </button>
@@ -373,13 +317,13 @@ function buildPreviewModal() {
                                     ? `
                                     <iframe
                                         src="${escapeHtml(previewFile.url)}"
-                                        class="h-[75vh] w-full rounded-2xl border border-slate-200"
+                                        class="h-[75vh] w-full rounded-2xl border border-slate-200 dark:border-slate-800"
                                         title="${escapeHtml(previewFile.fileName || "Documento")}"
                                     ></iframe>
                                     `
                                     : isImageFile(previewFile.mimeType, previewFile.fileName)
                                         ? `
-                                        <div class="flex max-h-[75vh] items-center justify-center overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <div class="flex max-h-[75vh] items-center justify-center overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800">
                                             <img
                                                 src="${escapeHtml(previewFile.url)}"
                                                 alt="${escapeHtml(previewFile.fileName || "Documento")}"
@@ -388,8 +332,8 @@ function buildPreviewModal() {
                                         </div>
                                         `
                                         : `
-                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center">
-                                            <p class="text-sm text-slate-600">
+                                        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-800 dark:bg-slate-800">
+                                            <p class="text-sm text-slate-600 dark:text-slate-300">
                                                 Este archivo no se puede previsualizar dentro de la página.
                                             </p>
                                             <p class="mt-2 text-sm text-slate-500">
@@ -418,23 +362,23 @@ function closePreviewModal() {
 
 function buildPageHeader() {
     return `
-        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                         Panel alumno
                     </div>
 
-                    <h2 class="mt-1 text-2xl font-bold text-slate-900">
+                    <h2 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
                         Mis documentos
                     </h2>
 
-                    <p class="mt-2 text-sm text-slate-500">
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                         Acá vas a poder ver la documentación solicitada, subir archivos y consultar su estado.
                     </p>
                 </div>
 
-                <div class="inline-flex w-fit rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
+                <div class="inline-flex w-fit rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     ${escapeHtml(getDocumentCountText())}
                 </div>
             </div>
@@ -451,10 +395,10 @@ function buildDocumentCard(doc) {
     const hasFile = !!doc.currentFileId;
 
     return `
-        <article class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:transition md:hover:-translate-y-0.5 md:hover:shadow-md">
+        <article class="rounded-[24px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm md:transition md:hover:-translate-y-0.5 md:hover:shadow-md">
             <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                    <h3 class="text-lg font-bold text-slate-900">
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">
                         ${escapeHtml(doc.documentTypeName || "Documento")}
                     </h3>
 
@@ -466,16 +410,16 @@ function buildDocumentCard(doc) {
                 ${
                     doc.isMandatory
                         ? `<span class="inline-flex shrink-0 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">Obligatorio</span>`
-                        : `<span class="inline-flex shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Opcional</span>`
+                        : `<span class="inline-flex shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Opcional</span>`
                 }
             </div>
 
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                         Fecha límite
                     </div>
-                    <div class="mt-1 text-base font-semibold text-slate-900">
+                    <div class="mt-1 text-base font-semibold text-slate-900 dark:text-white">
                         ${escapeHtml(formatDate(doc.dueDateUtc))}
                     </div>
                 </div>
@@ -483,21 +427,21 @@ function buildDocumentCard(doc) {
                 ${
                     doc.expirationDateUtc
                         ? `
-                        <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                                 Vencimiento
                             </div>
-                            <div class="mt-1 text-base font-semibold text-slate-900">
+                            <div class="mt-1 text-base font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(formatDate(doc.expirationDateUtc))}
                             </div>
                         </div>
                         `
                         : `
-                        <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                                 Archivo actual
                             </div>
-                            <div class="mt-1 truncate text-base font-semibold text-slate-900">
+                            <div class="mt-1 truncate text-base font-semibold text-slate-900 dark:text-white">
                                 ${hasFile ? escapeHtml(doc.currentFileName) : "—"}
                             </div>
                         </div>
@@ -508,11 +452,11 @@ function buildDocumentCard(doc) {
             ${
                 doc.requestNote
                     ? `
-                    <div class="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div class="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
                         <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Nota de la solicitud
                         </div>
-                        <p class="mt-2 text-sm leading-6 text-slate-600">
+                        <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                             ${escapeHtml(doc.requestNote)}
                         </p>
                     </div>
@@ -538,11 +482,11 @@ function buildDocumentCard(doc) {
             ${
                 hasFile
                     ? `
-                    <div class="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div class="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
                         <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Archivo cargado
                         </div>
-                        <div class="mt-2 truncate text-sm font-medium text-slate-700">
+                        <div class="mt-2 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
                             ${escapeHtml(doc.currentFileName)}
                         </div>
                     </div>
@@ -557,7 +501,7 @@ function buildDocumentCard(doc) {
                         <button
                             data-upload="${doc.assignmentId}"
                             type="button"
-                            class="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                            class="rounded-2xl bg-white px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-slate-100 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                         >
                             ${normalizedStatus === "Rejected" ? "Reemplazar archivo" : "Subir archivo"}
                         </button>
@@ -571,7 +515,7 @@ function buildDocumentCard(doc) {
                         <button
                             data-view="${doc.currentFileId}"
                             type="button"
-                            class="rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            class="rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                             Ver
                         </button>
@@ -579,7 +523,7 @@ function buildDocumentCard(doc) {
                         <button
                             data-download="${doc.currentFileId}"
                             type="button"
-                            class="rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            class="rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                             Descargar
                         </button>
@@ -590,7 +534,7 @@ function buildDocumentCard(doc) {
                 ${
                     normalizedStatus === "Submitted"
                         ? `
-                        <span class="text-sm font-medium text-slate-500">
+                        <span class="text-sm font-medium text-slate-500 dark:text-slate-400">
                             Esperando aprobación del administrador
                         </span>
                         `
@@ -614,12 +558,12 @@ function buildMobileMenu() {
 function buildDocumentsSection() {
     if (!documents.length) {
         return `
-            <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div class="text-lg font-semibold text-slate-900">
+            <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div class="text-lg font-semibold text-slate-900 dark:text-white">
                     No tenés documentos solicitados.
                 </div>
 
-                <p class="mt-2 text-sm text-slate-500">
+                <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                     Cuando el administrador te solicite documentación, la vas a ver acá.
                 </p>
             </section>
@@ -645,12 +589,12 @@ function buildContent() {
 
 function buildLoading() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div class="text-sm text-slate-500">Cargando documentos...</div>
+                        <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Cargando documentos...</div>
                         </div>
                     </div>
                 </main>
@@ -661,16 +605,16 @@ function buildLoading() {
 
 function buildError() {
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             <div class="flex min-h-screen">
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 sm:px-6 lg:px-8">
-                        <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm">
-                            <div class="text-base font-semibold text-slate-900">
+                        <div class="rounded-[28px] border border-rose-200 bg-white p-6 shadow-sm dark:border-rose-900 dark:bg-slate-900">
+                            <div class="text-base font-semibold text-slate-900 dark:text-white">
                                 No se pudieron cargar los documentos.
                             </div>
 
-                            <div class="mt-2 text-sm text-slate-500">
+                            <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">
                                 ${escapeHtml(pageError || "Ocurrió un error inesperado.")}
                             </div>
                         </div>
@@ -686,12 +630,16 @@ function render() {
     if (pageError) return buildError();
 
     return `
-        <div class="min-h-screen bg-slate-100">
+        <div class="min-h-screen bg-slate-100 dark:bg-slate-950">
             ${buildMobileHeader()}
             ${buildMobileMenu()}
 
             <div class="flex min-h-screen">
-                ${buildSidebar()}
+                ${buildStudentSidebar({
+                    company,
+                    student,
+                    activeItem: "documents"
+                })}
 
                 <main class="min-w-0 flex-1">
                     <div class="px-4 py-6 pb-[260px] sm:px-6 lg:px-8 md:pb-6">
@@ -726,6 +674,7 @@ syncStudentMobileShellScrollLock({
 }
 
 function bindEvents() {
+    bindStudentLayoutEvents();
 bindStudentMobileShellEvents({
     setMobileMenuOpen: (value) => {
         mobileMenuOpen = !!value;
@@ -895,6 +844,7 @@ async function loadDocuments() {
 }
 
 async function init() {
+    initTheme();
     try {
         await loadConfig();
         session = requireAuth();
@@ -928,6 +878,7 @@ async function init() {
         }
 
         student = await loadStudentProfile();
+        applyThemePreference(student.themePreference || "system");
 
         if (!student) {
             throw new Error("No se pudo obtener el perfil del alumno.");
