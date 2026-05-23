@@ -644,7 +644,6 @@ const payment = selectedTransferItem || payments.find(x =>
     String(x.paymentId || x.id || "") === String(selectedPaymentId) ||
     String(x.chargeId || "") === String(selectedPaymentId)
 );
-const paymentMethodInfo = selectedTransferPaymentMethod || {};
 
 const paymentMethodInfo = selectedTransferPaymentMethod || {};
 
@@ -728,16 +727,17 @@ const bank =
                         </div>
                     </div>
 
-                    ${
-                        CBU / CVU
-                            ? `
-                                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
-                                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">CBU</div>
-                                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white break-all">${escapeHtml(cbu)}</div>
-                                </div>
-                            `
-                            : ""
-                    }
+                    ${cbu ? `
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                CBU / CVU
+                            </div>
+
+                            <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white break-all">
+                                ${escapeHtml(cbu)}
+                            </div>
+                        </div>
+                    ` : ""}
 
                     ${
                         holder
