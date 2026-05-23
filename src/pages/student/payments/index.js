@@ -666,6 +666,13 @@ const bank =
     transferInfo?.bankName?.trim() ||
     "";
 
+    const notes =
+    paymentMethodInfo?.notes?.trim() ||
+    paymentMethodInfo?.note?.trim() ||
+    transferInfo?.notes?.trim() ||
+    transferInfo?.note?.trim() ||
+    "";
+
     return `
         <div id="transferModalOverlay" class="fixed inset-0 z-[140] overflow-y-auto bg-slate-950/40 p-4 pb-32 backdrop-blur-[1px]">
             <div class="mx-auto my-6 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
@@ -702,11 +709,11 @@ const bank =
                             Alias
                         </div>
                         <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        ${aliasCopied ? `
-                            <div class="text-xs font-bold text-emerald-700">
-                                Alias copiado correctamente.
-                            </div>
-                        ` : ""}
+                            ${aliasCopied ? `
+                                <div class="rounded-xl bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                    Alias copiado correctamente.
+                                </div>
+                            ` : ""}
                             <div class="break-all text-base font-semibold text-slate-900 dark:text-white">
                                 ${escapeHtml(alias || "No configurado")}
                             </div>
@@ -756,6 +763,21 @@ const bank =
                                 <div class="rounded-2xl bg-slate-50 dark:bg-slate-800 px-4 py-3 sm:col-span-2">
                                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Banco / billetera</div>
                                     <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">${escapeHtml(bank)}</div>
+                                </div>
+                            `
+                            : ""
+                    }
+
+                    ${
+                        notes
+                            ? `
+                                <div class="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 sm:col-span-2 dark:border-blue-900/60 dark:bg-blue-950/20">
+                                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+                                        Notas
+                                    </div>
+                                    <div class="mt-1 whitespace-pre-line text-sm font-semibold text-blue-800 dark:text-blue-200">
+                                        ${escapeHtml(notes)}
+                                    </div>
                                 </div>
                             `
                             : ""
@@ -1303,19 +1325,23 @@ bindStudentCarnetEvents({
         }
     });
 
-    document.getElementById("copyAliasBtn")?.addEventListener("click", async () => {
-        const alias = transferInfo?.alias?.trim();
-        if (!alias) return;
+document.getElementById("copyAliasBtn")?.addEventListener("click", async () => {
+    const alias =
+        selectedTransferPaymentMethod?.alias?.trim() ||
+        transferInfo?.alias?.trim() ||
+        "";
 
-        try {
-            await navigator.clipboard.writeText(alias);
-            aliasCopied = true;
-            rerender();
-        } catch {
-            setUiMessage("error", "No se pudo copiar el alias.");
-            rerender();
-        }
-    });
+    if (!alias) return;
+
+    try {
+        await navigator.clipboard.writeText(alias);
+        aliasCopied = true;
+        rerender();
+    } catch {
+        setUiMessage("error", "No se pudo copiar el alias.");
+        rerender();
+    }
+});
 
     document.getElementById("logoutBtn")?.addEventListener("click", () => {
         logoutAndRedirect();
