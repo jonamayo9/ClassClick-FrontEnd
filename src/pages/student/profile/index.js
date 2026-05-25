@@ -47,6 +47,13 @@ let isChangingPassword = false;
 let passwordModalOpen = false;
 let isRefreshingProfileImage = false;
 let carnetOpen = false;
+let guardians = [];
+let guardianModalOpen = false;
+let editingGuardianId = null;
+let isSavingGuardian = false;
+let isDeletingGuardian = false;
+let deleteGuardianId = null;
+let deleteGuardianLoading = false;
 
 function qs(id) {
     return document.getElementById(id);
@@ -462,6 +469,244 @@ function buildThemeSelector() {
     `;
 }
 
+function relationshipLabel(value) {
+    const map = {
+        1: "Madre",
+        2: "Padre",
+        3: "Tutor",
+        4: "Otro"
+    };
+
+    return map[Number(value)] || "Tutor";
+}
+
+function buildGuardiansSection() {
+    return `
+        <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">
+                        Tutores / Responsables de pago
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        Agregá las personas autorizadas para pagar o vincularse con tus cuotas.
+                    </p>
+                </div>
+
+                <button
+                    id="addGuardianButton"
+                    type="button"
+                    class="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-700 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
+                >
+                    Agregar
+                </button>
+            </div>
+
+            <div class="mt-4 space-y-3">
+                ${
+                    guardians.length
+                        ? guardians.map(g => `
+                            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="font-semibold text-slate-900 dark:text-white">
+                                            ${escapeHtml(`${g.firstName || ""} ${g.lastName || ""}`.trim())}
+                                        </div>
+
+                                        <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                            ${relationshipLabel(g.relationshipType)}
+                                        </div>
+
+                                        <div class="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                                            ${g.email ? `<div>Email: ${escapeHtml(g.email)}</div>` : ""}
+                                            ${g.phone ? `<div>Teléfono: ${escapeHtml(g.phone)}</div>` : ""}
+                                            ${g.documentNumber ? `<div>Documento: ${escapeHtml(g.documentNumber)}</div>` : ""}
+                                        </div>
+
+                                        <div class="mt-3 flex flex-wrap gap-2">
+                                            ${g.canPayCharges ? `<span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Responsable de pago</span>` : ""}
+                                            ${g.isPrimary ? `<span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Principal</span>` : ""}
+                                        </div>
+                                    </div>
+
+                                    <div class="flex shrink-0 gap-2">
+                                        <button
+                                            type="button"
+                                            data-edit-guardian="${g.id}"
+                                            class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                            Editar
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            data-delete-guardian="${g.id}"
+                                            class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-slate-900 dark:text-rose-400"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                </div>
+                            </article>
+                        `).join("")
+                        : `
+                            <div class="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                                Todavía no agregaste tutores o responsables de pago.
+                            </div>
+                        `
+                }
+            </div>
+        </section>
+    `;
+}
+
+function buildGuardianModal() {
+    if (!guardianModalOpen) return "";
+
+    const current = editingGuardianId
+        ? guardians.find(x => x.id === editingGuardianId)
+        : null;
+
+    return `
+        <div class="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/95 backdrop-blur-sm">
+            <div class="mx-auto flex min-h-screen w-full items-start justify-center px-4 py-6">
+                <div class="mb-32 w-full max-w-2xl rounded-[28px] border border-slate-700 bg-white p-5 shadow-2xl dark:bg-slate-900 sm:p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                            ${current ? "Editar tutor" : "Agregar tutor"}
+                        </h3>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Estos datos ayudarán a identificar responsables de pago.
+                        </p>
+                    </div>
+
+                    <button
+                        id="closeGuardianModalButton"
+                        type="button"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <form id="guardianForm" class="mt-5 space-y-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Nombre</label>
+                            <input id="guardianFirstName" type="text" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white" value="${escapeHtml(current?.firstName || "")}" />
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Apellido</label>
+                            <input id="guardianLastName" type="text" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white" value="${escapeHtml(current?.lastName || "")}" />
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Relación</label>
+                            <select id="guardianRelationshipType" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                                <option value="1" ${Number(current?.relationshipType) === 1 ? "selected" : ""}>Madre</option>
+                                <option value="2" ${Number(current?.relationshipType) === 2 ? "selected" : ""}>Padre</option>
+                                <option value="3" ${!current || Number(current?.relationshipType) === 3 ? "selected" : ""}>Tutor</option>
+                                <option value="4" ${Number(current?.relationshipType) === 4 ? "selected" : ""}>Otro</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Documento</label>
+                            <input id="guardianDocumentNumber" type="text" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white" value="${escapeHtml(current?.documentNumber || "")}" />
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Email</label>
+                            <input id="guardianEmail" type="email" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white" value="${escapeHtml(current?.email || "")}" />
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Teléfono</label>
+                            <input id="guardianPhone" type="text" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white" value="${escapeHtml(current?.phone || "")}" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
+                            <input id="guardianCanPayCharges" type="checkbox" ${current?.canPayCharges ? "checked" : ""} />
+                            Responsable de pago
+                        </label>
+
+                        <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
+                            <input id="guardianIsPrimary" type="checkbox" ${current?.isPrimary ? "checked" : ""} />
+                            Tutor principal
+                        </label>
+                    </div>
+
+                    <p id="guardianError" class="hidden text-sm text-rose-600"></p>
+
+                    <div class="flex justify-end gap-3 pt-2">
+                        <button id="cancelGuardianModalButton" type="button" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                            Cancelar
+                        </button>
+
+                        <button type="submit" class="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-60 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800" ${isSavingGuardian ? "disabled" : ""}>
+                            ${isSavingGuardian ? "Guardando..." : "Guardar"}
+                        </button>
+                    </div>
+                </form>
+            </div>
+            </div>
+        </div>
+    `;
+}
+
+function buildDeleteGuardianModal() {
+    if (!deleteGuardianId) return "";
+
+    return `
+        <div class="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-sm">
+            <div class="flex min-h-screen items-center justify-center px-4 py-6">
+                <div class="w-full max-w-md rounded-[28px] border border-slate-700 bg-white p-6 shadow-2xl dark:bg-slate-900">
+                    
+                    <div class="flex items-start gap-4">
+                        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-xl dark:bg-rose-900/30">
+                            🗑️
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900 dark:text-white">
+                                Eliminar tutor
+                            </h3>
+
+                            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                                Esta acción eliminará el tutor permanentemente.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button
+                            id="cancelDeleteGuardianButton"
+                            type="button"
+                            class="rounded-2xl border border-slate-700 bg-transparent px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            id="confirmDeleteGuardianButton"
+                            type="button"
+                            class="rounded-2xl bg-rose-600 px-5 py-3 text-sm font-black text-white transition hover:bg-rose-700 disabled:opacity-60"
+                            ${deleteGuardianLoading ? "disabled" : ""}
+                        >
+                            ${deleteGuardianLoading ? "Eliminando..." : "Eliminar"}
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function buildProfileForm() {
     return `
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -481,7 +726,7 @@ function buildProfileForm() {
                                     <button
                                         id="editProfileButton"
                                         type="button"
-                                        class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                                        class="inline-flex items-center justify-center rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
                                     >
                                         Editar perfil
                                     </button>
@@ -620,6 +865,7 @@ function buildProfileForm() {
 
             <div class="space-y-6">
             ${buildThemeSelector()}
+            ${buildGuardiansSection()}
                 <section class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div class="mb-5">
                         <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Seguridad</h2>
@@ -631,7 +877,7 @@ function buildProfileForm() {
                     <button
                         id="openPasswordModalButton"
                         type="button"
-                        class="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                        class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
                     >
                         Cambiar contraseña
                     </button>
@@ -717,7 +963,7 @@ function buildPasswordModal() {
                         <input
                             id="currentPassword"
                             type="password"
-                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                            class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                         />
                     </div>
 
@@ -726,7 +972,7 @@ function buildPasswordModal() {
                         <input
                             id="newPassword"
                             type="password"
-                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                            class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                         />
                     </div>
 
@@ -735,7 +981,7 @@ function buildPasswordModal() {
                         <input
                             id="confirmNewPassword"
                             type="password"
-                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                            class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                         />
                     </div>
 
@@ -819,13 +1065,16 @@ function buildPage() {
 
                             ${buildProfileHeader()}
                             ${buildProfileForm()}
-                            ${buildPasswordModal()}
                         </div>
+
+                        ${buildPasswordModal()}
+                        ${buildGuardianModal()}
+                        ${buildDeleteGuardianModal()}
                     </div>
                 </main>
             </div>
 
-            ${buildMobileBottomNav()}
+            ${passwordModalOpen || guardianModalOpen || carnetOpen ? "" : buildMobileBottomNav()}
 
 ${buildStudentCarnetModal({
     open: carnetOpen,
@@ -857,7 +1106,7 @@ function render() {
     app.innerHTML = buildPage();
 syncStudentMobileShellScrollLock({
     mobileMenuOpen,
-    extraLocked: passwordModalOpen || carnetOpen
+    extraLocked: passwordModalOpen || carnetOpen || guardianModalOpen
 });
     bindEvents();
 }
@@ -1102,6 +1351,133 @@ async function changePassword(event) {
     }
 }
 
+async function loadGuardians() {
+    guardians = await get(`/api/student/${companySlug}/guardians`);
+}
+
+function openCreateGuardianModal() {
+    editingGuardianId = null;
+    guardianModalOpen = true;
+    render();
+}
+
+function openEditGuardianModal(id) {
+    editingGuardianId = id;
+    guardianModalOpen = true;
+    render();
+}
+
+function closeGuardianModal() {
+    guardianModalOpen = false;
+    editingGuardianId = null;
+    isSavingGuardian = false;
+    render();
+}
+
+function validateGuardianForm() {
+    clearFieldError("guardianError");
+
+    const firstName = qs("guardianFirstName")?.value?.trim() || "";
+    const lastName = qs("guardianLastName")?.value?.trim() || "";
+
+    if (!firstName) {
+        showFieldError("guardianError", "El nombre es obligatorio.");
+        return false;
+    }
+
+    if (!lastName) {
+        showFieldError("guardianError", "El apellido es obligatorio.");
+        return false;
+    }
+
+    return true;
+}
+
+async function saveGuardian(event) {
+    event.preventDefault();
+
+    if (isSavingGuardian) return;
+    hideMessage();
+
+    if (!validateGuardianForm()) return;
+
+    const payload = {
+        firstName: qs("guardianFirstName").value.trim(),
+        lastName: qs("guardianLastName").value.trim(),
+        email: qs("guardianEmail").value.trim() || null,
+        phone: qs("guardianPhone").value.trim() || null,
+        documentNumber: qs("guardianDocumentNumber").value.trim() || null,
+        relationshipType: Number(qs("guardianRelationshipType").value),
+        canPayCharges: qs("guardianCanPayCharges")?.checked || false,
+        isPrimary: qs("guardianIsPrimary")?.checked || false
+    };
+
+    try {
+        isSavingGuardian = true;
+        render();
+
+        if (editingGuardianId) {
+            await put(`/api/student/${companySlug}/guardians/${editingGuardianId}`, payload);
+        } else {
+            await post(`/api/student/${companySlug}/guardians`, payload);
+        }
+
+        await loadGuardians();
+
+        guardianModalOpen = false;
+        editingGuardianId = null;
+
+        showMessage("Tutor guardado correctamente.");
+    } catch (error) {
+        showFieldError("guardianError", error?.message || "No se pudo guardar el tutor.");
+    } finally {
+        isSavingGuardian = false;
+        render();
+    }
+}
+
+function openDeleteGuardianModal(id) {
+    deleteGuardianId = id;
+    render();
+}
+
+function closeDeleteGuardianModal() {
+    deleteGuardianId = null;
+    deleteGuardianLoading = false;
+    render();
+}
+
+async function confirmDeleteGuardian() {
+    if (!deleteGuardianId || deleteGuardianLoading) return;
+
+    try {
+        deleteGuardianLoading = true;
+        render();
+
+        const response = await fetch(`${getApiBaseUrl()}/api/student/${companySlug}/guardians/${deleteGuardianId}`, {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${session.token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error("No se pudo eliminar el tutor.");
+        }
+
+        await loadGuardians();
+
+        deleteGuardianId = null;
+
+        showMessage("Tutor eliminado correctamente.");
+    } catch (error) {
+        showMessage(error?.message || "No se pudo eliminar el tutor.", "error");
+    } finally {
+        deleteGuardianLoading = false;
+        render();
+    }
+}
+
 function bindEvents() {
     bindStudentLayoutEvents();
     window.__studentProfileImageError = () => {
@@ -1216,6 +1592,30 @@ document.querySelectorAll(".theme-option").forEach(btn => {
         }
     });
 });
+
+qs("addGuardianButton")?.addEventListener("click", openCreateGuardianModal);
+
+qs("closeGuardianModalButton")?.addEventListener("click", closeGuardianModal);
+qs("cancelGuardianModalButton")?.addEventListener("click", closeGuardianModal);
+
+qs("guardianForm")?.addEventListener("submit", saveGuardian);
+
+document.querySelectorAll("[data-edit-guardian]").forEach(btn => {
+    btn.addEventListener("click", () => {
+        openEditGuardianModal(btn.dataset.editGuardian);
+    });
+});
+
+document.querySelectorAll("[data-delete-guardian]").forEach(btn => {
+    btn.addEventListener("click", () => {
+        openDeleteGuardianModal(btn.dataset.deleteGuardian);
+    });
+});
+
+qs("cancelDeleteGuardianButton")?.addEventListener("click", closeDeleteGuardianModal);
+
+qs("confirmDeleteGuardianButton")?.addEventListener("click", confirmDeleteGuardian);
+
 }
 
 async function init() {
@@ -1263,6 +1663,7 @@ if (cachedProfile && !isSasUrlExpired(cachedProfile.profileImageUrl)) {
         applyThemePreference(profile.themePreference || "system");
 
         await refreshProfilePhotoUrl({ render: false });
+        await loadGuardians();
     } catch (error) {
         pageError = error?.message || "No se pudo cargar la información del perfil.";
     } finally {

@@ -257,9 +257,24 @@ function renderSuperAdminPaymentMethods(items) {
           ${escapeHtml(item.paymentMethodName)}
         </div>
 
-        <div class="mt-0.5 text-xs text-slate-400">
-          ${escapeHtml(item.paymentMethod)}
-        </div>
+<div class="mt-0.5 text-xs text-slate-400">
+  ${escapeHtml(item.paymentMethod)}
+</div>
+
+${item.paymentMethod === "MercadoPago" ? `
+  <label class="mt-2 flex items-center gap-2 text-xs text-slate-500">
+    <input
+      type="checkbox"
+      class="superadmin-payment-method-auto-collection h-4 w-4"
+      data-payment-method="${escapeHtml(item.paymentMethod)}"
+      ${item.autoCollectionEnabledBySuperAdmin ? "checked" : ""}
+    />
+
+    <span>
+      Permitir cobro automático
+    </span>
+  </label>
+` : ""}
       </div>
 
       <input
@@ -595,10 +610,20 @@ function buildSuperAdminPaymentMethodsPayload() {
     ".superadmin-payment-method-toggle"
   );
 
-  return Array.from(toggles).map(toggle => ({
-    paymentMethod: toggle.dataset.paymentMethod,
-    enabledBySuperAdmin: toggle.checked
-  }));
+  return Array.from(toggles).map(toggle => {
+    const paymentMethod = toggle.dataset.paymentMethod;
+
+    const autoCollectionToggle = document.querySelector(
+      `.superadmin-payment-method-auto-collection[data-payment-method="${paymentMethod}"]`
+    );
+
+    return {
+      paymentMethod,
+      enabledBySuperAdmin: toggle.checked,
+      autoCollectionEnabledBySuperAdmin:
+        autoCollectionToggle?.checked === true
+    };
+  });
 }
 
 async function loadCompanyModules(companyId) {

@@ -37,13 +37,23 @@ let isSavingSibling = false;
 let isSavingTransfer = false;
 let paymentMethods = [];
 let isSavingPaymentMethods = false;
+let mercadoPagoStatus = null;
+let isLoadingMercadoPagoStatus = false;
+let isConnectingMercadoPago = false;
+let isDisconnectingMercadoPago = false;
 let deletingPricingId = null;
 let deletingLateFeeId = null;
 let deletingSiblingId = null;
 let isEditingSettings = false;
+let activeSection = "summary";
 
 function qs(id) {
     return document.getElementById(id);
+}
+
+function setText(id, value) {
+    const el = qs(id);
+    if (el) el.textContent = value;
 }
 
 function escapeHtml(value) {
@@ -114,639 +124,752 @@ function recurrenceLabel(value) {
 }
 function buildContent() {
     return `
-        <section class="space-y-6">
-            <section class="rounded-[28px] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-6 py-6 text-white shadow-sm">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <p class="text-xs uppercase tracking-[0.3em] text-slate-300">Configuración</p>
-                        <h1 class="mt-2 text-3xl font-bold">Configuración de pagos</h1>
-                        <p class="mt-2 text-sm text-slate-300">
-                            Configurá cuotas automáticas, precios, moras, descuentos por hermanos y transferencia.
-                        </p>
-                    </div>
+    <section class="space-y-6">
+        ${renderPaymentsHero()}
+        ${renderPaymentSettingsNav()}
 
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                            <p class="text-[11px] uppercase tracking-[0.2em] text-slate-300">Cursos con precio</p>
-                            <p id="statPricings" class="mt-2 text-2xl font-bold">0</p>
-                        </div>
+        <div id="pageMessage" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
 
-                        <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                            <p class="text-[11px] uppercase tracking-[0.2em] text-slate-300">Moras activas</p>
-                            <p id="statLateFees" class="mt-2 text-2xl font-bold">0</p>
-                        </div>
+        <div id="paymentSettingsSectionRoot"></div>
 
-                        <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                            <p class="text-[11px] uppercase tracking-[0.2em] text-slate-300">Descuentos hermanos</p>
-                            <p id="statSiblings" class="mt-2 text-2xl font-bold">0</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
+        <div id="pricingModalRoot"></div>
+    </section>
+`;
+}
 
-            <div id="pageMessage" class="hidden rounded-2xl border px-4 py-3 text-sm"></div>
+function renderPaymentSettingsNav() {
+    const items = [
+        { key: "summary", label: "Resumen rápido" },
+        { key: "charges", label: "Cuotas" },
+        { key: "pricing", label: "Precios" },
+        { key: "promotions", label: "Promociones" },
+        { key: "lateFees", label: "Vencimientos y moras" },
+        { key: "payments", label: "Pagos" }
+    ];
 
-            <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                <div class="xl:col-span-2 space-y-6">
+    return `
+        <div class="overflow-x-auto rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div class="flex min-w-max gap-2">
+                ${items.map(item => `
+                    <button
+                        type="button"
+                        data-section="${item.key}"
+                        class="payment-settings-tab rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
+                            activeSection === item.key
+                                ? "bg-slate-900 text-white"
+                                : "text-slate-600 hover:bg-slate-100"
+                        }"
+                    >
+                        ${item.label}
+                    </button>
+                `).join("")}
+            </div>
+        </div>
+    `;
+}
 
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div class="mb-5 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                            <div>
-                                <h2 class="text-lg font-semibold text-slate-900">Generación automática de cuotas</h2>
-                                <p class="mt-1 text-sm text-slate-500">
-                                    Configurá cuándo generar cuotas y la ventana para cobrar el mes actual a alumnos nuevos.
-                                </p>
-                            </div>
+function renderActiveSection() {
+    const root = qs("paymentSettingsSectionRoot");
+    if (!root) return;
 
-                            <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Última generación</p>
-                                <p id="settingsLastGeneration" class="mt-1 font-medium text-slate-800">-</p>
-                            </div>
-                        </div>
+    switch (activeSection) {
+        case "summary":
+            root.innerHTML = renderSummarySection();
+            break;
 
-                        <form id="settingsForm" class="space-y-4">
-                            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                                <input id="settingsAutoGenerateEnabled" type="checkbox" class="h-4 w-4" />
-                                <label for="settingsAutoGenerateEnabled" class="text-sm font-medium text-slate-700">
-                                    Generar cuotas automáticamente
-                                </label>
-                            </div>
+        case "charges":
+            root.innerHTML = renderChargesSection();
+            break;
 
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div>
-                                    <label for="settingsGenerationDay" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Día de generación
-                                    </label>
-                                    <input
-                                        id="settingsGenerationDay"
-                                        type="number"
-                                        min="1"
-                                        max="28"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 1"
-                                    />
-                                </div>
+        case "pricing":
+            root.innerHTML = renderPricingSection();
+            break;
 
-                                <div>
-                                    <label for="settingsDueDay" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Día de vencimiento
-                                    </label>
-                                    <input
-                                        id="settingsDueDay"
-                                        type="number"
-                                        min="1"
-                                        max="31"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 10"
-                                    />
-                                </div>
+        case "promotions":
+            root.innerHTML = renderPromotionsSection();
+            break;
 
-                                <div>
-                                    <label for="settingsChargeWindowStart" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Desde qué día cobrar mes actual
-                                    </label>
-                                    <input
-                                        id="settingsChargeWindowStart"
-                                        type="number"
-                                        min="1"
-                                        max="31"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Opcional"
-                                    />
-                                </div>
+        case "lateFees":
+            root.innerHTML = renderLateFeesSection();
+            break;
 
-                                <div>
-                                    <label for="settingsChargeWindowEnd" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Hasta qué día cobrar mes actual
-                                    </label>
-                                    <input
-                                        id="settingsChargeWindowEnd"
-                                        type="number"
-                                        min="1"
-                                        max="31"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Opcional"
-                                    />
-                                </div>
-                            </div>
+        case "payments":
+            root.innerHTML = renderPaymentsSection();
+            break;
 
-                            <div class="rounded-2xl border border-slate-200 p-4">
-                                <div class="flex items-start gap-3">
-                                    <input
-                                        id="settingsNewStudentRespectOriginalDueDateForLateFee"
-                                        type="checkbox"
-                                        class="mt-1 h-4 w-4"
-                                    />
-                                    <div class="min-w-0">
-                                        <label for="settingsNewStudentRespectOriginalDueDateForLateFee" class="text-sm font-medium text-slate-700">
-                                            Respetar fecha de vencimiento original para alumnos nuevos
-                                        </label>
-                                        <p class="mt-1 text-sm text-slate-500">
-                                            Si está activo, la mora impacta desde el vencimiento original. Si está desactivado,
-                                            podés definir días de gracia desde la creación de la cuota.
-                                        </p>
-                                    </div>
-                                </div>
+        default:
+            root.innerHTML = renderSummarySection();
+            break;
+    }
 
-                                <div id="settingsGraceDaysWrapper" class="mt-4">
-                                    <label for="settingsNewStudentLateFeeGraceDays" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Días de gracia para alumnos nuevos
-                                    </label>
-                                    <input
-                                        id="settingsNewStudentLateFeeGraceDays"
-                                        type="number"
-                                        min="0"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 5"
-                                    />
-                                    <p class="mt-2 text-xs text-slate-500">
-                                        Para mora semanal, al terminar la gracia impacta el primer recargo inmediatamente y luego continúa semanalmente.
-                                    </p>
-                                </div>
-                            </div>
+    renderStats();
+}
 
-                            <p id="settingsError" class="hidden text-sm text-rose-600"></p>
+function bindPaymentSettingsNav() {
+    document.querySelectorAll(".payment-settings-tab").forEach(btn => {
+        btn.addEventListener("click", () => {
+            activeSection = btn.dataset.section || "summary";
 
-                            <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
-                                <button
-                                    id="editSettingsBtn"
-                                    type="button"
-                                    class="hidden inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Editar
-                                </button>
+            const navWrapper = btn.closest(".overflow-x-auto");
+            if (navWrapper) {
+                navWrapper.outerHTML = renderPaymentSettingsNav();
+            }
 
-                                <button
-                                    id="cancelSettingsEditBtn"
-                                    type="button"
-                                    class="hidden inline-flex min-w-[160px] items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Cancelar
-                                </button>
+            renderActiveSection();
+            bindPaymentSettingsNav();
+            bindSectionEvents();
+            renderStats();
+        });
+    });
+}
 
-                                <button
-                                    id="saveSettingsBtn"
-                                    type="submit"
-                                    class="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Guardar configuración
-                                </button>
-                            </div>
-                        </form>
-                    </section>
+function renderSummarySection() {
+    return `
+        <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-bold text-slate-900">Resumen rápido</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Estado general de la configuración de pagos.
+            </p>
 
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div class="mb-5">
-                            <h2 id="pricingFormTitle" class="text-lg font-semibold text-slate-900">Precios por curso y frecuencia</h2>
-                            <p class="mt-1 text-sm text-slate-500">
-                                Definí el valor mensual según curso y cantidad de clases por semana.
-                            </p>
-                        </div>
-
-                        <form id="pricingForm" class="space-y-4">
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                <div>
-                                    <label for="pricingCourseId" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Curso
-                                    </label>
-                                    <select
-                                        id="pricingCourseId"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    ></select>
-                                </div>
-
-                                <div>
-                                    <label for="pricingClassesPerWeek" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Clases por semana
-                                    </label>
-                                    <input
-                                        id="pricingClassesPerWeek"
-                                        type="number"
-                                        min="1"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 2"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="pricingPrice" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Precio
-                                    </label>
-                                    <input
-                                        id="pricingPrice"
-                                        type="number"
-                                        min="0"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 25000"
-                                    />
-                                </div>
-                            </div>
-
-                            <p id="pricingError" class="hidden text-sm text-rose-600"></p>
-
-                            <div class="flex flex-col gap-3 pt-2 sm:flex-row">
-                                <button
-                                    id="savePricingBtn"
-                                    type="submit"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Guardar precio
-                                </button>
-
-                                <button
-                                    id="cancelPricingEditBtn"
-                                    type="button"
-                                    class="hidden inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="mt-6 overflow-x-auto">
-                            <table class="min-w-full text-sm">
-                                <thead>
-                                    <tr class="border-b border-slate-200 text-left text-slate-500">
-                                        <th class="px-3 py-3 font-medium">Curso</th>
-                                        <th class="px-3 py-3 font-medium">Frecuencia</th>
-                                        <th class="px-3 py-3 font-medium">Precio</th>
-                                        <th class="px-3 py-3 font-medium text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="pricingTable"></tbody>
-                            </table>
-                        </div>
-
-                        <div id="pricingEmptyState" class="hidden py-10 text-center">
-                            <p class="text-sm text-slate-500">Todavía no hay precios cargados.</p>
-                        </div>
-                    </section>
-
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div class="mb-5">
-                            <h2 id="lateFeeFormTitle" class="text-lg font-semibold text-slate-900">Moras y vencimientos</h2>
-                            <p class="mt-1 text-sm text-slate-500">
-                                Configurá moras generales o específicas por curso.
-                            </p>
-                        </div>
-
-                        <form id="lateFeeForm" class="space-y-4">
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div>
-                                    <label for="lateFeeName" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Nombre
-                                    </label>
-                                    <input
-                                        id="lateFeeName"
-                                        type="text"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: Mora general"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="lateFeeCourseId" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Curso
-                                    </label>
-                                    <select
-                                        id="lateFeeCourseId"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    ></select>
-                                </div>
-
-                                <div>
-                                    <label for="lateFeeDueDay" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Día de vencimiento
-                                    </label>
-                                    <input
-                                        id="lateFeeDueDay"
-                                        type="number"
-                                        min="1"
-                                        max="31"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 10"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="lateFeeRecurrenceType" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Tipo de mora
-                                    </label>
-                                    <select
-                                        id="lateFeeRecurrenceType"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    >
-                                        <option value="${LATE_FEE_RECURRENCE.ONE_TIME}">Única</option>
-                                        <option value="${LATE_FEE_RECURRENCE.DAILY}">Diaria</option>
-                                        <option value="${LATE_FEE_RECURRENCE.WEEKLY}">Semanal</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label for="lateFeePercentIncrease" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Recargo %
-                                    </label>
-                                    <input
-                                        id="lateFeePercentIncrease"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 10"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="lateFeeFixedIncrease" class="mb-1 block text-sm font-medium text-slate-700">
-                                        Recargo fijo
-                                    </label>
-                                    <input
-                                        id="lateFeeFixedIncrease"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                        placeholder="Ej: 2000"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                                <input id="lateFeeIsActive" type="checkbox" checked class="h-4 w-4" />
-                                <label for="lateFeeIsActive" class="text-sm font-medium text-slate-700">
-                                    Mora activa
-                                </label>
-                            </div>
-
-                            <p id="lateFeeError" class="hidden text-sm text-rose-600"></p>
-
-                            <div class="flex flex-col gap-3 pt-2 sm:flex-row">
-                                <button
-                                    id="saveLateFeeBtn"
-                                    type="submit"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Guardar mora
-                                </button>
-
-                                <button
-                                    id="cancelLateFeeEditBtn"
-                                    type="button"
-                                    class="hidden inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="mt-6 overflow-x-auto">
-                            <table class="min-w-full text-sm">
-                                <thead>
-                                    <tr class="border-b border-slate-200 text-left text-slate-500">
-                                        <th class="px-3 py-3 font-medium">Nombre</th>
-                                        <th class="px-3 py-3 font-medium">Curso</th>
-                                        <th class="px-3 py-3 font-medium">Vence</th>
-                                        <th class="px-3 py-3 font-medium">Tipo</th>
-                                        <th class="px-3 py-3 font-medium">Recargo</th>
-                                        <th class="px-3 py-3 font-medium">Estado</th>
-                                        <th class="px-3 py-3 font-medium text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="lateFeeTable"></tbody>
-                            </table>
-                        </div>
-
-                        <div id="lateFeeEmptyState" class="hidden py-10 text-center">
-                            <p class="text-sm text-slate-500">Todavía no hay moras configuradas.</p>
-                        </div>
-                    </section>
+            <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Empresa</p>
+                    <p id="summaryCompanyName" class="mt-2 font-bold text-slate-900">-</p>
                 </div>
 
-                <div class="space-y-6">
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h3 class="text-lg font-semibold text-slate-900">Resumen rápido</h3>
+                <div class="rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Cuotas</p>
+                    <p class="mt-2 font-bold text-slate-900">
+                        Generación día <span id="summaryGenerationDay">-</span>
+                    </p>
+                    <p class="text-sm text-slate-500">
+                        Vencimiento día <span id="summaryDueDay">-</span>
+                    </p>
+                </div>
 
-                        <div class="mt-4 space-y-4 text-sm">
-                            <div>
-                                <p class="text-slate-500">Empresa activa</p>
-                                <p id="summaryCompanyName" class="mt-1 font-medium text-slate-900">-</p>
-                            </div>
+                <div class="rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Precios</p>
+                    <p class="mt-2 font-bold text-slate-900">
+                        <span id="summaryPricings">0</span> configurados
+                    </p>
+                </div>
 
-                            <div>
-                                <p class="text-slate-500">Cursos con precio</p>
-                                <p id="summaryPricings" class="mt-1 text-xl font-semibold text-slate-900">0</p>
-                            </div>
+                <div class="rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Moras</p>
+                    <p class="mt-2 font-bold text-slate-900">
+                        <span id="summaryLateFees">0</span> activas
+                    </p>
+                </div>
 
-                            <div>
-                                <p class="text-slate-500">Moras activas</p>
-                                <p id="summaryLateFees" class="mt-1 text-xl font-semibold text-slate-900">0</p>
-                            </div>
+                <div class="rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Hermanos</p>
+                    <p class="mt-2 font-bold text-slate-900">
+                        <span id="summarySiblings">0</span> descuentos
+                    </p>
+                </div>
 
-                            <div>
-                                <p class="text-slate-500">Descuentos hermanos</p>
-                                <p id="summarySiblings" class="mt-1 text-xl font-semibold text-slate-900">0</p>
-                            </div>
+                <div class="rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Becas</p>
+                    <p class="mt-2 font-bold text-slate-900">
+                        <span id="summaryScholarships">0</span> tipos
+                    </p>
+                    <p class="text-sm text-slate-500">
+                        <span id="summaryScholarshipAssignments">0</span> asignadas
+                    </p>
+                </div>
 
-                            <div>
-                                <p class="text-slate-500">Día de generación</p>
-                                <p id="summaryGenerationDay" class="mt-1 font-medium text-slate-900">-</p>
-                            </div>
-
-                            <div>
-                                <p class="text-slate-500">Día de vencimiento</p>
-                                <p id="summaryDueDay" class="mt-1 font-medium text-slate-900">-</p>
-                            </div>
-
-                                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <p class="text-slate-500">Medios de pago</p>
-                                            <p id="summaryPaymentMethods" class="mt-1 text-xl font-semibold text-slate-900">0</p>
-                                            <p id="summaryPaymentMethodsDetail" class="mt-1 text-xs text-slate-500">-</p>
-                                        </div>
-
-                                        <button
-                                            id="openPaymentMethodsBtn"
-                                            type="button"
-                                            class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800"
-                                        >
-                                            Configurar
-                                        </button>
-                                    </div>
-                                </div>
-                        </div>
-                    </section>
-
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div class="mb-5">
-                            <h3 id="siblingsFormTitle" class="text-lg font-semibold text-slate-900">Descuentos por hermanos</h3>
-                            <p class="mt-1 text-sm text-slate-500">
-                                Configurá el porcentaje según cantidad de hermanos.
-                            </p>
-                        </div>
-
-                        <form id="siblingsForm" class="space-y-4">
-                            <div>
-                                <label for="siblingCount" class="mb-1 block text-sm font-medium text-slate-700">
-                                    Cantidad de hermanos
-                                </label>
-                                <input
-                                    id="siblingCount"
-                                    type="number"
-                                    min="1"
-                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    placeholder="Ej: 2"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="discountPercent" class="mb-1 block text-sm font-medium text-slate-700">
-                                    % de descuento
-                                </label>
-                                <input
-                                    id="discountPercent"
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.01"
-                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    placeholder="Ej: 10"
-                                />
-                            </div>
-
-                            <p id="siblingsError" class="hidden text-sm text-rose-600"></p>
-
-                            <div class="flex flex-col gap-3">
-                                <button
-                                    id="saveSiblingBtn"
-                                    type="submit"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Guardar descuento
-                                </button>
-
-                                <button
-                                    id="cancelSiblingEditBtn"
-                                    type="button"
-                                    class="hidden inline-flex items-center justify-center rounded-2xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
-
-                        <div id="siblingsList" class="mt-5 space-y-3"></div>
-
-                        <div id="siblingsEmptyState" class="hidden py-8 text-center">
-                            <p class="text-sm text-slate-500">Todavía no hay descuentos configurados.</p>
-                        </div>
-                    </section>
-
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div class="mb-5">
-                            <h3 class="text-lg font-semibold text-slate-900">Becas</h3>
-                            <p class="mt-1 text-sm text-slate-500">
-                                Creá becas y asignálas a alumnos de forma global o por curso.
-                            </p>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div class="rounded-2xl bg-slate-50 p-4">
-                                <p class="text-sm text-slate-500">Becas configuradas</p>
-                                <p id="summaryScholarships" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
-                            </div>
-
-                            <div class="rounded-2xl bg-slate-50 p-4">
-                                <p class="text-sm text-slate-500">Becas otorgadas</p>
-                                <p id="summaryScholarshipAssignments" class="mt-1 text-2xl font-semibold text-slate-900">0</p>
-                            </div>
-                        </div>
-
-                        <button
-                            id="openScholarshipsBtn"
-                            type="button"
-                            class="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-                        >
-                            Gestionar becas
-                        </button>
-                    </section>
-
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div class="mb-5">
-                            <h3 class="text-lg font-semibold text-slate-900">Configuración de transferencia</h3>
-                            <p class="mt-1 text-sm text-slate-500">
-                                Datos que verá el alumno al pagar por transferencia.
-                            </p>
-                        </div>
-
-                        <form id="transferSettingsForm" class="space-y-4">
-                            <div>
-                                <label for="transferAlias" class="mb-1 block text-sm font-medium text-slate-700">
-                                    Alias
-                                </label>
-                                <input
-                                    id="transferAlias"
-                                    type="text"
-                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    placeholder="Ej: mi.alias.empresa"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="transferCbu" class="mb-1 block text-sm font-medium text-slate-700">
-                                    CBU / CVU
-                                </label>
-                                <input
-                                    id="transferCbu"
-                                    type="text"
-                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    placeholder="Ej: 0000003100000000000000"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="transferAccountHolder" class="mb-1 block text-sm font-medium text-slate-700">
-                                    Titular de la cuenta
-                                </label>
-                                <input
-                                    id="transferAccountHolder"
-                                    type="text"
-                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    placeholder="Ej: Club Atlético..."
-                                />
-                            </div>
-
-                            <div>
-                                <label for="transferBankName" class="mb-1 block text-sm font-medium text-slate-700">
-                                    Banco / billetera
-                                </label>
-                                <input
-                                    id="transferBankName"
-                                    type="text"
-                                    class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
-                                    placeholder="Ej: Mercado Pago / Banco Nación"
-                                />
-                            </div>
-
-                            <p id="transferSettingsError" class="hidden text-sm text-rose-600"></p>
-
-                            <div class="flex flex-col gap-3">
-                                <button
-                                    id="saveTransferSettingsBtn"
-                                    type="submit"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Guardar transferencia
-                                </button>
-                            </div>
-                        </form>
-                    </section>
+                <div class="rounded-2xl bg-slate-50 p-4 md:col-span-2">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Medios de pago</p>
+                    <p class="mt-2 font-bold text-slate-900">
+                        <span id="summaryPaymentMethods">0</span> activos
+                    </p>
+                    <p id="summaryPaymentMethodsDetail" class="mt-1 text-sm text-slate-500">
+                        Sin medios activos
+                    </p>
                 </div>
             </div>
         </section>
-
-        <div id="pricingModalRoot"></div>
     `;
+}
+
+function renderChargesSection() {
+    return `
+        <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-bold text-slate-900">Generación automática de cuotas</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Configurá cuándo se generan las cuotas y cuándo vencen.
+            </p>
+
+            <form id="settingsForm" class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label class="flex items-center gap-3 rounded-2xl border border-slate-200 p-4 md:col-span-2">
+                    <input id="settingsAutoGenerateEnabled" type="checkbox" class="h-5 w-5" />
+                    <span class="font-semibold text-slate-800">Generar cuotas automáticamente</span>
+                </label>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Día de generación</label>
+                    <input id="settingsGenerationDay" type="number" min="1" max="28"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Día de vencimiento</label>
+                    <input id="settingsDueDay" type="number" min="1" max="31"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Cobrar mes actual desde día</label>
+                    <input id="settingsChargeWindowStart" type="number" min="1" max="31"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Hasta día</label>
+                    <input id="settingsChargeWindowEnd" type="number" min="1" max="31"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                </div>
+
+                <label class="flex items-center gap-3 rounded-2xl border border-slate-200 p-4 md:col-span-2">
+                    <input id="settingsNewStudentRespectOriginalDueDateForLateFee" type="checkbox" class="h-5 w-5" />
+                    <span class="text-sm font-medium text-slate-700">
+                        Respetar vencimiento original para alumnos nuevos
+                    </span>
+                </label>
+
+                <div id="settingsGraceDaysWrapper" class="md:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-700">Días de gracia alumnos nuevos</label>
+                    <input id="settingsNewStudentLateFeeGraceDays" type="number" min="0"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                </div>
+
+                <p class="text-sm text-slate-500 md:col-span-2">
+                    Última generación: <span id="settingsLastGeneration">-</span>
+                </p>
+
+                <p id="settingsError" class="hidden text-sm text-rose-600 md:col-span-2"></p>
+
+                <div class="flex flex-wrap gap-3 md:col-span-2">
+                    <button id="editSettingsBtn" type="button"
+                        class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700">
+                        Editar
+                    </button>
+
+                    <button id="cancelSettingsEditBtn" type="button"
+                        class="hidden rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700">
+                        Cancelar
+                    </button>
+
+                    <button id="saveSettingsBtn" type="submit"
+                        class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white">
+                        Guardar configuración
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function renderPricingSection() {
+    return `
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <form id="pricingForm" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 id="pricingFormTitle" class="text-lg font-bold text-slate-900">
+                    Precios por curso y frecuencia
+                </h2>
+
+                <div class="mt-5 space-y-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Curso</label>
+                        <select id="pricingCourseId"
+                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"></select>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Clases por semana</label>
+                        <input id="pricingClassesPerWeek" type="number" min="1"
+                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">Precio</label>
+                        <input id="pricingPrice" type="number" min="0" step="0.01"
+                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+                    </div>
+
+                    <p id="pricingError" class="hidden text-sm text-rose-600"></p>
+
+                    <div class="flex gap-3">
+                        <button id="cancelPricingEditBtn" type="button"
+                            class="hidden flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">
+                            Cancelar
+                        </button>
+
+                        <button id="savePricingBtn" type="submit"
+                            class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+                            Guardar precio
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
+                <h2 class="text-lg font-bold text-slate-900">Precios configurados</h2>
+
+                <div class="mt-5 overflow-x-auto">
+                    <table class="w-full min-w-[680px] text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                                <th class="px-3 py-3">Curso</th>
+                                <th class="px-3 py-3">Frecuencia</th>
+                                <th class="px-3 py-3">Precio</th>
+                                <th class="px-3 py-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pricingTable"></tbody>
+                    </table>
+
+                    <p id="pricingEmptyState" class="hidden rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                        Todavía no hay precios configurados.
+                    </p>
+                </div>
+            </section>
+        </section>
+    `;
+}
+
+function renderPromotionsSection() {
+    return `
+        <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900">
+                            Descuentos por hermanos
+                        </h2>
+
+                        <p class="mt-1 text-sm text-slate-500">
+                            Configurá descuentos automáticos para hermanos.
+                        </p>
+                    </div>
+                </div>
+
+                <form id="siblingsForm" class="mt-5 space-y-4">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">
+                            Cantidad mínima de hermanos
+                        </label>
+
+                        <input
+                            id="siblingCount"
+                            type="number"
+                            min="2"
+                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-700">
+                            Descuento (%)
+                        </label>
+
+                        <input
+                            id="discountPercent"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                        />
+                    </div>
+                    </label>
+
+                    <p id="siblingsError" class="hidden text-sm text-rose-600"></p>
+
+                    <div class="flex gap-3">
+                        <button
+                            id="cancelSiblingEditBtn"
+                            type="button"
+                            class="hidden flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700"
+                        >
+                            Cancelar
+                        </button>
+
+                        <button
+                            id="saveSiblingBtn"
+                            type="submit"
+                            class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+                        >
+                            Guardar descuento
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-6 overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                                <th class="px-3 py-3">Hermanos</th>
+                                <th class="px-3 py-3">Descuento</th>
+                                <th class="px-3 py-3">Estado</th>
+                                <th class="px-3 py-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="siblingsTable"></tbody>
+                    </table>
+                    <div id="siblingsList" class="hidden"></div>
+
+                    <p id="siblingsEmptyState"
+                        class="hidden rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                        No hay descuentos configurados.
+                    </p>
+                </div>
+            </section>
+
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900">
+                            Becas
+                        </h2>
+
+                        <p class="mt-1 text-sm text-slate-500">
+                            Administrá becas y asignaciones.
+                        </p>
+                    </div>
+
+                    <button
+                        id="openScholarshipsBtn"
+                        type="button"
+                        class="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                        Administrar becas
+                    </button>
+                </div>
+
+                <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="rounded-2xl bg-slate-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-500">
+                            Tipos de beca
+                        </p>
+
+                        <p id="summaryScholarships"
+                            class="mt-2 text-3xl font-bold text-slate-900">
+                            0
+                        </p>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-500">
+                            Becas asignadas
+                        </p>
+
+                        <p id="summaryScholarshipAssignments"
+                            class="mt-2 text-3xl font-bold text-slate-900">
+                            0
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-6 rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                    Las becas permiten aplicar descuentos personalizados por alumno y curso.
+                </div>
+                <div id="promotionsScholarshipsList" class="mt-5 space-y-3"></div>
+            </section>
+        </div>
+    `;
+}
+
+function renderPromotionsScholarshipsList() {
+    const list = qs("promotionsScholarshipsList");
+    if (!list) return;
+
+    if (!scholarships.length) {
+        list.innerHTML = `
+            <p class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                Todavía no hay becas creadas.
+            </p>
+        `;
+        return;
+    }
+
+    const ordered = [...scholarships].sort((a, b) => {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        return (a.name || "").localeCompare(b.name || "");
+    });
+
+    list.innerHTML = ordered.map(item => `
+        <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
+            <div>
+                <p class="font-semibold text-slate-900">${escapeHtml(item.name)}</p>
+                <p class="mt-1 text-sm text-slate-500">
+                    ${escapeHtml(scholarshipTypeLabel(item.discountType))}: ${escapeHtml(scholarshipValueLabel(item))}
+                </p>
+            </div>
+
+            ${item.isActive
+                ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Activa</span>`
+                : `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Inactiva</span>`
+            }
+        </div>
+    `).join("");
+}
+
+function renderLateFeesSection() {
+    return `
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <form id="lateFeeForm" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 id="lateFeeFormTitle" class="text-lg font-bold text-slate-900">
+                    Moras y vencimientos
+                </h2>
+
+                <div class="mt-5 space-y-4">
+                    <input id="lateFeeName" type="text" placeholder="Nombre"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+
+                    <select id="lateFeeCourseId"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"></select>
+
+                    <input id="lateFeeDueDay" type="number" min="1" max="31" placeholder="Día de vencimiento"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+
+                    <select id="lateFeeRecurrenceType"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
+                        <option value="1">Única</option>
+                        <option value="2">Diaria</option>
+                        <option value="3">Semanal</option>
+                    </select>
+
+                    <input id="lateFeePercentIncrease" type="number" min="0" step="0.01" placeholder="Recargo %"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+
+                    <input id="lateFeeFixedIncrease" type="number" min="0" step="0.01" placeholder="Recargo fijo"
+                        class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm" />
+
+                    <label class="flex items-center gap-3 rounded-2xl border border-slate-200 p-4">
+                        <input id="lateFeeIsActive" type="checkbox" class="h-5 w-5" />
+                        <span class="text-sm font-medium text-slate-700">Mora activa</span>
+                    </label>
+
+                    <p id="lateFeeError" class="hidden text-sm text-rose-600"></p>
+
+                    <div class="flex gap-3">
+                        <button id="cancelLateFeeEditBtn" type="button"
+                            class="hidden flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">
+                            Cancelar
+                        </button>
+
+                        <button id="saveLateFeeBtn" type="submit"
+                            class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+                            Guardar mora
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
+                <h2 class="text-lg font-bold text-slate-900">Moras configuradas</h2>
+
+                <div class="mt-5 overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                                <th class="px-3 py-3">Nombre</th>
+                                <th class="px-3 py-3">Curso</th>
+                                <th class="px-3 py-3">Vence</th>
+                                <th class="px-3 py-3">Recurrencia</th>
+                                <th class="px-3 py-3">Recargo</th>
+                                <th class="px-3 py-3">Estado</th>
+                                <th class="px-3 py-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lateFeeTable"></tbody>
+                    </table>
+
+                    <p id="lateFeeEmptyState" class="hidden rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                        Todavía no hay moras configuradas.
+                    </p>
+                </div>
+            </section>
+        </section>
+    `;
+}
+
+function renderPaymentsSection() {
+    const mercadoPago = paymentMethods.find(x =>
+        String(x.paymentMethod).toLowerCase() === "mercadopago" ||
+        String(x.paymentMethodName).toLowerCase() === "mercado pago"
+    );
+
+    const shouldShowMercadoPago =
+        mercadoPagoStatus?.autoCollectionEnabledBySuperAdmin === true ||
+        (
+            mercadoPago &&
+            mercadoPago.enabledBySuperAdmin === true &&
+            mercadoPago.autoCollectionEnabledBySuperAdmin === true
+        );
+
+    return `
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-900">Medios de pago</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    Configurá transferencia, efectivo, tarjetas y otros medios habilitados.
+                </p>
+
+                <div class="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Activos para alumnos</p>
+                    <p class="mt-2 text-2xl font-bold text-slate-900">
+                        <span id="summaryPaymentMethods">0</span>
+                    </p>
+                    <p id="summaryPaymentMethodsDetail" class="mt-1 text-sm text-slate-500">
+                        Sin medios activos
+                    </p>
+                </div>
+
+                <button
+                    id="openPaymentMethodsBtn"
+                    type="button"
+                    class="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white">
+                    Configurar medios de pago
+                </button>
+            </section>
+
+            ${renderMercadoPagoAdminCard(shouldShowMercadoPago)}
+        </section>
+    `;
+}
+
+function renderMercadoPagoAdminCard(shouldShowMercadoPago) {
+    if (!shouldShowMercadoPago) {
+        return `
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-900">Mercado Pago automático</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    Esta funcionalidad todavía no está habilitada para esta empresa.
+                </p>
+
+                <div class="mt-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+                    Para usar cobro automático, el SuperAdmin debe habilitar Mercado Pago automático.
+                </div>
+            </section>
+        `;
+    }
+
+    const isConnected = mercadoPagoStatus?.isConnected === true;
+    const status = mercadoPagoStatus?.status || "not_connected";
+
+    return `
+        <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Mercado Pago automático</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Conectá la cuenta del club para cobrar cuotas automáticamente.
+                    </p>
+                </div>
+
+                ${isConnected
+                    ? `<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Conectado</span>`
+                    : `<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">No conectado</span>`
+                }
+            </div>
+
+            <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Estado</p>
+                <p class="mt-1 font-bold text-slate-900">
+                    ${isConnected ? "Cuenta conectada correctamente" : "Pendiente de conexión"}
+                </p>
+
+                ${mercadoPagoStatus?.mercadoPagoUserId ? `
+                    <p class="mt-2 text-sm text-slate-500">
+                        Usuario MP: ${escapeHtml(mercadoPagoStatus.mercadoPagoUserId)}
+                    </p>
+                ` : ""}
+
+                ${mercadoPagoStatus?.connectedAtUtc ? `
+                    <p class="mt-1 text-sm text-slate-500">
+                        Conectado: ${formatDate(mercadoPagoStatus.connectedAtUtc)}
+                    </p>
+                ` : ""}
+
+                ${mercadoPagoStatus?.lastError ? `
+                    <div class="mt-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">
+                        ${escapeHtml(mercadoPagoStatus.lastError)}
+                    </div>
+                ` : ""}
+            </div>
+
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                ${isConnected ? `
+                    <button
+                        id="disconnectMercadoPagoBtn"
+                        type="button"
+                        class="flex-1 rounded-2xl border border-rose-300 px-5 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50">
+                        ${isDisconnectingMercadoPago ? "Desconectando..." : "Desconectar"}
+                    </button>
+                ` : `
+                    <button
+                        id="connectMercadoPagoBtn"
+                        type="button"
+                        class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+                        ${isConnectingMercadoPago ? "Conectando..." : "Conectar Mercado Pago"}
+                    </button>
+                `}
+            </div>
+
+            <p class="mt-4 text-xs text-slate-400">
+                Estado técnico: ${escapeHtml(status)}
+            </p>
+        </section>
+    `;
+}
+
+function bindSectionEvents() {
+    qs("settingsForm")?.addEventListener("submit", saveSettings);
+    qs("editSettingsBtn")?.addEventListener("click", startSettingsEdit);
+    qs("cancelSettingsEditBtn")?.addEventListener("click", cancelSettingsEdit);
+    qs("settingsNewStudentRespectOriginalDueDateForLateFee")?.addEventListener("change", toggleGraceDaysVisibility);
+
+    qs("pricingForm")?.addEventListener("submit", savePricing);
+    qs("cancelPricingEditBtn")?.addEventListener("click", resetPricingForm);
+
+    qs("siblingsForm")?.addEventListener("submit", saveSibling);
+    qs("cancelSiblingEditBtn")?.addEventListener("click", resetSiblingForm);
+    qs("openScholarshipsBtn")?.addEventListener("click", openScholarshipsModal);
+    qs("lateFeeForm")?.addEventListener("submit", saveLateFee);
+    qs("cancelLateFeeEditBtn")?.addEventListener("click", resetLateFeeForm);
+    qs("openPaymentMethodsBtn")?.addEventListener("click", openPaymentMethodsModal);
+    qs("connectMercadoPagoBtn")?.addEventListener("click", connectMercadoPago);
+    qs("disconnectMercadoPagoBtn")?.addEventListener("click", disconnectMercadoPago);
+
+    if (activeSection === "charges") {
+        renderSettings();
+    }
+
+    if (activeSection === "pricing") {
+        renderCourseOptions();
+        renderPricingTable();
+        resetPricingForm();
+    }
+
+    if (activeSection === "promotions") {
+        renderSiblings();
+        renderPromotionsScholarshipsList();
+        resetSiblingForm();
+    }
+
+    if (activeSection === "lateFees") {
+        renderCourseOptions();
+        renderLateFeeTable();
+        resetLateFeeForm();
+    }
+
+    if (activeSection === "payments") {
+        renderStats();
+    }
 }
 
 function showPageMessage(message, type = "success") {
@@ -881,25 +1004,34 @@ function renderStats() {
     const activeLateFees = latePaymentConfigs.filter(x => x.isActive).length;
     const siblingCount = siblingDiscounts.length;
 
-    qs("statPricings").textContent = String(pricingCount);
-    qs("statLateFees").textContent = String(activeLateFees);
-    qs("statSiblings").textContent = String(siblingCount);
+    setText("statPricings", String(pricingCount));
+    setText("statLateFees", String(activeLateFees));
+    setText("statSiblings", String(siblingCount));
 
-    qs("summaryCompanyName").textContent = company?.name || "-";
-    qs("summaryPricings").textContent = String(pricingCount);
-    qs("summaryLateFees").textContent = String(activeLateFees);
-    qs("summarySiblings").textContent = String(siblingCount);
-    qs("summaryGenerationDay").textContent = paymentSettings?.generationDayOfMonth || "-";
-    qs("summaryDueDay").textContent = paymentSettings?.dueDayOfMonth || "-";
-    qs("summaryScholarships").textContent = String(scholarships.length);
-    qs("summaryScholarshipAssignments").textContent = String(scholarshipAssignments.length);
-    const enabledPaymentMethods = paymentMethods.filter(x => x.isEnabledByAdmin);
+    setText("summaryCompanyName", company?.name || "-");
+    setText("summaryPricings", String(pricingCount));
+    setText("summaryLateFees", String(activeLateFees));
+    setText("summarySiblings", String(siblingCount));
+    setText("summaryGenerationDay", paymentSettings?.generationDayOfMonth || "-");
+    setText("summaryDueDay", paymentSettings?.dueDayOfMonth || "-");
+    setText("summaryScholarships", String(scholarships.length));
+    setText("summaryScholarshipAssignments", String(scholarshipAssignments.length));
 
-qs("summaryPaymentMethods").textContent = String(enabledPaymentMethods.length);
+    const enabledPaymentMethods = paymentMethods.filter(x =>
+        x.isEnabledByAdmin === true ||
+        x.enabledByAdmin === true ||
+        x.isEnabled === true
+    );
 
-qs("summaryPaymentMethodsDetail").textContent = enabledPaymentMethods.length
-    ? enabledPaymentMethods.map(x => x.paymentMethodName).join(", ")
-    : "Sin medios activos";
+    setText("summaryPaymentMethods", String(enabledPaymentMethods.length));
+    setText(
+        "summaryPaymentMethodsDetail",
+        enabledPaymentMethods.length
+            ? enabledPaymentMethods
+                .map(x => x.paymentMethodName || x.paymentMethod || "Medio de pago")
+                .join(", ")
+            : "Sin medios activos"
+    );
 }
 
 async function loadScholarships() {
@@ -932,25 +1064,29 @@ function renderCourseOptions() {
     const pricingSelect = qs("pricingCourseId");
     const lateSelect = qs("lateFeeCourseId");
 
-    pricingSelect.innerHTML = orderedCourses.length
-        ? `
-            <option value="">Seleccionar curso</option>
+    if (pricingSelect) {
+        pricingSelect.innerHTML = orderedCourses.length
+            ? `
+                <option value="">Seleccionar curso</option>
+                ${orderedCourses.map(course => `
+                    <option value="${course.id}">
+                        ${escapeHtml(course.name)}${course.isActive ? "" : " (Inactivo)"}
+                    </option>
+                `).join("")}
+            `
+            : `<option value="">No hay cursos disponibles</option>`;
+    }
+
+    if (lateSelect) {
+        lateSelect.innerHTML = `
+            <option value="">Todos los cursos</option>
             ${orderedCourses.map(course => `
                 <option value="${course.id}">
                     ${escapeHtml(course.name)}${course.isActive ? "" : " (Inactivo)"}
                 </option>
             `).join("")}
-        `
-        : `<option value="">No hay cursos disponibles</option>`;
-
-    lateSelect.innerHTML = `
-        <option value="">Todos los cursos</option>
-        ${orderedCourses.map(course => `
-            <option value="${course.id}">
-                ${escapeHtml(course.name)}${course.isActive ? "" : " (Inactivo)"}
-            </option>
-        `).join("")}
-    `;
+        `;
+    }
 }
 
 function renderSettings() {
@@ -979,11 +1115,73 @@ async function savePaymentMethods(payload) {
     return await put(`/api/admin/${company.slug}/payment-methods`, payload);
 }
 
+async function loadMercadoPagoStatus() {
+    try {
+        isLoadingMercadoPagoStatus = true;
+        mercadoPagoStatus = await get(`/api/admin/${company.slug}/mercadopago/status`);
+    } catch {
+        mercadoPagoStatus = null;
+    } finally {
+        isLoadingMercadoPagoStatus = false;
+    }
+}
+
+async function connectMercadoPago() {
+    if (isConnectingMercadoPago) return;
+
+    try {
+        isConnectingMercadoPago = true;
+
+        const response = await get(`/api/admin/${company.slug}/mercadopago/connect-url`);
+
+        if (!response?.url) {
+            showPageMessage("No se pudo obtener la URL de conexión de Mercado Pago.", "error");
+            return;
+        }
+
+        window.location.href = response.url;
+    } catch (error) {
+        showPageMessage(error.message || "No se pudo iniciar la conexión con Mercado Pago.", "error");
+        isConnectingMercadoPago = false;
+    }
+}
+
+async function disconnectMercadoPago() {
+    if (isDisconnectingMercadoPago) return;
+
+    const confirmed = window.confirm("¿Querés desconectar Mercado Pago automático?");
+    if (!confirmed) return;
+
+    try {
+        isDisconnectingMercadoPago = true;
+
+        await post(`/api/admin/${company.slug}/mercadopago/disconnect`, {});
+
+        await loadMercadoPagoStatus();
+
+        renderActiveSection();
+        bindSectionEvents();
+
+        showPageMessage("Mercado Pago se desconectó correctamente.");
+    } catch (error) {
+        showPageMessage(error.message || "No se pudo desconectar Mercado Pago.", "error");
+    } finally {
+        isDisconnectingMercadoPago = false;
+    }
+}
+
 function renderTransferSettings() {
-    qs("transferAlias").value = companySettings?.transferAlias ?? "";
-    qs("transferCbu").value = companySettings?.transferCbu ?? "";
-    qs("transferAccountHolder").value = companySettings?.transferAccountHolder ?? "";
-    qs("transferBankName").value = companySettings?.transferBankName ?? "";
+    const alias = qs("transferAlias");
+    const cbu = qs("transferCbu");
+    const holder = qs("transferAccountHolder");
+    const bank = qs("transferBankName");
+
+    if (!alias || !cbu || !holder || !bank) return;
+
+    alias.value = companySettings?.transferAlias ?? "";
+    cbu.value = companySettings?.transferCbu ?? "";
+    holder.value = companySettings?.transferAccountHolder ?? "";
+    bank.value = companySettings?.transferBankName ?? "";
 }
 
 function hasSavedSettings() {
@@ -1063,8 +1261,10 @@ function cancelSettingsEdit() {
 }
 
 function renderPricingTable() {
-    const tbody = qs("pricingTable");
-    const emptyState = qs("pricingEmptyState");
+const tbody = qs("pricingTable");
+const emptyState = qs("pricingEmptyState");
+
+    if (!tbody || !emptyState) return;
 
     if (!coursePricings.length) {
         tbody.innerHTML = "";
@@ -1957,11 +2157,13 @@ async function deactivateStudentScholarship(id) {
 }
 
 function renderSiblings() {
-    const list = qs("siblingsList");
+    const tbody = qs("siblingsTable");
     const emptyState = qs("siblingsEmptyState");
 
+    if (!tbody || !emptyState) return;
+
     if (!siblingDiscounts.length) {
-        list.innerHTML = "";
+        tbody.innerHTML = "";
         emptyState.classList.remove("hidden");
         return;
     }
@@ -1970,19 +2172,28 @@ function renderSiblings() {
 
     const ordered = [...siblingDiscounts].sort((a, b) => Number(a.siblingCount) - Number(b.siblingCount));
 
-    list.innerHTML = ordered.map(item => `
-        <div class="rounded-2xl border border-slate-200 p-4">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <p class="font-medium text-slate-900">${item.siblingCount} ${item.siblingCount === 1 ? "hermano" : "hermanos"}</p>
-                    <p class="mt-1 text-sm text-slate-500">${Number(item.discountPercent || 0)}% de descuento</p>
-                </div>
+    tbody.innerHTML = ordered.map(item => `
+        <tr class="border-b border-slate-100">
+            <td class="px-3 py-4 font-medium text-slate-900">
+                ${item.siblingCount} ${item.siblingCount === 1 ? "hermano" : "hermanos"}
+            </td>
 
-                <div class="flex flex-wrap justify-end gap-2">
+            <td class="px-3 py-4 text-slate-700">
+                ${Number(item.discountPercent || 0)}%
+            </td>
+
+            <td class="px-3 py-4">
+                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                    Activo
+                </span>
+            </td>
+
+            <td class="px-3 py-4">
+                <div class="flex justify-end gap-2">
                     <button
                         type="button"
                         data-id="${item.id}"
-                        class="edit-sibling-btn rounded-2xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                        class="edit-sibling-btn rounded-2xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                         Editar
                     </button>
@@ -1990,62 +2201,82 @@ function renderSiblings() {
                     <button
                         type="button"
                         data-id="${item.id}"
-                        class="delete-sibling-btn rounded-2xl border border-rose-300 px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        class="delete-sibling-btn rounded-2xl border border-rose-300 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-60"
                         ${deletingSiblingId === item.id ? "disabled" : ""}
                     >
                         ${deletingSiblingId === item.id ? "Eliminando..." : "Eliminar"}
                     </button>
                 </div>
-            </div>
-        </div>
+            </td>
+        </tr>
     `).join("");
 
-    list.querySelectorAll(".edit-sibling-btn").forEach(btn => {
+    tbody.querySelectorAll(".edit-sibling-btn").forEach(btn => {
         btn.addEventListener("click", () => openSiblingEdit(btn.dataset.id));
     });
 
-    list.querySelectorAll(".delete-sibling-btn").forEach(btn => {
+    tbody.querySelectorAll(".delete-sibling-btn").forEach(btn => {
         btn.addEventListener("click", () => openDeleteSiblingModal(btn.dataset.id));
     });
 }
 
 function renderAll() {
-    renderCourseOptions();
-    renderSettings();
-    renderPricingTable();
-    renderLateFeeTable();
-    renderSiblings();
-    renderTransferSettings();
+    renderActiveSection();
+    bindSectionEvents();
     renderStats();
 }
 
 function resetPricingForm() {
     pricingEditKey = null;
-    qs("pricingForm").reset();
-    qs("pricingFormTitle").textContent = "Precios por curso y frecuencia";
-    qs("savePricingBtn").textContent = "Guardar precio";
-    qs("cancelPricingEditBtn").classList.add("hidden");
+
+    const form = qs("pricingForm");
+    if (!form) return;
+
+    form.reset();
+
+    setText("pricingFormTitle", "Precios por curso y frecuencia");
+    setText("savePricingBtn", "Guardar precio");
+
+    qs("cancelPricingEditBtn")?.classList.add("hidden");
     clearFieldError("pricingError");
 }
 
 function resetLateFeeForm() {
     lateEditId = null;
-    qs("lateFeeForm").reset();
-    qs("lateFeeCourseId").value = "";
-    qs("lateFeeRecurrenceType").value = String(LATE_FEE_RECURRENCE.ONE_TIME);
-    qs("lateFeeIsActive").checked = true;
-    qs("lateFeeFormTitle").textContent = "Moras y vencimientos";
-    qs("saveLateFeeBtn").textContent = "Guardar mora";
-    qs("cancelLateFeeEditBtn").classList.add("hidden");
+
+    const form = qs("lateFeeForm");
+    if (!form) return;
+
+    form.reset();
+
+    const course = qs("lateFeeCourseId");
+    if (course) course.value = "";
+
+    const recurrence = qs("lateFeeRecurrenceType");
+    if (recurrence) recurrence.value = String(LATE_FEE_RECURRENCE.ONE_TIME);
+
+    const active = qs("lateFeeIsActive");
+    if (active) active.checked = true;
+
+    setText("lateFeeFormTitle", "Moras y vencimientos");
+    setText("saveLateFeeBtn", "Guardar mora");
+
+    qs("cancelLateFeeEditBtn")?.classList.add("hidden");
     clearFieldError("lateFeeError");
 }
 
 function resetSiblingForm() {
     siblingEditId = null;
-    qs("siblingsForm").reset();
-    qs("siblingsFormTitle").textContent = "Descuentos por hermanos";
-    qs("saveSiblingBtn").textContent = "Guardar descuento";
-    qs("cancelSiblingEditBtn").classList.add("hidden");
+
+    const form = qs("siblingsForm");
+    if (!form) return;
+
+    form.reset();
+
+    setText("siblingsFormTitle", "Descuentos por hermanos");
+    setText("saveSiblingBtn", "Guardar descuento");
+
+    qs("cancelSiblingEditBtn")?.classList.add("hidden");
     clearFieldError("siblingsError");
 }
 
@@ -2233,7 +2464,8 @@ async function loadAllData() {
         loadScholarships(),
         loadScholarshipStudents(),
         loadScholarshipAssignments(),
-        loadPaymentMethods()
+        loadPaymentMethods(),
+        loadMercadoPagoStatus()
     ]);
 
     renderAll();
@@ -2345,6 +2577,39 @@ function validateLateFeeForm() {
     }
 
     return true;
+}
+
+function renderPaymentsHero() {
+    return `
+        <section class="rounded-[28px] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-6 py-6 text-white shadow-sm">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <p class="text-xs uppercase tracking-[0.3em] text-slate-300">Configuración</p>
+                    <h1 class="mt-2 text-3xl font-bold">Configuración de pagos</h1>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Configurá cuotas, precios, promociones, vencimientos, moras y medios de pago.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-slate-300">Cursos con precio</p>
+                        <p id="statPricings" class="mt-2 text-2xl font-bold">0</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-slate-300">Moras activas</p>
+                        <p id="statLateFees" class="mt-2 text-2xl font-bold">0</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                        <p class="text-[11px] uppercase tracking-[0.2em] text-slate-300">Descuentos hermanos</p>
+                        <p id="statSiblings" class="mt-2 text-2xl font-bold">0</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    `;
 }
 
 function validateSiblingForm() {
@@ -2541,8 +2806,15 @@ async function submitPaymentMethods(event) {
         await savePaymentMethods(payload);
         await loadPaymentMethods();
 
-        renderStats();
         closeModal();
+
+        if (activeSection === "payments") {
+            renderActiveSection();
+            bindSectionEvents();
+        }
+
+        renderStats();
+
         showPageMessage("Los medios de pago se guardaron correctamente.");
     } catch (error) {
         showFieldError("paymentMethodsError", error.message || "No se pudieron guardar los medios de pago.");
@@ -2817,6 +3089,13 @@ async function deleteSibling(id) {
 async function init() {
     await loadConfig();
     requireAuth();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const mercadoPagoCallbackStatus = urlParams.get("mp");
+
+    if (mercadoPagoCallbackStatus) {
+        activeSection = "payments";
+    }
     const app = qs("app");
 
     app.innerHTML = renderAdminLayout({
@@ -2831,9 +3110,6 @@ async function init() {
             isEditingSettings = false;
             clearAllErrors();
             hidePageMessage();
-            resetPricingForm();
-            resetLateFeeForm();
-            resetSiblingForm();
             await loadAllData();
         }
     });
@@ -2844,25 +3120,37 @@ async function init() {
           return;
       }
 
-    qs("settingsForm").addEventListener("submit", saveSettings);
-    qs("pricingForm").addEventListener("submit", savePricing);
-    qs("lateFeeForm").addEventListener("submit", saveLateFee);
-    qs("siblingsForm").addEventListener("submit", saveSibling);
-    qs("transferSettingsForm").addEventListener("submit", saveTransferSettings);
-    qs("openPaymentMethodsBtn").addEventListener("click", openPaymentMethodsModal);
-    qs("cancelPricingEditBtn").addEventListener("click", resetPricingForm);
-    qs("cancelLateFeeEditBtn").addEventListener("click", resetLateFeeForm);
-    qs("cancelSiblingEditBtn").addEventListener("click", resetSiblingForm);
-
-    qs("editSettingsBtn").addEventListener("click", startSettingsEdit);
-    qs("cancelSettingsEditBtn").addEventListener("click", cancelSettingsEdit);
-    qs("settingsNewStudentRespectOriginalDueDateForLateFee").addEventListener("change", toggleGraceDaysVisibility);
-    qs("openScholarshipsBtn").addEventListener("click", openScholarshipsModal);
+    qs("settingsForm")?.addEventListener("submit", saveSettings);
+    qs("pricingForm")?.addEventListener("submit", savePricing);
+    qs("lateFeeForm")?.addEventListener("submit", saveLateFee);
+    qs("siblingsForm")?.addEventListener("submit", saveSibling);
+    qs("openPaymentMethodsBtn")?.addEventListener("click", openPaymentMethodsModal);
+    qs("cancelPricingEditBtn")?.addEventListener("click", resetPricingForm);
+    qs("cancelLateFeeEditBtn")?.addEventListener("click", resetLateFeeForm);
+    qs("cancelSiblingEditBtn")?.addEventListener("click", resetSiblingForm);
+    qs("editSettingsBtn")?.addEventListener("click", startSettingsEdit);
+    qs("cancelSettingsEditBtn")?.addEventListener("click", cancelSettingsEdit);
+    qs("settingsNewStudentRespectOriginalDueDateForLateFee")?.addEventListener("change", toggleGraceDaysVisibility);
+    qs("openScholarshipsBtn")?.addEventListener("click", openScholarshipsModal);
 
     await loadAllData();
-    resetPricingForm();
-    resetLateFeeForm();
-    resetSiblingForm();
+    bindPaymentSettingsNav();
+    bindSectionEvents();
+    renderStats();
+    if (mercadoPagoCallbackStatus === "connected") {
+        showPageMessage("Mercado Pago se conectó correctamente.");
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (mercadoPagoCallbackStatus === "error") {
+        showPageMessage("No se pudo conectar Mercado Pago.", "error");
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (mercadoPagoCallbackStatus === "invalid") {
+        showPageMessage("La respuesta de Mercado Pago no fue válida.", "error");
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
 }
 
 init();
