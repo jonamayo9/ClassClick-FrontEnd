@@ -91,8 +91,8 @@ function readonlyAttr() {
 
 function readonlyClass() {
     return profileEditMode
-        ? "bg-white text-slate-900 dark:bg-slate-900 dark:text-white"
-        : "bg-slate-100 text-slate-500 cursor-not-allowed dark:bg-slate-800 dark:text-slate-400";
+        ? "bg-white text-slate-900 dark:bg-slate-950 dark:text-white dark:border-slate-600"
+        : "bg-slate-100 text-slate-600 cursor-not-allowed dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
 }
 
 function formatDateInput(value) {
@@ -394,7 +394,7 @@ function buildProfileHeader() {
                             <button
                                 id="savePhotoButton"
                                 type="button"
-                                class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                                 ${selectedPhotoFile ? "" : "disabled"}
                             >
                                 ${isUploadingPhoto ? "Guardando foto..." : "Guardar foto"}
@@ -496,7 +496,7 @@ function buildGuardiansSection() {
                 <button
                     id="addGuardianButton"
                     type="button"
-                    class="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-700 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
+                    class="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                 >
                     Agregar
                 </button>
@@ -726,7 +726,7 @@ function buildProfileForm() {
                                     <button
                                         id="editProfileButton"
                                         type="button"
-                                        class="inline-flex items-center justify-center rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
+                                        class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                                     >
                                         Editar perfil
                                     </button>
@@ -745,6 +745,11 @@ function buildProfileForm() {
                             <div>
                                 <label for="lastName" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Apellido</label>
                                 <input id="lastName" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.lastName || "")}" />
+                            </div>
+
+                            <div>
+                                <label for="dni" class="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">DNI</label>
+                                <input id="dni" type="text" ${readonlyAttr()} class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-400 ${readonlyClass()}" value="${escapeHtml(profile?.dni || "")}" />
                             </div>
 
                             <div>
@@ -851,7 +856,7 @@ function buildProfileForm() {
                                         <button
                                             id="saveProfileButton"
                                             type="submit"
-                                            class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                            class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             ${isSavingProfile ? "Guardando..." : "Guardar cambios"}
                                         </button>
@@ -877,7 +882,7 @@ function buildProfileForm() {
                     <button
                         id="openPasswordModalButton"
                         type="button"
-                        class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-700 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
+                        class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                     >
                         Cambiar contraseña
                     </button>
@@ -1251,6 +1256,7 @@ async function saveProfile(event) {
 const payload = {
     firstName: qs("firstName").value.trim(),
     lastName: qs("lastName").value.trim(),
+    dni: qs("dni").value.trim() || null,
     dateOfBirth: qs("dateOfBirth").value ? new Date(`${qs("dateOfBirth").value}T00:00:00`).toISOString() : null,
     phone: qs("phone").value.trim() || null,
     address: qs("address").value.trim() || null,
