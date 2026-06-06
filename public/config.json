@@ -1,5 +1,5 @@
 {
-  "apiBaseUrl": "https://classclick-backend.onrender.com",
+  "apiBaseUrl": "https://api.classclick.com.ar",
   "storageKeys": {
     "token": "classclick_token",
     "refreshToken": "classclick_refresh_token",
