@@ -1039,7 +1039,8 @@ async function loadScholarships() {
 }
 
 async function loadScholarshipStudents() {
-    const response = await get(`/api/admin/${company.slug}/students`);
+    const response = await get(`/api/admin/${company.slug}/students?pageSize=1000`);
+
     scholarshipStudents = Array.isArray(response)
         ? response
         : (response.items || []);
