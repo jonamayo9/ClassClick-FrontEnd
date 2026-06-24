@@ -2620,6 +2620,12 @@ const [profile] = await Promise.all([
             throw new Error("No se pudo obtener el perfil del alumno.");
         }
 
+        if (!student.isRegistrationCompleted) {
+            window.location.href = "/src/pages/student/register/index.html";
+            return;
+        }
+
+
         await refreshStudentPhotoUrl({ render: false });
 
     } catch (error) {
