@@ -2621,7 +2621,7 @@ const [profile] = await Promise.all([
         }
 
         if (!student.isRegistrationCompleted) {
-            window.location.href = "/src/pages/student/register/index.html";
+            window.location.href = "/src/pages/student/registration/index.html";
             return;
         }
 
