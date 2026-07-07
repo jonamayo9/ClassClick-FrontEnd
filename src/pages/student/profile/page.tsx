@@ -138,7 +138,7 @@ function ProfilePageInner() {
 
   async function handleChangePassword() {
     if (!pwCurrent || pwNew.length < 6 || pwNew !== pwConfirm) { toast('Verificá los datos.', 'error'); return }
-    try { await apiService.post('/api/profile/change-password', { currentPassword: pwCurrent, newPassword: pwNew }); toast('Contraseña cambiada.'); setPwModal(false); setPwCurrent(''); setPwNew(''); setPwConfirm('') }
+    try { await apiService.post('/api/profile/change-password', { currentPassword: pwCurrent, newPassword: pwNew, confirmNewPassword: pwConfirm }); toast('Contraseña cambiada.'); setPwModal(false); setPwCurrent(''); setPwNew(''); setPwConfirm('') }
     catch { toast('Error al cambiar contraseña.', 'error') }
   }
 
