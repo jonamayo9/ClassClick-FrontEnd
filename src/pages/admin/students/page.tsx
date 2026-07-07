@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Select } from '@/components/ui/select'
+import { AxiosError } from 'axios'
 
 interface Student {
   id: string; firstName: string; lastName: string; fullName?: string; email: string
@@ -138,7 +139,11 @@ function StudentsPageInner() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiService.del(`/api/admin/${slug}/students/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); setDeleteStudent(null); toast('Alumno eliminado.') },
-    onError: (e: Error) => { toast(e.message || 'Error al eliminar.', 'error') },
+    onError: (e: Error) => {
+      const axiosError = e as AxiosError<{ message?: string }>
+      const serverMsg = axiosError.response?.data?.message
+      toast(serverMsg || 'Error al eliminar. El alumno puede tener cursos, pagos o tutores asociados.', 'error')
+    },
   })
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
