@@ -26,7 +26,26 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 })
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const url = response.config.url ?? ''
+    const method = response.config.method?.toLowerCase()
+    const isOwnPasswordChange =
+      method !== 'get' &&
+      (
+        url.includes('/api/profile/change-password') ||
+        url.includes('/profile/change-password') ||
+        url.includes('/api/admin/profile/password') ||
+        url.includes('/admin/profile/password') ||
+        url.includes('/api/teacher/profile/password') ||
+        url.includes('/teacher/profile/password')
+      )
+
+    if (isOwnPasswordChange) {
+      window.dispatchEvent(new Event('classclick-biometric-lock'))
+    }
+
+    return response
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 

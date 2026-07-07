@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/stores/auth'
 import { useBiometric } from '@/hooks/useBiometric'
-import { isInstalledApp } from '@/lib/pwa'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -16,8 +15,11 @@ export function BiometricAppLock() {
   const [passwordLoading, setPasswordLoading] = useState(false)
   const ceremonyActive = useRef(false)
   const authenticating = useRef(false)
+  const sessionKey = `${user?.id ?? 'anonymous'}:${token ?? 'no-token'}`
+  const lastSessionKey = useRef(sessionKey)
+  const wasEnabled = useRef(false)
 
-  const enabled = !!token && !!user && isInstalledApp() && biometric.isEnabled
+  const enabled = !!token && !!user && biometric.isEnabled
 
   const unlock = useCallback(async () => {
     if (!enabled || authenticating.current) return
@@ -37,6 +39,11 @@ export function BiometricAppLock() {
       ceremonyActive.current = !!(event as CustomEvent<{ active: boolean }>).detail?.active
     }
     const unlockedHandler = () => setLocked(false)
+    const lockHandler = () => {
+      if (!enabled || ceremonyActive.current) return
+      setLocked(true)
+      setPasswordMode(false)
+    }
     const visibilityHandler = () => {
       if (!enabled || ceremonyActive.current) return
       if (document.visibilityState === 'visible') {
@@ -46,13 +53,29 @@ export function BiometricAppLock() {
     }
     window.addEventListener('classclick-biometric-ceremony', ceremonyHandler)
     window.addEventListener('classclick-biometric-unlocked', unlockedHandler)
+    window.addEventListener('classclick-biometric-lock', lockHandler)
     document.addEventListener('visibilitychange', visibilityHandler)
     return () => {
       window.removeEventListener('classclick-biometric-ceremony', ceremonyHandler)
       window.removeEventListener('classclick-biometric-unlocked', unlockedHandler)
+      window.removeEventListener('classclick-biometric-lock', lockHandler)
       document.removeEventListener('visibilitychange', visibilityHandler)
     }
   }, [enabled])
+
+  useEffect(() => {
+    const becameEnabled = enabled && !wasEnabled.current
+    wasEnabled.current = enabled
+
+    if (lastSessionKey.current === sessionKey && !becameEnabled) return
+    lastSessionKey.current = sessionKey
+    if (enabled || becameEnabled) {
+      setLocked(true)
+      setPasswordMode(false)
+      setPassword('')
+      setPasswordError('')
+    }
+  }, [enabled, sessionKey])
 
   useEffect(() => {
     if (enabled && locked && !passwordMode) void unlock()

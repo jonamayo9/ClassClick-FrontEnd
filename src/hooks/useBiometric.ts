@@ -241,6 +241,7 @@ export function useBiometric() {
   return {
     isAvailable,
     isEnabled,
+    credentialId: stored?.credentialId ?? null,
     isRegistering,
     isAuthenticating,
     error,
