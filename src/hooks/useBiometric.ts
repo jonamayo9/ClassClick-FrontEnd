@@ -55,6 +55,10 @@ function toBase64Url(value: ArrayBuffer | null): string | null {
 }
 
 function creationOptions(options: PublicKeyCredentialCreationOptionsJSON): PublicKeyCredentialCreationOptions {
+  if (!options?.challenge || !options?.user?.id) {
+    throw new Error('No se pudo iniciar la biometría. Reiniciá la app y volvé a intentarlo.')
+  }
+
   return {
     ...options,
     challenge: fromBase64Url(options.challenge),
@@ -67,6 +71,10 @@ function creationOptions(options: PublicKeyCredentialCreationOptionsJSON): Publi
 }
 
 function assertionOptions(options: PublicKeyCredentialRequestOptionsJSON): PublicKeyCredentialRequestOptions {
+  if (!options?.challenge) {
+    throw new Error('No se pudo verificar la biometría. Reiniciá la app y volvé a intentarlo.')
+  }
+
   return {
     ...options,
     challenge: fromBase64Url(options.challenge),
@@ -81,6 +89,23 @@ function ceremony(active: boolean) {
   window.dispatchEvent(new CustomEvent('classclick-biometric-ceremony', { detail: { active } }))
 }
 
+function biometricErrorMessage(cause: unknown, fallback: string) {
+  if (!(cause instanceof Error)) return fallback
+
+  const message = cause.message || ''
+  const normalized = message.toLowerCase()
+
+  if (cause.name === 'NotAllowedError' || normalized.includes('cancel') || normalized.includes('not allowed')) {
+    return 'Operación biométrica cancelada.'
+  }
+
+  if (message.includes('options.publicKey') || message.includes('Required parameters')) {
+    return 'No se pudo iniciar la biometría. Reiniciá la app y volvé a intentarlo.'
+  }
+
+  return message || fallback
+}
+
 export function useBiometric() {
   const userId = useAuth((state) => state.user?.id)
   const [isRegistering, setIsRegistering] = useState(false)
@@ -92,7 +117,9 @@ export function useBiometric() {
     window.isSecureContext &&
     'PublicKeyCredential' in window &&
     !!navigator.credentials
+
   useEffect(() => setStored(getStored(userId)), [userId])
+
   const isEnabled = !!stored
 
   const register = useCallback(async () => {
@@ -100,15 +127,19 @@ export function useBiometric() {
       setError('La biometría no está disponible en este dispositivo.')
       return false
     }
+
     setIsRegistering(true)
     setError(null)
     ceremony(true)
+
     try {
       const start = await apiService.post<WebAuthnOptionsResponse>('/api/auth/webauthn/register/options')
       const credential = await navigator.credentials.create({
         publicKey: creationOptions(start.options as PublicKeyCredentialCreationOptionsJSON),
       }) as PublicKeyCredential | null
+
       if (!credential) throw new Error('Registro biométrico cancelado.')
+
       const response = credential.response as AuthenticatorAttestationResponse
       const completed = await apiService.post<{ credentialId: string }>('/api/auth/webauthn/register/complete', {
         challengeId: start.challengeId,
@@ -125,15 +156,17 @@ export function useBiometric() {
           },
         },
       })
+
       const device = {
         userId,
         credentialId: completed.credentialId,
       }
+
       localStorage.setItem(storageKey(userId), JSON.stringify(device))
       setStored(device)
       return true
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo activar la biometría.')
+      setError(biometricErrorMessage(cause, 'No se pudo activar la biometría.'))
       return false
     } finally {
       ceremony(false)
@@ -146,15 +179,19 @@ export function useBiometric() {
       setError('No hay biometría registrada en este dispositivo.')
       return false
     }
+
     setIsAuthenticating(true)
     setError(null)
     ceremony(true)
+
     try {
       const start = await apiService.post<WebAuthnOptionsResponse>('/api/auth/webauthn/assert/options')
       const credential = await navigator.credentials.get({
         publicKey: assertionOptions(start.options as PublicKeyCredentialRequestOptionsJSON),
       }) as PublicKeyCredential | null
+
       if (!credential) throw new Error('Autenticación biométrica cancelada.')
+
       const response = credential.response as AuthenticatorAssertionResponse
       await apiService.post('/api/auth/webauthn/assert/complete', {
         challengeId: start.challengeId,
@@ -171,10 +208,11 @@ export function useBiometric() {
           },
         },
       })
+
       window.dispatchEvent(new Event('classclick-biometric-unlocked'))
       return true
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo verificar la biometría.')
+      setError(biometricErrorMessage(cause, 'No se pudo verificar la biometría.'))
       return false
     } finally {
       ceremony(false)
