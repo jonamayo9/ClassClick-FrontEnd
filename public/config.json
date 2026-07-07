@@ -1,5 +1,6 @@
 {
   "apiBaseUrl": "https://api.classclick.com.ar",
+  "googleClientId": "",
   "storageKeys": {
     "token": "classclick_token",
     "refreshToken": "classclick_refresh_token",
