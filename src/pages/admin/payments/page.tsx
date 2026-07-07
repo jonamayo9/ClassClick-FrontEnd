@@ -18,6 +18,7 @@ import { SearchableCombobox, MultiSelect } from '@/components/ui/combobox'
 import { SelectField } from '@/components/ui/select-field'
 import { DatePicker, MonthYearPicker } from '@/components/ui/date-picker'
 import { Modal as SharedModal } from '@/components/ui/modal'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import type { Charge, Payment } from '@/types/payments'
 import { HelpCircle } from 'lucide-react'
@@ -30,6 +31,7 @@ function PaymentsPageInner() {
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [selectedCharge, setSelectedCharge] = useState<Charge | null>(null)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
+  const [showNotifyConfirm, setShowNotifyConfirm] = useState(false)
   const [showPayModal, setShowPayModal] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState<string | null>(null)
   const [showProofModal, setShowProofModal] = useState<string | null>(null)
@@ -51,9 +53,7 @@ function PaymentsPageInner() {
   })
 
   function handleNotifyPendingCharges() {
-    const ok = window.confirm('Se notificará a todos los alumnos con al menos una cuota pendiente o vencida. ¿Continuar?')
-    if (!ok) return
-    notifyPendingMutation.mutate()
+    setShowNotifyConfirm(true)
   }
 
   return (
@@ -124,6 +124,11 @@ function PaymentsPageInner() {
       )}
 
       {showGenerateModal && <GenerateChargesModal onClose={() => setShowGenerateModal(false)} />}
+      <ConfirmModal open={showNotifyConfirm} onClose={() => setShowNotifyConfirm(false)}
+        title="Notificar pendientes"
+        message="Se notificará a todos los alumnos con al menos una cuota pendiente o vencida. ¿Continuar?"
+        confirmText="Notificar" variant="primary" loading={notifyPendingMutation.isPending}
+        onConfirm={() => { setShowNotifyConfirm(false); notifyPendingMutation.mutate() }} />
       {showPayModal && <PayModal chargeId={showPayModal} onClose={() => setShowPayModal(null)} />}
       {showEditModal && <EditChargeModal chargeId={showEditModal} onClose={() => setShowEditModal(null)} />}
       {showProofModal && <ProofViewer chargeId={showProofModal} onClose={() => setShowProofModal(null)} />}
