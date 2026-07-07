@@ -54,6 +54,14 @@ function toBase64Url(value: ArrayBuffer | null): string | null {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+function toBase64(value: ArrayBuffer | null): string | null {
+  if (!value) return null
+  const bytes = new Uint8Array(value)
+  let binary = ''
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  return btoa(binary)
+}
+
 function creationOptions(options: PublicKeyCredentialCreationOptionsJSON): PublicKeyCredentialCreationOptions {
   if (!options?.challenge || !options?.user?.id) {
     throw new Error('No se pudo iniciar la biometría. Reiniciá la app y volvé a intentarlo.')
@@ -146,12 +154,12 @@ export function useBiometric() {
         deviceName: `${navigator.platform || 'Dispositivo'} - ${navigator.userAgent.includes('Mobile') ? 'Móvil' : 'Web'}`,
         response: {
           id: credential.id,
-          rawId: toBase64Url(credential.rawId),
-          type: credential.type,
+          rawId: toBase64(credential.rawId),
+          type: 'PublicKey',
           extensions: credential.getClientExtensionResults(),
           response: {
-            attestationObject: toBase64Url(response.attestationObject),
-            clientDataJSON: toBase64Url(response.clientDataJSON),
+            attestationObject: toBase64(response.attestationObject),
+            clientDataJSON: toBase64(response.clientDataJSON),
             transports: response.getTransports?.() ?? ['internal'],
           },
         },
@@ -197,14 +205,14 @@ export function useBiometric() {
         challengeId: start.challengeId,
         response: {
           id: credential.id,
-          rawId: toBase64Url(credential.rawId),
-          type: credential.type,
+          rawId: toBase64(credential.rawId),
+          type: 'PublicKey',
           extensions: credential.getClientExtensionResults(),
           response: {
-            authenticatorData: toBase64Url(response.authenticatorData),
-            clientDataJSON: toBase64Url(response.clientDataJSON),
-            signature: toBase64Url(response.signature),
-            userHandle: toBase64Url(response.userHandle),
+            authenticatorData: toBase64(response.authenticatorData),
+            clientDataJSON: toBase64(response.clientDataJSON),
+            signature: toBase64(response.signature),
+            userHandle: toBase64(response.userHandle),
           },
         },
       })

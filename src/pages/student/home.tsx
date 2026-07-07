@@ -13,7 +13,7 @@ import { useBiometric } from '@/hooks/useBiometric'
 import { StudentCarnetModal } from './student-carnet'
 import {
   useStudentProfile, useStudentBilling, useStudentAnnouncements,
-  useStudentSponsors, useStudentCourses, useStudentMatches, useProfilePhotoUrl
+  useStudentSponsors, useStudentCourses, useProfilePhotoUrl
 } from './student.hooks'
 import type { StudentMatch } from './student.hooks'
 
@@ -61,20 +61,19 @@ export function StudentHome() {
   const hasPayments = hasModule('payments')
   const hasNews = hasModule('news')
   const hasSponsors = hasModule('sponsors')
-  const hasMatchesModule = hasModule('matches')
+  const hasMatchesModule = false
 
   const { data: profile, isLoading } = useStudentProfile()
   const { data: billingRaw } = useStudentBilling()
   const { data: announcementsRaw } = useStudentAnnouncements()
   const { data: sponsorsRaw } = useStudentSponsors()
   const { data: courses = [] } = useStudentCourses()
-  const { data: matchesRaw } = useStudentMatches()
   const { data: photoView } = useProfilePhotoUrl()
 
   const billing = useMemo(() => hasPayments ? billingRaw ?? [] : [], [hasPayments, billingRaw])
   const announcements = useMemo(() => hasNews ? announcementsRaw ?? [] : [], [hasNews, announcementsRaw])
   const sponsors = useMemo(() => hasSponsors ? sponsorsRaw ?? [] : [], [hasSponsors, sponsorsRaw])
-  const matches = useMemo(() => hasMatchesModule ? matchesRaw ?? [] : [], [hasMatchesModule, matchesRaw])
+  const matches = useMemo<StudentMatch[]>(() => [], [])
   const companies = useAuth((s) => s.companies)
   const activeSlug = useAuth((s) => s.activeCompanySlug)
   const activeCompany = companies.find((c) => (c.slug ?? c.companySlug) === activeSlug)
