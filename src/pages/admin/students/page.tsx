@@ -177,12 +177,11 @@ function StudentsPageInner() {
     if (!form.firstName.trim()) e.firstName = 'Requerido'
     if (!form.lastName.trim()) e.lastName = 'Requerido'
     if (!form.email.trim()) e.email = 'Requerido'
-    if (form.accessMethod === 'password' && !form.password.trim()) e.password = 'Requerido'
     setErrors(e); return Object.keys(e).length === 0
   }
 
   function handleSubmit(e: React.FormEvent) { e.preventDefault(); if (!validate()) return; createMutation.mutate(form) }
-  function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '', accessMethod: 'password' }); setErrors({}) }
+  function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '' }); setErrors({}) }
   function openEdit(s: Student) { setEditStudent(s); setEditForm({ firstName: s.firstName, lastName: s.lastName, email: s.email }) }
   function openDetail(s: Student) {
     setDetailStudent(s)
@@ -220,21 +219,7 @@ function StudentsPageInner() {
           <Field label="Nombre" error={errors.firstName}><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></Field>
           <Field label="Apellido" error={errors.lastName}><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></Field>
           <Field label="Email" error={errors.email}><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-          <Field label="Método de acceso">
-            <Select value={form.accessMethod} onChange={(e) => setForm({ ...form, accessMethod: e.target.value, password: e.target.value === 'google' ? '' : form.password })}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-              <option value="password">Contraseña</option>
-              <option value="google">Google</option>
-            </Select>
-          </Field>
-          {form.accessMethod === 'password' && (
-            <Field label="Contraseña" error={errors.password}><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
-          )}
-          {form.accessMethod === 'google' && (
-            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-medium text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
-              Se crea pendiente de registro y recibe una invitación por email para ingresar con Google.
-            </div>
-          )}
+          <Field label="Contraseña" error={errors.password}><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
           <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-4">
             <Button type="submit" loading={createMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-700">Guardar</Button>
           </div>

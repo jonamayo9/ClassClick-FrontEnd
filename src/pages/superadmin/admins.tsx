@@ -216,31 +216,31 @@ function AdminsInner() {
           title={editId ? `Editar ${form.isSuperAdmin ? 'SuperAdmin' : 'admin'}` : `Nuevo ${form.isSuperAdmin ? 'SuperAdmin' : 'admin'}`}
           className="sm:max-w-md"
         >
-          <div className="px-5 py-4 sm:px-6 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nombre *</label><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
-              <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Apellido *</label><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
+            <div className="px-5 py-4 sm:px-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nombre *</label><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
+                <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Apellido *</label><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
+              </div>
+              <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Email *</label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+              {!editId && <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Contraseña *</label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>}
+              {editId && (
+                <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                  <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
+                  <span className="text-sm font-medium">Admin activo</span>
+                </label>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setShowForm(false); resetForm() }}>Cancelar</Button>
+                <Button loading={createMutation.isPending || updateMutation.isPending}
+                  onClick={() => {
+                    if (!editId && !form.password.trim()) { toast('La contraseña es obligatoria.', 'error'); return }
+                    if (editId) updateMutation.mutate()
+                    else createMutation.mutate()
+                  }}
+                  className="bg-slate-800 text-white hover:bg-slate-700">{editId ? 'Guardar' : `Crear ${form.isSuperAdmin ? 'SuperAdmin' : 'admin'}`}</Button>
+              </div>
             </div>
-            <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Email *</label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-            {!editId && <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Contraseña *</label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>}
-            {editId && (
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
-                <span className="text-sm font-medium">Admin activo</span>
-              </label>
-            )}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => { setShowForm(false); resetForm() }}>Cancelar</Button>
-              <Button loading={createMutation.isPending || updateMutation.isPending}
-                onClick={() => {
-                  if (!editId && !form.password.trim()) { toast('La contraseña es obligatoria.', 'error'); return }
-                  if (editId) updateMutation.mutate()
-                  else createMutation.mutate()
-                }}
-                className="bg-slate-800 text-white hover:bg-slate-700">{editId ? 'Guardar' : `Crear ${form.isSuperAdmin ? 'SuperAdmin' : 'admin'}`}</Button>
-            </div>
-          </div>
         </Modal>
       )}
 

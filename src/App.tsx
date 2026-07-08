@@ -14,6 +14,8 @@ import { LandingPage } from '@/pages/landing'
 import { TrialSignupPage } from '@/pages/landing/trial-signup'
 import { PrivacyPage, TermsPage } from '@/pages/landing/legal'
 import { LoginPage } from '@/pages/auth/login'
+import { ForgotPasswordPage } from '@/pages/auth/forgot-password'
+import { ResetPasswordPage } from '@/pages/auth/reset-password'
 import { AdminDashboard } from '@/pages/admin/dashboard'
 import PaymentsPage from '@/pages/admin/payments/page'
 import StudentsPage from '@/pages/admin/students/page'
@@ -148,6 +150,8 @@ export default function App() {
           </Route>
 
           <Route path="login" element={<LoginPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="register" element={<RegistrationGate />} />
 
           <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>

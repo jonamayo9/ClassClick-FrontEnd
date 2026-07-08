@@ -837,11 +837,11 @@ function DocActionBtn({ children, className, onClick }: { children: React.ReactN
 
 function normalizeStatus(status: number | string | undefined): string {
   const s = Number(status)
-  if (s === 1) return 'Pending'
-  if (s === 2) return 'Submitted'
-  if (s === 3) return 'Approved'
-  if (s === 4) return 'Rejected'
-  if (s === 5) return 'Expired'
+  if (s === 1) return 'Pendiente'
+  if (s === 2) return 'En revisión'
+  if (s === 3) return 'Aprobado'
+  if (s === 4) return 'Rechazado'
+  if (s === 5) return 'Vencido'
   return String(status ?? '')
 }
 

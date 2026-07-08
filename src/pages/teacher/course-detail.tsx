@@ -203,7 +203,7 @@ function TeacherCourseDetailInner() {
                   onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs file:font-medium dark:border-slate-700 dark:bg-slate-800 dark:file:bg-slate-700"
                 />
-                <p className="mt-1 text-xs text-slate-400">JPG, PNG, WEBP o PDF. Max 25 MB.</p>
+                <p className="mt-1 text-xs text-slate-400">JPG, PNG, WEBP o PDF. Máx 25 MB.</p>
               </div>
               <Button type="submit" loading={uploadMutation.isPending} className="w-full bg-emerald-600 text-white hover:bg-emerald-700">
                 Subir

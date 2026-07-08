@@ -13,29 +13,24 @@ export function formatDate(value: string | null | undefined) {
 
 export function normalizeStatus(status: number | string | undefined): string {
   const s = Number(status)
-  if (s === 1) return 'Pending'
-  if (s === 2) return 'Submitted'
-  if (s === 3) return 'Approved'
-  if (s === 4) return 'Rejected'
-  if (s === 5) return 'Expired'
+  if (s === 1) return 'Pendiente'
+  if (s === 2) return 'En revisión'
+  if (s === 3) return 'Aprobado'
+  if (s === 4) return 'Rechazado'
+  if (s === 5) return 'Vencido'
   return String(status ?? '')
 }
 
-const statusLabels: Record<string, string> = {
-  Pending: 'Pendiente', Submitted: 'En revisión', Approved: 'Aprobado',
-  Rejected: 'Rechazado', Expired: 'Vencido',
-}
-
 export function getStatusLabel(status: number | string | undefined) {
-  return statusLabels[normalizeStatus(status)] ?? 'Sin estado'
+  return normalizeStatus(status)
 }
 
 export const statusColors: Record<string, string> = {
-  Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
-  Submitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-  Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
-  Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
-  Expired: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+  'Pendiente': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+  'En revisión': 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+  'Aprobado': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+  'Rechazado': 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+  'Vencido': 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
 }
 
 export function getStatusBadgeClass(status: number | string | undefined) {
