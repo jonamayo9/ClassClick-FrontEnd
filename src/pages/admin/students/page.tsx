@@ -102,7 +102,7 @@ function StudentsPageInner() {
   })
   const students = data?.items ?? []; const totalCount = data?.totalCount ?? 0; const totalPages = data?.totalPages ?? 1
 
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', accessMethod: 'password' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [detailStudent, setDetailStudent] = useState<Student | null>(null)
   const [detailGuardians, setDetailGuardians] = useState<{ firstName: string; lastName: string; email?: string; phone?: string; documentNumber?: string; relationshipType?: number; canPayCharges?: boolean; isPrimary?: boolean }[]>([])
