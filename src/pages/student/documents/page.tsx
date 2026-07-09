@@ -16,6 +16,8 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024
 
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
+/* ─── Helpers ─── */
+
 function pick<T>(raw: Record<string, unknown>, keys: string[]): T | undefined {
   for (const k of keys) {
     const v = raw[k]
@@ -25,13 +27,11 @@ function pick<T>(raw: Record<string, unknown>, keys: string[]): T | undefined {
 }
 
 function pickString(raw: Record<string, unknown>, keys: string[]): string {
-  const v = pick<string>(raw, keys)
-  return v ?? ''
+  return pick<string>(raw, keys) ?? ''
 }
 
 function pickBool(raw: Record<string, unknown>, keys: string[]): boolean {
-  const v = pick<boolean>(raw, keys)
-  return v === true
+  return pick<boolean>(raw, keys) === true
 }
 
 function asArray<T = unknown>(value: unknown): T[] {
@@ -45,15 +45,17 @@ function asArray<T = unknown>(value: unknown): T[] {
   return []
 }
 
+/* ─── Status ─── */
+
 function formatDocumentStatus(status: unknown): string {
-  const value = String(status ?? '').toLowerCase().trim()
-  if (value === '' || value === 'null' || value === 'undefined') return 'Pendiente'
-  if (value === '1' || value.includes('pending')) return 'Pendiente'
-  if (value === '2' || value.includes('submitted') || value.includes('uploaded')) return 'Entregado'
-  if (value === '3' || value.includes('approved')) return 'Aprobado'
-  if (value === '4' || value.includes('rejected')) return 'Rechazado'
-  if (value === '5' || value.includes('expired')) return 'Vencido'
-  if (value.includes('missing')) return 'Faltante'
+  const v = String(status ?? '').toLowerCase().trim()
+  if (v === '' || v === 'null' || v === 'undefined') return 'Pendiente'
+  if (v === '1' || v === 'pending') return 'Pendiente'
+  if (v === '2' || v === 'submitted' || v === 'uploaded') return 'Entregado'
+  if (v === '3' || v === 'approved') return 'Aprobado'
+  if (v === '4' || v === 'rejected') return 'Rechazado'
+  if (v === '5' || v === 'expired') return 'Vencido'
+  if (v.includes('missing')) return 'Faltante'
   return String(status ?? 'Pendiente')
 }
 
@@ -67,76 +69,74 @@ const statusVariants: Record<string, 'warning' | 'info' | 'success' | 'danger' |
 }
 
 function getStatusVariant(status: unknown) {
-  const label = formatDocumentStatus(status).toLowerCase()
-  return statusVariants[label] ?? 'default'
+  return statusVariants[formatDocumentStatus(status).toLowerCase()] ?? 'default'
 }
 
-function normalizeDocument(raw: Record<string, unknown>) {
-  console.log('NORMALIZE DOCUMENT INPUT', raw)
+/* ─── Normalizer ─── */
 
-  const statusRaw = pick(raw, ['status', 'Status', 'estado']) ?? ''
+interface NormalizedDoc {
+  assignmentId: string
+  title: string
+  status: string
+  statusLabel: string
+  isRequired: boolean
+  notes: string
+  rejectionReason: string
+  assignedAt: string
+  dueDate: string
+  expirationDateUtc: string
+  fileId: string
+  fileName: string
+  fileMimeType: string
+  canUpload: boolean
+  raw: Record<string, unknown>
+}
+
+function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
+  const assignmentId = pickString(raw, ['assignmentId', 'AssignmentId'])
+  const title = pickString(raw, ['documentTypeName', 'DocumentTypeName', 'title', 'Title'])
+  const statusRaw = pick(raw, ['status', 'Status']) ?? ''
   const statusLabel = formatDocumentStatus(statusRaw)
-
-  const assignmentId = pickString(raw, [
-    'assignmentId',
-    'AssignmentId',
-    'studentFileAssignmentId',
-    'StudentFileAssignmentId',
-    'documentAssignmentId',
-    'DocumentAssignmentId',
-    'requestId',
-    'RequestId',
-    'studentDocumentId',
-    'StudentDocumentId',
-    'id',
-    'Id',
-  ])
-  const id = assignmentId
-  const title = pickString(raw, ['documentTypeName', 'DocumentTypeName', 'title', 'Title', 'name', 'Name'])
-  const isRequired = pickBool(raw, ['isMandatory', 'IsMandatory', 'isRequired', 'required'])
-  const notes = pickString(raw, ['requestNote', 'RequestNote', 'notes', 'Notes', 'instructions', 'Instructions', 'description'])
-  const rejectionReason = pickString(raw, ['reviewNote', 'ReviewNote', 'rejectionReason', 'RejectionReason'])
-  const assignedAt = pickString(raw, ['assignedAtUtc', 'AssignedAtUtc', 'assignedAt', 'AssignedAt'])
-  const dueDate = pickString(raw, ['dueDateUtc', 'DueDateUtc', 'dueDate', 'DueDate'])
-  const fileId = pickString(raw, ['currentFileId', 'CurrentFileId', 'fileId', 'FileId', 'uploadedFileId'])
-  const fileName = pickString(raw, ['currentFileName', 'CurrentFileName', 'fileName', 'FileName'])
-  const fileMimeType = pickString(raw, ['currentFileMimeType', 'CurrentFileMimeType', 'fileMimeType', 'FileMimeType'])
-  const fileUrl = pickString(raw, ['fileUrl', 'FileUrl'])
+  const isRequired = pickBool(raw, ['isMandatory', 'IsMandatory'])
+  const notes = pickString(raw, ['requestNote', 'RequestNote', 'notes', 'Notes'])
+  const rejectionReason = pickString(raw, ['reviewNote', 'ReviewNote'])
+  const assignedAt = pickString(raw, ['assignedAtUtc', 'AssignedAtUtc'])
+  const dueDate = pickString(raw, ['dueDateUtc', 'DueDateUtc'])
+  const expirationDateUtc = pickString(raw, ['expirationDateUtc', 'ExpirationDateUtc'])
+  const fileId = pickString(raw, ['currentFileId', 'CurrentFileId'])
+  const fileName = pickString(raw, ['currentFileName', 'CurrentFileName'])
+  const fileMimeType = pickString(raw, ['currentFileMimeType', 'CurrentFileMimeType'])
 
   const label = statusLabel.toLowerCase()
-  const canUpload = !!assignmentId && label !== 'aprobado' && label !== 'entregado'
+  const canUpload = !!assignmentId && label !== 'aprobado'
 
-  const normalized = {
-    id,
+  return {
     assignmentId,
     title,
-    status: statusRaw,
+    status: String(statusRaw),
     statusLabel,
     isRequired,
     notes,
     rejectionReason,
     assignedAt,
     dueDate,
+    expirationDateUtc,
     fileId,
     fileName,
     fileMimeType,
-    fileUrl,
     canUpload,
     raw,
   }
-
-  console.log('NORMALIZE DOCUMENT OUTPUT', normalized)
-  return normalized
 }
 
-type NormalizedDoc = ReturnType<typeof normalizeDocument>
+/* ─── Page ─── */
 
 function DocumentsPageInner() {
   const toast = useToast()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { data: rawList = [], isLoading, error } = useQuery({
+  const { data: rawList, isLoading, error } = useQuery({
     queryKey: ['my-documents', slug()],
     queryFn: async () => {
       const res = await apiService.get<unknown>(`/api/student/${slug()}/student-files/my-documents`)
@@ -146,7 +146,7 @@ function DocumentsPageInner() {
     enabled: !!slug(),
   })
 
-  const docs: NormalizedDoc[] = asArray(rawList).map((d) => normalizeDocument(d as Record<string, unknown>))
+  const docs = asArray(rawList).map((d) => normalizeDocument(d as Record<string, unknown>))
 
   const [selected, setSelected] = useState<NormalizedDoc | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -155,7 +155,7 @@ function DocumentsPageInner() {
 
   const pendingCount = docs.filter((d) => {
     const s = d.statusLabel.toLowerCase()
-    return s === 'pendiente' || s === 'vencido' || s === 'faltante' || s === 'rechazado'
+    return s === 'pendiente' || s === 'rechazado' || s === 'vencido' || s === 'faltante'
   }).length
 
   function formatDateSafe(v: string) { return v ? formatDate(v) : '-' }
@@ -196,6 +196,10 @@ function DocumentsPageInner() {
     if (selected) console.log('SELECTED DOCUMENT', selected)
   }, [selected])
 
+  const isImage = (mime?: string) => mime?.toLowerCase().startsWith('image/')
+  const isPdf = (mime?: string) => mime?.toLowerCase() === 'application/pdf'
+
+  /* ─── Loading ─── */
   if (isLoading) {
     return (
       <div className="space-y-5">
@@ -212,8 +216,10 @@ function DocumentsPageInner() {
     )
   }
 
+  /* ─── Main ─── */
   return (
     <div className="space-y-5">
+      {/* Hero */}
       <div className="rounded-2xl bg-gradient-to-br from-rose-600 via-pink-700 to-fuchsia-800 px-5 py-6 text-white shadow-lg sm:px-8 sm:py-8">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -229,6 +235,7 @@ function DocumentsPageInner() {
         </div>
       </div>
 
+      {/* Error */}
       {error ? (
         <Card className="p-8 text-center">
           <p className="text-sm text-red-500 dark:text-red-400">Error al cargar los documentos.</p>
@@ -240,7 +247,7 @@ function DocumentsPageInner() {
         <div className="space-y-3">
           {docs.map((d) => (
             <Card
-              key={d.id || d.assignmentId}
+              key={d.assignmentId}
               className="p-4 space-y-3 cursor-pointer transition hover:shadow-md active:scale-[0.99]"
               onClick={() => setSelected(d)}
             >
@@ -259,14 +266,14 @@ function DocumentsPageInner() {
               {d.rejectionReason && (
                 <p className="text-xs text-amber-600 bg-amber-50 rounded-xl p-2.5 dark:bg-amber-950/30 line-clamp-2">{d.rejectionReason}</p>
               )}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
                 {d.fileName && <span className="truncate max-w-[200px]">Archivo: {d.fileName}</span>}
                 {d.dueDate && <span>Vence: {formatDateSafe(d.dueDate)}</span>}
               </div>
               <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                {(d.fileId || d.fileUrl) && (
+                {d.fileId && (
                   <Button variant="outline" size="sm"
-                    onClick={() => setViewing({ name: d.fileName, url: d.fileUrl || `/api/student/${slug()}/student-files/files/${d.fileId}/view` })}>
+                    onClick={() => setViewing({ name: d.fileName, url: `/api/student/${slug()}/student-files/files/${d.fileId}/view` })}>
                     Ver archivo
                   </Button>
                 )}
@@ -288,7 +295,7 @@ function DocumentsPageInner() {
           title={selected.title || 'Documento'} className="sm:max-w-lg">
           <div className="px-5 py-4 sm:px-6 space-y-4 max-h-[85vh] overflow-y-auto">
 
-            {/* Debug info - visible solo en desarrollo */}
+            {/* Debug */}
             <details className="text-[10px] text-slate-400 border border-dashed border-slate-200 rounded-xl p-2 dark:border-slate-700">
               <summary className="cursor-pointer font-mono">debug</summary>
               <pre className="mt-1 font-mono leading-relaxed">{JSON.stringify({
@@ -299,6 +306,8 @@ function DocumentsPageInner() {
                 canUpload: selected.canUpload,
               }, null, 2)}</pre>
             </details>
+
+            {/* Header */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {selected.isRequired ? 'Obligatorio' : 'Opcional'}
@@ -306,6 +315,7 @@ function DocumentsPageInner() {
               <Badge variant={getStatusVariant(selected.status)}>{selected.statusLabel}</Badge>
             </div>
 
+            {/* Notes */}
             {selected.notes && (
               <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Instrucciones</p>
@@ -313,6 +323,7 @@ function DocumentsPageInner() {
               </div>
             )}
 
+            {/* Rejection */}
             {selected.rejectionReason && (
               <div className="rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">Motivo de rechazo</p>
@@ -320,6 +331,7 @@ function DocumentsPageInner() {
               </div>
             )}
 
+            {/* Dates & File */}
             <div className="grid grid-cols-2 gap-3 text-sm">
               {selected.assignedAt && (
                 <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
@@ -333,60 +345,64 @@ function DocumentsPageInner() {
                   <p className="font-semibold text-slate-900 dark:text-white">{formatDateSafe(selected.dueDate)}</p>
                 </div>
               )}
-              {(selected.fileId || selected.fileName) && (
+              {selected.fileId && (
                 <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50 col-span-2">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Archivo actual</p>
                   <p className="font-semibold text-slate-900 dark:text-white truncate mt-0.5">{selected.fileName || 'Archivo cargado'}</p>
-                  {(selected.fileId || selected.fileUrl) && (
-                    <Button variant="outline" size="sm" className="mt-2"
-                      onClick={() => setViewing({
-                        name: selected.fileName || 'Documento',
-                        url: selected.fileUrl || `/api/student/${slug()}/student-files/files/${selected.fileId}/view`
-                      })}>
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="outline" size="sm"
+                      onClick={() => setViewing({ name: selected.fileName || 'Documento', url: `/api/student/${slug()}/student-files/files/${selected.fileId}/view` })}>
                       Ver archivo
                     </Button>
-                  )}
+                    <a
+                      href={`/api/student/${slug()}/student-files/files/${selected.fileId}/download-file`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Descargar
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
 
+            {/* No assignmentId warning */}
             {!selected.assignmentId && (
               <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
                 No se puede subir porque no llegó el ID de la solicitud desde el backend.
               </div>
             )}
-            {(() => {
-              const showUpload = !!selected.assignmentId &&
-                selected.statusLabel.toLowerCase() !== 'aprobado'
-              console.log('UPLOAD SECTION CHECK', { showUpload, assignmentId: selected.assignmentId, label: selected.statusLabel })
-              return showUpload ? (
-                <div className="rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
-                  <p className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-3">
-                    {selected.fileName ? 'Reemplazar archivo' : 'Subir documento'}
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp,.pdf"
-                    onChange={handleFileChange}
-                    className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-700 shadow-sm border border-slate-200 rounded-xl px-3 py-2 hover:file:bg-violet-50 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-violet-300 dark:border-slate-600"
-                  />
-                  {uploadFile && (
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
-                    </p>
-                  )}
-                  <div className="flex gap-2 mt-3">
-                    <Button onClick={handleUpload} disabled={!uploadFile || uploading} loading={uploading}
-                      className="flex-1 bg-violet-600 text-white hover:bg-violet-700">
-                      {uploading ? 'Subiendo...' : 'Subir documento'}
-                    </Button>
-                  </div>
-                  <p className="mt-2 text-[10px] text-slate-400">JPG, PNG, WEBP o PDF. Máx 25 MB.</p>
-                </div>
-              ) : null
-            })()}
 
+            {/* Upload */}
+            {selected.canUpload && (
+              <div className="rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
+                <p className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-3">
+                  {selected.fileName ? 'Reemplazar archivo' : 'Subir documento'}
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  onChange={handleFileChange}
+                  className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-700 shadow-sm border border-slate-200 rounded-xl px-3 py-2 hover:file:bg-violet-50 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-violet-300 dark:border-slate-600"
+                />
+                {uploadFile && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <Button onClick={handleUpload} disabled={!uploadFile || uploading} loading={uploading}
+                    className="flex-1 bg-violet-600 text-white hover:bg-violet-700">
+                    {uploading ? 'Subiendo...' : 'Subir documento'}
+                  </Button>
+                </div>
+                <p className="mt-2 text-[10px] text-slate-400">JPG, PNG, WEBP o PDF. Máx 25 MB.</p>
+              </div>
+            )}
+
+            {/* Close */}
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => { setSelected(null); setUploadFile(null) }}>Cerrar</Button>
             </div>
@@ -401,9 +417,19 @@ function DocumentsPageInner() {
             <div className="flex flex-col items-center gap-4 py-4">
               {viewing.url ? (
                 <>
-                  <iframe src={imgUrl(viewing.url) ?? ''} className="h-[70vh] w-full rounded-xl" title={viewing.name ?? 'Documento'} />
+                  {isPdf(selected?.fileMimeType) || isImage(selected?.fileMimeType) ? (
+                    <iframe src={imgUrl(viewing.url) ?? ''} className="h-[70vh] w-full rounded-xl" title={viewing.name ?? 'Documento'} />
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 py-10">
+                      <p className="text-sm text-slate-500">Vista previa no disponible para este tipo de archivo.</p>
+                      <a href={imgUrl(viewing.url) ?? '#'} target="_blank" rel="noopener noreferrer"
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                        Descargar archivo
+                      </a>
+                    </div>
+                  )}
                   <a href={imgUrl(viewing.url) ?? '#'} target="_blank" rel="noopener noreferrer"
-                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                    className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                     Abrir en nueva pestaña
                   </a>
                 </>
