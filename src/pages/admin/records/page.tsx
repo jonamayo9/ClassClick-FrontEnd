@@ -827,12 +827,12 @@ function DocumentosTab({ detail, documentTypes, toast }: {
     return d.documentTypeName.toLowerCase().includes(docFilter.toLowerCase())
   })
 
-  const allFileIds = detail.documents
-    .filter((d) => d.currentFileId)
-    .map((d) => d.currentFileId!)
+  const docsWithFile = filtered.filter((d) => d.currentFileId)
+  const allSelected = docsWithFile.length > 0 && docsWithFile.every((d) => selectedIds.has(d.currentFileId!))
+  const allFileIds = detail.documents.filter((d) => d.currentFileId).map((d) => d.currentFileId!)
 
-  const selectedFileIds = filtered
-    .filter((d) => d.currentFileId && selectedIds.has(d.currentFileId))
+  const selectedFileIds = docsWithFile
+    .filter((d) => selectedIds.has(d.currentFileId!))
     .map((d) => d.currentFileId!)
 
   function toggleSelect(fileId: string) {
@@ -845,11 +845,9 @@ function DocumentosTab({ detail, documentTypes, toast }: {
   }
 
   function toggleSelectAll() {
-    const ids = filtered.filter((d) => d.currentFileId).map((d) => d.currentFileId!)
-    const allSelected = ids.every((id) => selectedIds.has(id))
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      ids.forEach((id) => allSelected ? next.delete(id) : next.add(id))
+      docsWithFile.forEach((d) => allSelected ? next.delete(d.currentFileId!) : next.add(d.currentFileId!))
       return next
     })
   }
@@ -889,9 +887,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
     setViewFileLoading(true)
     setViewFileData(null)
     try {
-      const res = await apiService.get<{ url: string }>(
-        `/api/admin/${slug()}/student-files/files/${fileId}/view`,
-      )
+      const res = await apiService.get<{ url: string }>(`/api/admin/${slug()}/student-files/files/${fileId}/view`)
       if (res?.url) {
         setViewFileData({
           url: res.url,
@@ -907,22 +903,33 @@ function DocumentosTab({ detail, documentTypes, toast }: {
     }
   }
 
+  function getBestDate(doc: import('./hooks').StudentDocument): string {
+    return doc.submittedAtUtc || doc.reviewedAtUtc || doc.dueDateUtc || doc.assignedAtUtc || ''
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h4 className="text-base font-bold text-slate-900 dark:text-white">Documentos</h4>
-          <p className="text-xs text-slate-400">{detail.documents.length} documento{detail.documents.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-slate-400">
+            {detail.documents.length} documento{detail.documents.length !== 1 ? 's' : ''}
+            {selectedFileIds.length > 0 && (
+              <span className="ml-2 font-medium text-blue-600 dark:text-blue-400">
+                · {selectedFileIds.length} seleccionado{selectedFileIds.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={selectedFileIds.length === 0 || downloading}
-            onClick={() => handleDownloadZip(selectedFileIds)}>
-            Descargar seleccionados ({selectedFileIds.length})
-          </Button>
           <Button variant="outline" size="sm" disabled={allFileIds.length === 0 || downloading}
             onClick={() => handleDownloadZip(allFileIds)}>
             Descargar todos
+          </Button>
+          <Button variant="outline" size="sm" disabled={selectedFileIds.length === 0 || downloading}
+            onClick={() => handleDownloadZip(selectedFileIds)}>
+            Descargar seleccionados {selectedFileIds.length > 0 && `(${selectedFileIds.length})`}
           </Button>
         </div>
       </div>
@@ -930,15 +937,17 @@ function DocumentosTab({ detail, documentTypes, toast }: {
       {/* Filter */}
       <div className="flex gap-2">
         <Input placeholder="Filtrar por tipo documental..." value={docFilter} onChange={(e) => setDocFilter(e.target.value)} className="flex-1" />
-        <Button variant="outline" size="sm" onClick={() => { toggleSelectAll() }}>
-          {filtered.filter((d) => d.currentFileId).every((d) => selectedIds.has(d.currentFileId!)) ? 'Deseleccionar todos' : 'Seleccionar todos'}
-        </Button>
       </div>
+
+      {/* Selection summary (mobile) */}
+      {selectedFileIds.length > 0 && (
+        <p className="text-xs text-slate-500 sm:hidden">{selectedFileIds.length} documento{selectedFileIds.length !== 1 ? 's' : ''} seleccionado{selectedFileIds.length !== 1 ? 's' : ''}</p>
+      )}
 
       {/* Table */}
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-600 dark:bg-slate-800/30 dark:text-slate-500">
-          Sin documentos.
+          {docFilter ? 'Sin documentos que coincidan con el filtro.' : 'Sin documentos.'}
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -946,13 +955,15 @@ function DocumentosTab({ detail, documentTypes, toast }: {
             <thead>
               <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 <th className="px-3 py-3 w-8">
-                  <input type="checkbox" checked={filtered.filter((d) => d.currentFileId).every((d) => selectedIds.has(d.currentFileId!)) && filtered.filter((d) => d.currentFileId).length > 0}
-                    onChange={toggleSelectAll} className="h-4 w-4 rounded border-slate-300" />
+                  {docsWithFile.length > 0 && (
+                    <input type="checkbox" checked={allSelected}
+                      onChange={toggleSelectAll} className="h-4 w-4 rounded border-slate-300" />
+                  )}
                 </th>
                 <th className="px-3 py-3">Tipo</th>
                 <th className="px-3 py-3">Estado</th>
                 <th className="px-3 py-3 hidden sm:table-cell">Archivo</th>
-                <th className="px-3 py-3 hidden md:table-cell">Subido</th>
+                <th className="px-3 py-3 hidden md:table-cell">Fecha</th>
                 <th className="px-3 py-3 text-right">Acciones</th>
               </tr>
             </thead>
@@ -960,6 +971,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
               {filtered.map((doc) => {
                 const statusLabel = getStatusLabel(doc.status)
                 const isSelected = doc.currentFileId ? selectedIds.has(doc.currentFileId) : false
+                const bestDate = getBestDate(doc)
                 return (
                   <tr key={doc.assignmentId} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 ${isSelected ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}>
                     <td className="px-3 py-3">
@@ -971,11 +983,11 @@ function DocumentosTab({ detail, documentTypes, toast }: {
                     <td className="px-3 py-3">
                       <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${getStatusBadgeClass(doc.status)}`}>{statusLabel}</span>
                     </td>
-                    <td className="px-3 py-3 hidden sm:table-cell text-slate-500 truncate max-w-[200px]">{doc.currentFileName || '—'}</td>
-                    <td className="px-3 py-3 hidden md:table-cell text-slate-500">{formatDate(doc.submittedAtUtc)}</td>
+                    <td className="px-3 py-3 hidden sm:table-cell text-slate-500 truncate max-w-[180px]">{doc.currentFileName || '—'}</td>
+                    <td className="px-3 py-3 hidden md:table-cell text-slate-500 whitespace-nowrap">{bestDate ? formatDate(bestDate) : '—'}</td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex justify-end gap-1.5">
-                        {doc.currentFileId && (
+                        {doc.currentFileId ? (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleViewFile(doc.currentFileId!, doc.currentFileName || 'Documento', doc.currentFileMimeType || '')}>Ver</Button>
                             <a href={`/api/admin/${slug()}/student-files/files/${doc.currentFileId}/download-file`}
@@ -984,6 +996,8 @@ function DocumentosTab({ detail, documentTypes, toast }: {
                               Descargar
                             </a>
                           </>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
                         )}
                       </div>
                     </td>
