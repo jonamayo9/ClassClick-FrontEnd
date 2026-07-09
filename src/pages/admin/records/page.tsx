@@ -649,6 +649,8 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
   onOpenDetail: (id: string) => void
   toast: (msg: string, type?: 'success' | 'error') => void
 }) {
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [filterCourse, setFilterCourse] = useState('')
   const [filterDocType, setFilterDocType] = useState('')
@@ -667,6 +669,13 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
     return d.submittedAtUtc || d.dueDateUtc || ''
   }
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(documents.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const end = start + PAGE_SIZE
+  const pageItems = documents.slice(start, end)
+
   async function handleViewFile(fileId: string, fileName: string, mimeType: string) {
     setViewFileLoading(true)
     setViewFileData(null)
@@ -684,57 +693,48 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
       if (filterCourse) body.courseId = filterCourse
       if (filterDocType) body.documentTypeId = filterDocType
       if (filterStatus) body.status = filterStatus
-
       const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/documents/download-zip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuth.getState().token}` },
         body: JSON.stringify(body),
       })
-      if (!res.ok) {
-        const msg = await res.text().catch(() => 'Error al descargar')
-        toast(msg, 'error')
-        return
-      }
+      if (!res.ok) { const msg = await res.text().catch(() => 'Error al descargar'); toast(msg, 'error'); return }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `documentos_filtrados.zip`
-      a.click()
+      a.href = url; a.download = `documentos_filtrados.zip`; a.click()
       URL.revokeObjectURL(url)
       toast('ZIP descargado correctamente.')
-    } catch {
-      toast('Error al descargar el ZIP.', 'error')
-    } finally {
-      setZipLoading(false)
-    }
+    } catch { toast('Error al descargar el ZIP.', 'error') } finally { setZipLoading(false) }
   }
 
   return (
     <Card className="p-5 space-y-4">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold">Documentos</h2>
           <p className="text-xs text-slate-400 mt-0.5">{documents.length} documento{documents.length !== 1 ? 's' : ''}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDownloadZip} loading={zipLoading}
-          disabled={documents.length === 0}>
+        <Button variant="outline" size="sm" onClick={handleDownloadZip} loading={zipLoading} disabled={documents.length === 0}>
           Descargar todos los documentos
         </Button>
       </div>
+
+      {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <Input placeholder="Buscar alumno o documento..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)}
+        <Input placeholder="Buscar alumno o documento..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+        <select value={filterCourse} onChange={(e) => { setFilterCourse(e.target.value); setPage(1) }}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
           <option value="">Todos los cursos</option>
           {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <select value={filterDocType} onChange={(e) => setFilterDocType(e.target.value)}
+        <select value={filterDocType} onChange={(e) => { setFilterDocType(e.target.value); setPage(1) }}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
           <option value="">Todos los tipos</option>
           {documentTypes.map((dt) => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+        <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
           <option value="">Todos los estados</option>
           <option value="Pending">Pendientes</option>
@@ -744,6 +744,8 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
           <option value="Expired">Vencidos</option>
         </select>
       </div>
+
+      {/* Content */}
       {isLoading ? (
         <div className="space-y-2 py-8">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div>
       ) : documents.length === 0 ? (
@@ -751,31 +753,32 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
       ) : (
         <>
           {/* MOBILE CARDS */}
-          <div className="space-y-3 sm:hidden">
-            {documents.map((d) => {
+          <div className="space-y-1.5 sm:hidden">
+            {pageItems.map((d) => {
               const statusLabel = normalizeStatus(d.status)
               const statusClass = getStatusBadgeClass(d.status)
               return (
-                <div key={d.assignmentId} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/50">
-                  <p className="font-semibold text-slate-900 dark:text-white whitespace-nowrap">{d.studentName}</p>
-                  <p className="text-xs text-slate-400 mb-2">{d.dni || d.courseName || '-'}</p>
-                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    <p><span className="font-semibold text-slate-600 dark:text-slate-300">Documento:</span> {d.documentTypeName}</p>
-                    {d.fileName && <p className="truncate"><span className="font-semibold text-slate-600 dark:text-slate-300">Archivo:</span> <span title={d.fileName}>{d.fileName}</span></p>}
+                <div key={d.assignmentId} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{d.studentName}</p>
+                      <span className={`shrink-0 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${statusClass}`}>{statusLabel}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{d.documentTypeName}{d.dni ? ` · ${d.dni}` : ''}</p>
+                    {d.fileName && <p className="text-[11px] text-slate-400 truncate" title={d.fileName}>{d.fileName}</p>}
+                    <p className="text-[11px] text-slate-400">{formatDateSafe(getBestDate(d))}</p>
                   </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
-                    <span className="text-xs text-slate-400">{formatDateSafe(getBestDate(d))}</span>
-                  </div>
-                  {d.fileId && (
-                    <div className="mt-3">
+                  <div className="shrink-0">
+                    {d.fileId ? (
                       <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
                         target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                        className="inline-flex items-center rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
                         Descargar
                       </a>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="text-xs text-slate-400 px-2">—</span>
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -794,7 +797,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {documents.map((d) => {
+                {pageItems.map((d) => {
                   const statusLabel = normalizeStatus(d.status)
                   const statusClass = getStatusBadgeClass(d.status)
                   const bestDate = getBestDate(d)
@@ -828,6 +831,15 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row sm:justify-between sm:px-6 dark:border-slate-700 dark:bg-slate-800/50">
+            <p className="text-xs text-slate-500 dark:text-slate-400">{start + 1}–{Math.min(end, documents.length)} de {documents.length}</p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>← Anterior</Button>
+              <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente →</Button>
+            </div>
           </div>
         </>
       )}
@@ -1337,6 +1349,12 @@ function normalizeStatus(status: number | string | undefined): string {
   if (s === 3) return 'Aprobado'
   if (s === 4) return 'Rechazado'
   if (s === 5) return 'Vencido'
+  const str = String(status ?? '').toLowerCase().trim()
+  if (str === 'pending') return 'Pendiente'
+  if (str === 'submitted' || str === 'uploaded') return 'En revisión'
+  if (str === 'approved') return 'Aprobado'
+  if (str === 'rejected') return 'Rechazado'
+  if (str === 'expired') return 'Vencido'
   return String(status ?? '')
 }
 
