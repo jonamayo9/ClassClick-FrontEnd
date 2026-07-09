@@ -100,42 +100,9 @@ export default function RecordsPage() {
 
   const hasFilters = !!(draft.search || draft.courseId || draft.status || draft.documentStatus)
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
-      {/* HERO */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-teal-700 to-teal-800 px-5 py-6 text-white shadow-lg sm:px-8 sm:py-8">
-        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-teal-400/10 blur-2xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-4xl">Legajos</h1>
-            <p className="mt-1 text-sm text-teal-200 sm:mt-1.5 sm:text-base">Administrá la documentación de los alumnos</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" className="shadow-lg" onClick={handleNotifyPending} loading={notifyPendingMutation.isPending}>
-              Notificar pendientes
-            </Button>
-            <Button variant="secondary" size="sm" className="shadow-lg" onClick={() => setShowRequestModal(true)}>
-              + Solicitar documentos
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* NAV INTERNO */}
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
-        <button onClick={() => setPageTab('records')}
-          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'records' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-          Legajos
-        </button>
-        <button onClick={() => setPageTab('documents')}
-          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'documents' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-          Documentos
-        </button>
-      </div>
-
-      {pageTab === 'records' ? (
-        <>
+  function renderRecordsContent() {
+    return (
+      <>
       <Card className="p-4 sm:p-5">
         <button className="flex w-full items-center justify-between sm:hidden" onClick={() => setShowFilters((p) => !p)}>
           <div className="flex items-center gap-2">
@@ -232,105 +199,147 @@ export default function RecordsPage() {
             </div>
           ) : (
             <>
-              {/* MOBILE CARDS */}
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
-                {pageItems.map((s) => (
-                  <div key={s.studentId} className="px-4 py-3">
-                    <div className="flex items-start gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[11px] font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                            {initials(s.fullName)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
-                            <p className="truncate text-xs text-slate-400 dark:text-slate-500">{s.memberNumber || s.dni || 'Sin legajo'}</p>
-                          </div>
-                          <ActiveBadge active={s.isActive} />
-                        </div>
-                        <div className="ml-11 mt-1.5 flex items-center justify-between">
-                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-                            <span className="truncate max-w-[120px]">{s.email}</span>
-                            <span className="text-slate-300 dark:text-slate-600">·</span>
-                            <span className="truncate max-w-[100px]">{s.courseName}</span>
-                          </div>
-                        </div>
-                        <div className="ml-11 mt-2 flex items-center justify-between">
-                          <DocBadges student={s} />
-                          <button onClick={() => setShowDetailId(s.studentId)}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:active:bg-slate-700">
-                            Ver legajo
-                          </button>
-                        </div>
+
+      {/* MOBILE CARDS */}
+      <div className="sm:hidden">
+        {pageItems.map((s) => (
+          <div key={s.studentId} className="border-b border-slate-100 px-4 py-4 last:border-b-0 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
+                {initials(s.fullName)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
+                <p className="truncate text-xs text-slate-400 dark:text-slate-500">{s.memberNumber || s.dni || 'Sin legajo'}</p>
+              </div>
+              <ActiveBadge active={s.isActive} />
+            </div>
+            <div className="ml-11 mt-1.5 flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                <span className="truncate max-w-[120px]">{s.email}</span>
+                <span className="text-slate-300 dark:text-slate-600">·</span>
+                <span className="truncate max-w-[100px]">{s.courseName}</span>
+              </div>
+            </div>
+            <div className="ml-11 mt-2 flex items-center justify-between">
+              <DocBadges student={s} />
+              <button onClick={() => setShowDetailId(s.studentId)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:active:bg-slate-700">
+                Ver legajo
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* DESKTOP TABLE */}
+      <div className="hidden sm:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+              <th className="px-3 py-3.5">Alumno</th>
+              <th className="hidden px-3 py-3.5 lg:table-cell">Email</th>
+              <th className="hidden px-3 py-3.5 xl:table-cell">Curso</th>
+              <th className="px-3 py-3.5">Documentación</th>
+              <th className="w-24 px-3 py-3.5">Estado</th>
+              <th className="w-28 px-3 py-3.5 text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {pageItems.map((s, i) => {
+              const bg = i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'
+              return (
+                <tr key={s.studentId} className={`${bg} transition-colors hover:bg-teal-50/40 dark:hover:bg-teal-950/30`}>
+                  <td className="px-3 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
+                        {initials(s.fullName)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{s.memberNumber || s.dni || 'Sin legajo'}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </td>
+                  <td className="hidden px-3 py-3.5 text-slate-500 dark:text-slate-400 lg:table-cell">{s.email || '-'}</td>
+                  <td className="hidden px-3 py-3.5 text-slate-500 dark:text-slate-400 xl:table-cell">{s.courseName || '-'}</td>
+                  <td className="px-3 py-3.5"><DocBadges student={s} /></td>
+                  <td className="px-3 py-3.5"><ActiveBadge active={s.isActive} /></td>
+                  <td className="px-3 py-3.5 text-right">
+                    <Button variant="outline" size="sm" onClick={() => setShowDetailId(s.studentId)}>Ver legajo</Button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
-              {/* DESKTOP TABLE */}
-              <div className="hidden sm:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
-                      <th className="px-3 py-3.5">Alumno</th>
-                      <th className="hidden px-3 py-3.5 lg:table-cell">Email</th>
-                      <th className="hidden px-3 py-3.5 xl:table-cell">Curso</th>
-                      <th className="px-3 py-3.5">Documentación</th>
-                      <th className="w-24 px-3 py-3.5">Estado</th>
-                      <th className="w-28 px-3 py-3.5 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {pageItems.map((s, i) => {
-                      const bg = i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'
-                      return (
-                        <tr key={s.studentId} className={`${bg} transition-colors hover:bg-teal-50/40 dark:hover:bg-teal-950/30`}>
-                          <td className="px-3 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                                {initials(s.fullName)}
-                              </div>
-                              <div>
-                                <p className="font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
-                                <p className="text-xs text-slate-400 dark:text-slate-500">{s.memberNumber || s.dni || 'Sin legajo'}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="hidden px-3 py-3.5 text-slate-500 dark:text-slate-400 lg:table-cell">{s.email || '-'}</td>
-                          <td className="hidden px-3 py-3.5 text-slate-500 dark:text-slate-400 xl:table-cell">{s.courseName || '-'}</td>
-                          <td className="px-3 py-3.5"><DocBadges student={s} /></td>
-                          <td className="px-3 py-3.5"><ActiveBadge active={s.isActive} /></td>
-                          <td className="px-3 py-3.5 text-right">
-                            <Button variant="outline" size="sm" onClick={() => setShowDetailId(s.studentId)}>Ver legajo</Button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* PAGINATION */}
-              <div className="flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row sm:justify-between sm:px-6 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="text-xs text-slate-500 dark:text-slate-400">{start + 1}–{Math.min(end, filtered.length)} de {filtered.length}</p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>← Anterior</Button>
-                  <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente →</Button>
-                </div>
-              </div>
+      {/* PAGINATION */}
+      <div className="flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row sm:justify-between sm:px-6 dark:border-slate-700 dark:bg-slate-800/50">
+        <p className="text-xs text-slate-500 dark:text-slate-400">{start + 1}–{Math.min(end, filtered.length)} de {filtered.length}</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>← Anterior</Button>
+          <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente →</Button>
+        </div>
+      </div>
             </>
           )}
         </Card>
-        </>
-      ) : (
-        <MainDocumentsView
-          students={students}
-          courses={courses}
-          documentTypes={documentTypes}
-          onOpenDetail={(id: string) => setShowDetailId(id)}
-        />
       )}
+      </>
+    )
+  }
+
+  function renderDocumentsContent() {
+    return (
+      <MainDocumentsView
+        students={students}
+        courses={courses}
+        documentTypes={documentTypes}
+        onOpenDetail={(id: string) => setShowDetailId(id)}
+      />
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
+      {/* HERO */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-teal-700 to-teal-800 px-5 py-6 text-white shadow-lg sm:px-8 sm:py-8">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
+        <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-teal-400/10 blur-2xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight sm:text-4xl">Legajos</h1>
+            <p className="mt-1 text-sm text-teal-200 sm:mt-1.5 sm:text-base">Administrá la documentación de los alumnos</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" className="shadow-lg" onClick={handleNotifyPending} loading={notifyPendingMutation.isPending}>
+              Notificar pendientes
+            </Button>
+            <Button variant="secondary" size="sm" className="shadow-lg" onClick={() => setShowRequestModal(true)}>
+              + Solicitar documentos
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* NAV INTERNO */}
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+        <button onClick={() => setPageTab('records')}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'records' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          Legajos
+        </button>
+        <button onClick={() => setPageTab('documents')}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'documents' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          Documentos
+        </button>
+      </div>
+
+      {pageTab === 'records' && renderRecordsContent()}
+      {pageTab === 'documents' && renderDocumentsContent()}
+
+      {/* MODALS / DRAWERS */}
 
       {/* MODALS / DRAWERS */}
       {showRequestModal && (
