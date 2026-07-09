@@ -71,14 +71,15 @@ function AdminsInner() {
     onSuccess: async (createdAdmin) => {
       qc.invalidateQueries({ queryKey: ['superadmin-admins'] })
       qc.invalidateQueries({ queryKey: ['superadmin-superadmins'] })
-      // Assign selected companies to the newly created admin
-      if (!form.isSuperAdmin && selectedCompanies.size > 0) {
+      if (!form.isSuperAdmin && selectedCompanies.size > 0 && createdAdmin) {
         try {
           await assignCompaniesMutation.mutateAsync({
             adminId: createdAdmin.id,
             companyIds: Array.from(selectedCompanies)
           })
-        } catch { /* companies assignment error is non-critical */ }
+        } catch {
+          toast('Error al asignar empresas. El admin se creó pero sin empresas.', 'warning')
+        }
       }
       setShowForm(false)
       toast(form.isSuperAdmin ? 'SuperAdmin creado.' : 'Admin creado.')
@@ -91,7 +92,6 @@ function AdminsInner() {
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['superadmin-admins'] })
       qc.invalidateQueries({ queryKey: ['superadmin-superadmins'] })
-      // Sync company assignments: add new, remove missing
       if (editId && !form.isSuperAdmin) {
         const admin = admins.find((a) => a.id === editId)
         const currentIds = new Set((admin?.companies || []).map((c) => c.companyId))
@@ -101,7 +101,9 @@ function AdminsInner() {
         try {
           if (toAdd.length > 0) await assignCompaniesMutation.mutateAsync({ adminId: editId, companyIds: toAdd })
           for (const companyId of toRemove) await removeCompanyMutation.mutateAsync({ adminId: editId, companyId })
-        } catch { /* companies sync error is non-critical */ }
+        } catch {
+          toast('Error al sincronizar empresas.', 'warning')
+        }
       }
       setShowForm(false)
       resetForm()
