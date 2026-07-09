@@ -19,6 +19,25 @@ import type { Student, StudentDocument } from './hooks'
 const PAGE_SIZE = 20
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
+async function downloadFile(fileId: string, fileName: string) {
+  try {
+    const token = useAuth.getState().token
+    const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/files/${fileId}/download-file`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error('Error al descargar')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName || 'documento'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    // Silently fail - the download button remains visible for retry
+  }
+}
+
 function initials(name: string) {
   return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toUpperCase()).join('') || '?'
 }
@@ -770,11 +789,10 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                   </div>
                   <div className="shrink-0">
                     {d.fileId ? (
-                      <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
-                        target="_blank" rel="noopener noreferrer"
+                      <button onClick={() => downloadFile(d.fileId!, d.fileName || 'documento')}
                         className="inline-flex items-center rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
                         Descargar
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-xs text-slate-400 px-2">—</span>
                     )}
@@ -817,11 +835,10 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                       <td className="px-3 py-3 w-[14%] hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
                       <td className="px-3 py-3 w-[12%] text-right">
                         {d.fileId ? (
-                          <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
-                            target="_blank" rel="noopener noreferrer"
+                          <button onClick={() => downloadFile(d.fileId!, d.fileName || 'documento')}
                             className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                             Descargar
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
@@ -1029,11 +1046,10 @@ function DocumentosTab({ detail, documentTypes, toast }: {
                         {doc.currentFileId ? (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleViewFile(doc.currentFileId!, doc.currentFileName || 'Documento', doc.currentFileMimeType || '')}>Ver</Button>
-                            <a href={`/api/admin/${slug()}/student-files/files/${doc.currentFileId}/download-file`}
-                              target="_blank" rel="noopener noreferrer"
+                            <button onClick={() => downloadFile(doc.currentFileId!, doc.currentFileName || 'documento')}
                               className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                               Descargar
-                            </a>
+                            </button>
                           </>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
