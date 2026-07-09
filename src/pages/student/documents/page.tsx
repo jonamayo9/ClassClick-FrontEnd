@@ -451,18 +451,21 @@ function DocumentsPageInner() {
                 <p className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-3">
                   {selected.uploadLabel}
                 </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf"
-                  onChange={handleFileChange}
-                  className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-700 shadow-sm border border-slate-200 rounded-xl px-3 py-2 hover:file:bg-violet-50 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-violet-300 dark:border-slate-600"
-                />
-                {uploadFile && (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
-                  </p>
-                )}
+                {/* Custom file input */}
+                <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  onChange={handleFileChange} className="hidden" />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="shrink-0">
+                    Seleccionar archivo
+                  </Button>
+                  <div className="flex-1 flex items-center text-sm text-slate-500 dark:text-slate-400 min-w-0">
+                    {uploadFile ? (
+                      <span className="truncate">{uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)</span>
+                    ) : (
+                      <span>Ningún archivo seleccionado</span>
+                    )}
+                  </div>
+                </div>
                 <div className="flex gap-2 mt-3">
                   <Button onClick={handleUpload} disabled={!uploadFile || uploading} loading={uploading}
                     className="flex-1 bg-violet-600 text-white hover:bg-violet-700">

@@ -611,17 +611,16 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
 }
 
 /* ─── DocumentosTab ─── */
-function DocumentosTab({ detail, documentTypes }: {
+function DocumentosTab({ detail, documentTypes, toast }: {
   detail: import('./hooks').StudentDetail | null
   documentTypes: { id: string; name: string }[]
+  toast: (msg: string, type?: 'success' | 'error') => void
 }) {
   const [docFilter, setDocFilter] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
-  const [viewingFile, setViewingFile] = useState<{ fileId: string; fileName: string; mimeType: string } | null>(null)
   const [viewFileLoading, setViewFileLoading] = useState(false)
   const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
-  const toast = useToast()
 
   if (!detail) return <p className="py-12 text-center text-sm text-slate-400">Seleccioná un alumno.</p>
 
@@ -797,39 +796,48 @@ function DocumentosTab({ detail, documentTypes }: {
         </div>
       )}
 
-      {/* View File Modal */}
+      {/* View File Modal (inline) */}
       {viewFileData && (
-        <Modal open={!!viewFileData} onClose={() => setViewFileData(null)} title={viewFileData.fileName} className="sm:max-w-4xl">
-          {viewFileLoading ? (
-            <div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-violet-600" /></div>
-          ) : viewFileData.url ? (
-            <>
-              <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
-                <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                  Descargar
-                </a>
-              </div>
-              <div className="bg-slate-100 p-4 dark:bg-slate-800">
-                {viewFileData.isImage ? (
-                  <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
-                ) : viewFileData.isPdf ? (
-                  <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
-                ) : (
-                  <div className="flex flex-col items-center gap-4 py-16">
-                    <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
-                    <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                      Descargar archivo
-                    </a>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
-          )}
-        </Modal>
+        <div className="fixed inset-0 z-[65] flex items-end sm:items-center sm:justify-center sm:p-4" onClick={() => setViewFileData(null)}>
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{viewFileData.fileName}</h3>
+              <button onClick={() => setViewFileData(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-500 dark:hover:bg-slate-800">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {viewFileLoading ? (
+              <div className="flex items-center justify-center py-16"><span className="text-sm text-slate-500">Cargando...</span></div>
+            ) : viewFileData.url ? (
+              <>
+                <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
+                  <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                    Descargar
+                  </a>
+                </div>
+                <div className="bg-slate-100 p-4 dark:bg-slate-800 flex-1 overflow-auto">
+                  {viewFileData.isImage ? (
+                    <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
+                  ) : viewFileData.isPdf ? (
+                    <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 py-16">
+                      <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
+                      <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                        Descargar archivo
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
@@ -913,7 +921,7 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, on
 
         <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
           {activeTab === 'documentos' ? (
-            <DocumentosTab detail={detail} documentTypes={documentTypes} />
+            <DocumentosTab detail={detail} documentTypes={documentTypes} toast={showToast} />
           ) : (
             <>
           {isLoading && (
