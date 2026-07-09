@@ -610,6 +610,231 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
   )
 }
 
+/* ─── DocumentosTab ─── */
+function DocumentosTab({ detail, documentTypes }: {
+  detail: import('./hooks').StudentDetail | null
+  documentTypes: { id: string; name: string }[]
+}) {
+  const [docFilter, setDocFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [downloading, setDownloading] = useState(false)
+  const [viewingFile, setViewingFile] = useState<{ fileId: string; fileName: string; mimeType: string } | null>(null)
+  const [viewFileLoading, setViewFileLoading] = useState(false)
+  const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
+  const toast = useToast()
+
+  if (!detail) return <p className="py-12 text-center text-sm text-slate-400">Seleccioná un alumno.</p>
+
+  const filtered = detail.documents.filter((d) => {
+    if (!docFilter) return true
+    return d.documentTypeName.toLowerCase().includes(docFilter.toLowerCase())
+  })
+
+  const allFileIds = detail.documents
+    .filter((d) => d.currentFileId)
+    .map((d) => d.currentFileId!)
+
+  const selectedFileIds = filtered
+    .filter((d) => d.currentFileId && selectedIds.has(d.currentFileId))
+    .map((d) => d.currentFileId!)
+
+  function toggleSelect(fileId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(fileId)) next.delete(fileId)
+      else next.add(fileId)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    const ids = filtered.filter((d) => d.currentFileId).map((d) => d.currentFileId!)
+    const allSelected = ids.every((id) => selectedIds.has(id))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      ids.forEach((id) => allSelected ? next.delete(id) : next.add(id))
+      return next
+    })
+  }
+
+  async function handleDownloadZip(fileIds?: string[]) {
+    setDownloading(true)
+    try {
+      const body: Record<string, unknown> = {}
+      if (fileIds) body.fileIds = fileIds
+      if (docFilter) {
+        const dt = documentTypes.find((t) => t.name.toLowerCase().includes(docFilter.toLowerCase()))
+        if (dt) body.documentTypeId = dt.id
+      }
+      const res = await fetch(`/api/admin/${slug()}/student-files/students/${detail.studentId}/documents/download-zip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuth.getState().token}` },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Error al descargar')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `documentos_${detail.fullName.replace(/\s+/g, '_')}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast('ZIP descargado correctamente.')
+    } catch {
+      toast('Error al descargar el ZIP.', 'error')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  async function handleViewFile(fileId: string, fileName: string, mimeType: string) {
+    setViewFileLoading(true)
+    setViewFileData(null)
+    try {
+      const res = await apiService.get<{ url: string }>(
+        `/api/admin/${slug()}/student-files/files/${fileId}/view`,
+      )
+      if (res?.url) {
+        setViewFileData({
+          url: res.url,
+          fileName,
+          isImage: mimeType?.toLowerCase().startsWith('image/') ?? false,
+          isPdf: mimeType?.toLowerCase() === 'application/pdf',
+        })
+      }
+    } catch {
+      toast('No se pudo cargar el archivo.', 'error')
+    } finally {
+      setViewFileLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-base font-bold text-slate-900 dark:text-white">Documentos</h4>
+          <p className="text-xs text-slate-400">{detail.documents.length} documento{detail.documents.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={selectedFileIds.length === 0 || downloading}
+            onClick={() => handleDownloadZip(selectedFileIds)}>
+            Descargar seleccionados ({selectedFileIds.length})
+          </Button>
+          <Button variant="outline" size="sm" disabled={allFileIds.length === 0 || downloading}
+            onClick={() => handleDownloadZip(allFileIds)}>
+            Descargar todos
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2">
+        <Input placeholder="Filtrar por tipo documental..." value={docFilter} onChange={(e) => setDocFilter(e.target.value)} className="flex-1" />
+        <Button variant="outline" size="sm" onClick={() => { toggleSelectAll() }}>
+          {filtered.filter((d) => d.currentFileId).every((d) => selectedIds.has(d.currentFileId!)) ? 'Deseleccionar todos' : 'Seleccionar todos'}
+        </Button>
+      </div>
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-600 dark:bg-slate-800/30 dark:text-slate-500">
+          Sin documentos.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <th className="px-3 py-3 w-8">
+                  <input type="checkbox" checked={filtered.filter((d) => d.currentFileId).every((d) => selectedIds.has(d.currentFileId!)) && filtered.filter((d) => d.currentFileId).length > 0}
+                    onChange={toggleSelectAll} className="h-4 w-4 rounded border-slate-300" />
+                </th>
+                <th className="px-3 py-3">Tipo</th>
+                <th className="px-3 py-3">Estado</th>
+                <th className="px-3 py-3 hidden sm:table-cell">Archivo</th>
+                <th className="px-3 py-3 hidden md:table-cell">Subido</th>
+                <th className="px-3 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filtered.map((doc) => {
+                const statusLabel = getStatusLabel(doc.status)
+                const isSelected = doc.currentFileId ? selectedIds.has(doc.currentFileId) : false
+                return (
+                  <tr key={doc.assignmentId} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 ${isSelected ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}>
+                    <td className="px-3 py-3">
+                      {doc.currentFileId && (
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(doc.currentFileId!)} className="h-4 w-4 rounded border-slate-300" />
+                      )}
+                    </td>
+                    <td className="px-3 py-3 font-medium text-slate-900 dark:text-white">{doc.documentTypeName}</td>
+                    <td className="px-3 py-3">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${getStatusBadgeClass(doc.status)}`}>{statusLabel}</span>
+                    </td>
+                    <td className="px-3 py-3 hidden sm:table-cell text-slate-500 truncate max-w-[200px]">{doc.currentFileName || '—'}</td>
+                    <td className="px-3 py-3 hidden md:table-cell text-slate-500">{formatDate(doc.submittedAtUtc)}</td>
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex justify-end gap-1.5">
+                        {doc.currentFileId && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleViewFile(doc.currentFileId!, doc.currentFileName || 'Documento', doc.currentFileMimeType || '')}>Ver</Button>
+                            <a href={`/api/admin/${slug()}/student-files/files/${doc.currentFileId}/download-file`}
+                              target="_blank" rel="noopener noreferrer"
+                              className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                              Descargar
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* View File Modal */}
+      {viewFileData && (
+        <Modal open={!!viewFileData} onClose={() => setViewFileData(null)} title={viewFileData.fileName} className="sm:max-w-4xl">
+          {viewFileLoading ? (
+            <div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-violet-600" /></div>
+          ) : viewFileData.url ? (
+            <>
+              <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
+                <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                  Descargar
+                </a>
+              </div>
+              <div className="bg-slate-100 p-4 dark:bg-slate-800">
+                {viewFileData.isImage ? (
+                  <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
+                ) : viewFileData.isPdf ? (
+                  <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
+                ) : (
+                  <div className="flex flex-col items-center gap-4 py-16">
+                    <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
+                    <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                      Descargar archivo
+                    </a>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
+          )}
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 /* ─── DetailDrawer ─── */
 function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, onDownload, onApprove, onReject }: {
   detail: import('./hooks').StudentDetail | null; isLoading: boolean
@@ -621,12 +846,14 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, on
   onReject: (assignmentId: string, documentName: string) => void
 }) {
   const [visible, setVisible] = useState(false)
+  const [activeTab, setActiveTab] = useState<'legajo' | 'documentos'>('legajo')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadDocType, setUploadDocType] = useState('')
   const [uploading, setUploading] = useState(false)
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
+  useEffect(() => { setActiveTab('legajo') }, [detail?.studentId])
 
   function handleClose() { setVisible(false); setTimeout(onClose, 200) }
 
@@ -670,7 +897,25 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, on
           </button>
         </div>
 
+        {/* Tabs */}
+        {detail && (
+          <div className="flex gap-1 border-b border-slate-200 px-5 py-2 dark:border-slate-700">
+            <button onClick={() => setActiveTab('legajo')}
+              className={`flex-1 rounded-lg py-2 text-sm font-bold transition ${activeTab === 'legajo' ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+              Legajo
+            </button>
+            <button onClick={() => setActiveTab('documentos')}
+              className={`flex-1 rounded-lg py-2 text-sm font-bold transition ${activeTab === 'documentos' ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+              Documentos
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+          {activeTab === 'documentos' ? (
+            <DocumentosTab detail={detail} documentTypes={documentTypes} />
+          ) : (
+            <>
           {isLoading && (
             <div className="space-y-4 py-8">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -767,6 +1012,8 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, on
                 )}
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       </div>
