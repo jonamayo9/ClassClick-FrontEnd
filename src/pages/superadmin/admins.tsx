@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Modal } from '@/components/ui/modal'
+import { Badge } from '@/components/ui/badge'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { apiService } from '@/lib/api'
 import { StudentsTab } from './students-tab'
@@ -43,6 +44,7 @@ function AdminsInner() {
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', isActive: true, isSuperAdmin: false })
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set())
   const [pwModal, setPwModal] = useState<Admin | null>(null)
   const [pwNew, setPwNew] = useState('')
   const [pwConfirm, setPwConfirm] = useState('')
@@ -54,11 +56,30 @@ function AdminsInner() {
     return admins.filter((a) => a.companies?.some((c) => c.companyId === companyFilter))
   }, [admins, companyFilter])
 
+  const assignCompaniesMutation = useMutation({
+    mutationFn: ({ adminId, companyIds }: { adminId: string; companyIds: string[] }) =>
+      apiService.post(`/api/superadmin/admins/${adminId}/companies`, { companyIds }),
+  })
+
+  const removeCompanyMutation = useMutation({
+    mutationFn: ({ adminId, companyId }: { adminId: string; companyId: string }) =>
+      apiService.del(`/api/superadmin/admins/${adminId}/companies/${companyId}`),
+  })
+
   const createMutation = useMutation({
-    mutationFn: () => apiService.post('/api/superadmin/admins', form),
-    onSuccess: () => {
+    mutationFn: () => apiService.post<Admin>('/api/superadmin/admins', form),
+    onSuccess: async (createdAdmin) => {
       qc.invalidateQueries({ queryKey: ['superadmin-admins'] })
       qc.invalidateQueries({ queryKey: ['superadmin-superadmins'] })
+      // Assign selected companies to the newly created admin
+      if (!form.isSuperAdmin && selectedCompanies.size > 0) {
+        try {
+          await assignCompaniesMutation.mutateAsync({
+            adminId: createdAdmin.id,
+            companyIds: Array.from(selectedCompanies)
+          })
+        } catch { /* companies assignment error is non-critical */ }
+      }
       setShowForm(false)
       toast(form.isSuperAdmin ? 'SuperAdmin creado.' : 'Admin creado.')
       resetForm()
@@ -67,9 +88,21 @@ function AdminsInner() {
   })
   const updateMutation = useMutation({
     mutationFn: () => apiService.put(`/api/superadmin/admins/${editId}`, { firstName: form.firstName, lastName: form.lastName, email: form.email, isActive: form.isActive }),
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['superadmin-admins'] })
       qc.invalidateQueries({ queryKey: ['superadmin-superadmins'] })
+      // Sync company assignments: add new, remove missing
+      if (editId && !form.isSuperAdmin) {
+        const admin = admins.find((a) => a.id === editId)
+        const currentIds = new Set((admin?.companies || []).map((c) => c.companyId))
+        const newIds = selectedCompanies
+        const toAdd = [...newIds].filter((id) => !currentIds.has(id))
+        const toRemove = [...currentIds].filter((id) => !newIds.has(id))
+        try {
+          if (toAdd.length > 0) await assignCompaniesMutation.mutateAsync({ adminId: editId, companyIds: toAdd })
+          for (const companyId of toRemove) await removeCompanyMutation.mutateAsync({ adminId: editId, companyId })
+        } catch { /* companies sync error is non-critical */ }
+      }
       setShowForm(false)
       resetForm()
       toast('Usuario actualizado.')
@@ -92,8 +125,13 @@ function AdminsInner() {
     onError: () => toast('Error al cambiar contraseña.', 'error'),
   })
 
-  function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '', isActive: true, isSuperAdmin: false }); setEditId(null) }
-  function openEdit(a: Admin) { setEditId(a.id); setForm({ firstName: a.firstName, lastName: a.lastName, email: a.email, password: '', isActive: a.isActive, isSuperAdmin: !!a.isSuperAdmin }); setShowForm(true) }
+  function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '', isActive: true, isSuperAdmin: false }); setSelectedCompanies(new Set()); setEditId(null) }
+  function openEdit(a: Admin) {
+    setEditId(a.id)
+    setForm({ firstName: a.firstName, lastName: a.lastName, email: a.email, password: '', isActive: a.isActive, isSuperAdmin: !!a.isSuperAdmin })
+    setSelectedCompanies(new Set((a.companies || []).map((c) => c.companyId)))
+    setShowForm(true)
+  }
 
   if (isLoading) return <div className="flex items-center justify-center py-24"><Spinner className="h-8 w-8 text-slate-600" /></div>
 
@@ -230,6 +268,37 @@ function AdminsInner() {
                   <span className="text-sm font-medium">Admin activo</span>
                 </label>
               )}
+
+              {!form.isSuperAdmin && (
+                <div>
+                  <label className="mb-2 block text-xs font-semibold text-slate-600 dark:text-slate-400">Empresas asignadas</label>
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+                    {companies.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-2 text-center">No hay empresas disponibles.</p>
+                    ) : (
+                      companies.map((c) => {
+                        const checked = selectedCompanies.has(c.id)
+                        return (
+                          <label key={c.id} className="flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <input type="checkbox" checked={checked}
+                              onChange={() => {
+                                setSelectedCompanies((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(c.id)) next.delete(c.id)
+                                  else next.add(c.id)
+                                  return next
+                                })
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
+                            <span className="text-sm text-slate-700 dark:text-slate-300">{c.name}</span>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => { setShowForm(false); resetForm() }}>Cancelar</Button>
                 <Button loading={createMutation.isPending || updateMutation.isPending}
