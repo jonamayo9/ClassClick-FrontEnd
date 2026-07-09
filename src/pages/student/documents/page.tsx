@@ -118,12 +118,15 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
   // Files collection
   const filesRaw = pick<unknown[]>(raw, ['files', 'Files'])
   const files: DocFile[] = Array.isArray(filesRaw)
-    ? filesRaw.map((f: Record<string, unknown>) => ({
-        id: pickString(f, ['id', 'Id']),
-        fileName: pickString(f, ['fileName', 'FileName']),
-        mimeType: pickString(f, ['mimeType', 'MimeType']),
-        uploadedAtUtc: pickString(f, ['uploadedAtUtc', 'UploadedAtUtc']),
-      })).filter((f) => !!f.id)
+    ? filesRaw.map((file) => {
+        const f = file as Record<string, unknown>
+        return {
+          id: pickString(f, ['id', 'Id', 'fileId', 'FileId']),
+          fileName: pickString(f, ['fileName', 'FileName', 'name', 'Name']),
+          mimeType: pickString(f, ['mimeType', 'MimeType', 'fileMimeType', 'FileMimeType']),
+          uploadedAtUtc: pickString(f, ['uploadedAtUtc', 'UploadedAtUtc', 'uploadedAt', 'UploadedAt']),
+        }
+      }).filter((f) => !!f.id)
     : []
 
   // Backward compatibility: single file
