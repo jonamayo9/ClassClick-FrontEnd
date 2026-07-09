@@ -870,6 +870,44 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
           </div>
         </>
       )}
+
+      {/* View File Modal */}
+      {viewFileData && (
+        <div className="fixed inset-0 z-[65] flex items-end sm:items-center sm:justify-center sm:p-4" onClick={() => setViewFileData(null)}>
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{viewFileData.fileName}</h3>
+              <button onClick={() => setViewFileData(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-500 dark:hover:bg-slate-800">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {viewFileLoading ? (
+              <div className="flex items-center justify-center py-16"><span className="text-sm text-slate-500">Cargando...</span></div>
+            ) : viewFileData.url ? (
+              <>
+                <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
+                  <span className="text-xs text-slate-400">Vista previa</span>
+                </div>
+                <div className="bg-slate-100 p-4 dark:bg-slate-800 flex-1 overflow-auto">
+                  {viewFileData.isImage ? (
+                    <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
+                  ) : viewFileData.isPdf ? (
+                    <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 py-16">
+                      <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
+                      <span className="text-xs text-slate-400">Usá el botón Descargar.</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
+            )}
+          </div>
+        </div>
+      )}
     </Card>
   )
 }
