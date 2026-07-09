@@ -19,6 +19,24 @@ import type { Student, StudentDocument } from './hooks'
 const PAGE_SIZE = 20
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
+async function downloadBlob(url: string, fileName: string) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error()
+    const blob = await res.blob()
+    const objUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objUrl
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(objUrl)
+  } catch {
+    /* Silently fail */
+  }
+}
+
 function initials(name: string) {
   return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toUpperCase()).join('') || '?'
 }
@@ -370,7 +388,7 @@ export default function RecordsPage() {
               setShowPreview({ fileId: doc.currentFileId!, url: r.url, fileName: doc.currentFileName || 'Documento', mimeType: doc.currentFileMimeType || r.contentType || '' })
             } catch { toast('No se pudo abrir el archivo.', 'error') }
           }}
-          onDownload={async (fileId) => { try { window.open((await downloadFile.mutateAsync(fileId)).url, '_blank') } catch { toast('Error al descargar.', 'error') } }}
+          onDownload={async (fileId) => { try { const r = await downloadFile.mutateAsync(fileId); downloadBlob(r.url, 'documento') } catch { toast('Error al descargar.', 'error') } }}
           onApprove={(aid, name) => setShowReview({ action: 'approve', assignmentId: aid, documentName: name })}
           onReject={(aid, name) => setShowReview({ action: 'reject', assignmentId: aid, documentName: name })} />
       )}
@@ -378,7 +396,7 @@ export default function RecordsPage() {
       {showPreview && (
         <PreviewModal url={showPreview.url} fileName={showPreview.fileName} mimeType={showPreview.mimeType}
           onClose={() => setShowPreview(null)}
-          onDownload={async () => { try { window.open((await downloadFile.mutateAsync(showPreview.fileId)).url, '_blank') } catch { toast('Error al descargar.', 'error') } }} />
+          onDownload={async () => { try { const r = await downloadFile.mutateAsync(showPreview.fileId); downloadBlob(r.url, 'documento') } catch { toast('Error al descargar.', 'error') } }} />
       )}
 
       {showReview && (
@@ -769,13 +787,17 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                     {d.fileName && <p className="text-[11px] text-slate-400 truncate" title={d.fileName}>{d.fileName}</p>}
                     <p className="text-[11px] text-slate-400">{formatDateSafe(getBestDate(d))}</p>
                   </div>
-                  <div className="shrink-0">
-                    {d.fileId ? (
-                      <button onClick={() => downloadMutation.mutateAsync(d.fileId!).then((r) => window.open(r.url, '_blank')).catch(() => {})}
+                  <div className="shrink-0 flex gap-1.5">
+                    {d.fileId ? (<>
+                      <button onClick={() => handleViewFile(d.fileId!, d.fileName || 'Documento', d.fileMimeType || '')}
+                        className="inline-flex items-center rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
+                        Ver
+                      </button>
+                      <button onClick={() => downloadMutation.mutateAsync(d.fileId!).then((r) => downloadBlob(r.url, d.fileName || 'documento')).catch(() => {})}
                         className="inline-flex items-center rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
                         Descargar
                       </button>
-                    ) : (
+                    </>) : (
                       <span className="text-xs text-slate-400 px-2">—</span>
                     )}
                   </div>
@@ -793,7 +815,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                   <th className="px-3 py-3 w-[18%] min-w-[140px] max-w-[220px]">Documento</th>
                   <th className="px-3 py-3 w-[14%]">Estado</th>
                   <th className="px-3 py-3 w-[14%] hidden md:table-cell">Fecha</th>
-                  <th className="px-3 py-3 w-[12%] text-right">Descargar</th>
+                  <th className="px-3 py-3 w-[18%] text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -817,10 +839,16 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                       <td className="px-3 py-3 w-[14%] hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
                       <td className="px-3 py-3 w-[12%] text-right">
                         {d.fileId ? (
-                          <button onClick={() => downloadMutation.mutateAsync(d.fileId!).then((r) => window.open(r.url, '_blank')).catch(() => {})}
-                            className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                            Descargar
-                          </button>
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => handleViewFile(d.fileId!, d.fileName || 'Documento', d.fileMimeType || '')}
+                              className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                              Ver
+                            </button>
+                            <button onClick={() => downloadMutation.mutateAsync(d.fileId!).then((r) => downloadBlob(r.url, d.fileName || 'documento')).catch(() => {})}
+                              className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                              Descargar
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
@@ -1029,7 +1057,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
                         {doc.currentFileId ? (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleViewFile(doc.currentFileId!, doc.currentFileName || 'Documento', doc.currentFileMimeType || '')}>Ver</Button>
-                            <button onClick={() => docDownload.mutateAsync(doc.currentFileId!).then((r) => window.open(r.url, '_blank')).catch(() => {})}
+                            <button onClick={() => docDownload.mutateAsync(doc.currentFileId!).then((r) => downloadBlob(r.url, doc.currentFileName || 'documento')).catch(() => {})}
                               className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                               Descargar
                             </button>
