@@ -135,6 +135,7 @@ export default function RecordsPage() {
       </div>
 
       {pageTab === 'records' ? (
+        <>
       <Card className="p-4 sm:p-5">
         <button className="flex w-full items-center justify-between sm:hidden" onClick={() => setShowFilters((p) => !p)}>
           <div className="flex items-center gap-2">
@@ -321,6 +322,7 @@ export default function RecordsPage() {
             </>
           )}
         </Card>
+        </>
       ) : (
         <MainDocumentsView
           students={students}
