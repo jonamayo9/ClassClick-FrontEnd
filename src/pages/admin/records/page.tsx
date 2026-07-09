@@ -685,16 +685,16 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
       if (filterDocType) body.documentTypeId = filterDocType
       if (filterStatus) body.status = filterStatus
 
-      // Endpoint necesario: POST /api/admin/{slug}/student-files/documents/download-zip
-      // Body: { search?, courseId?, documentTypeId?, status? }
-      // Debe devolver application/zip con todos los documentos que coincidan con los filtros.
-      // Actualmente este endpoint no existe en backend.
       const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/documents/download-zip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuth.getState().token}` },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error('Error al descargar')
+      if (!res.ok) {
+        const msg = await res.text().catch(() => 'Error al descargar')
+        toast(msg, 'error')
+        return
+      }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -702,8 +702,9 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
       a.download = `documentos_filtrados.zip`
       a.click()
       URL.revokeObjectURL(url)
+      toast('ZIP descargado correctamente.')
     } catch {
-      toast('Descarga masiva por filtros no disponible. Funcionalidad requiere endpoint backend.', 'error')
+      toast('Error al descargar el ZIP.', 'error')
     } finally {
       setZipLoading(false)
     }
@@ -718,7 +719,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
         </div>
         <Button variant="outline" size="sm" onClick={handleDownloadZip} loading={zipLoading}
           disabled={documents.length === 0}>
-          Descargar ZIP
+          Descargar todos los documentos
         </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -753,7 +754,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
             <thead>
               <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 <th className="px-3 py-3">Alumno</th>
-                <th className="px-3 py-3 w-1/4 min-w-[120px]">Documento</th>
+                <th className="px-3 py-3 min-w-[180px] max-w-[320px]">Documento</th>
                 <th className="px-3 py-3">Estado</th>
                 <th className="px-3 py-3 hidden md:table-cell">Fecha</th>
                 <th className="w-24 px-3 py-3 text-right">Descargar</th>
@@ -770,9 +771,9 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                       <p className="font-semibold text-slate-900 dark:text-white">{d.studentName}</p>
                       <p className="text-xs text-slate-400">{d.dni || d.courseName || '-'}</p>
                     </td>
-                    <td className="px-3 py-3 w-1/4 min-w-[120px]">
-                      <p className="font-medium text-slate-900 dark:text-white truncate">{d.documentTypeName}</p>
-                      {d.fileName && <p className="text-xs text-slate-400 truncate">{d.fileName}</p>}
+                    <td className="px-3 py-3 min-w-[180px] max-w-[320px]">
+                      <p className="font-semibold text-slate-900 dark:text-white truncate" title={d.documentTypeName}>{d.documentTypeName}</p>
+                      {d.fileName && <p className="text-xs text-slate-400 truncate" title={d.fileName}>{d.fileName}</p>}
                     </td>
                     <td className="px-3 py-3">
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
