@@ -19,29 +19,6 @@ import type { Student, StudentDocument } from './hooks'
 const PAGE_SIZE = 20
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
-async function downloadFile(fileId: string, fileName: string) {
-  try {
-    const token = useAuth.getState().token
-    const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/files/${fileId}/download`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
-    if (!res.ok) throw new Error('Error al descargar')
-    const data = await res.json()
-    if (!data?.url) throw new Error('URL no disponible')
-    const fileRes = await fetch(data.url)
-    if (!fileRes.ok) throw new Error('Error al descargar archivo')
-    const blob = await fileRes.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName || 'documento'
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch {
-    // Silently fail - the download button remains visible for retry
-  }
-}
-
 function initials(name: string) {
   return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toUpperCase()).join('') || '?'
 }
@@ -685,6 +662,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
   const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
   const [viewFileLoading, setViewFileLoading] = useState(false)
   const [zipLoading, setZipLoading] = useState(false)
+  const downloadMutation = useDownloadFile()
 
   function formatDateSafe(v: string | null) { return v ? formatDate(v) : '-' }
 
@@ -793,7 +771,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                   </div>
                   <div className="shrink-0">
                     {d.fileId ? (
-                      <button onClick={() => downloadFile(d.fileId!, d.fileName || 'documento')}
+                      <button onClick={() => downloadMutation.mutateAsync(d.fileId!).then((r) => window.open(r.url, '_blank')).catch(() => {})}
                         className="inline-flex items-center rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
                         Descargar
                       </button>
@@ -839,7 +817,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                       <td className="px-3 py-3 w-[14%] hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
                       <td className="px-3 py-3 w-[12%] text-right">
                         {d.fileId ? (
-                          <button onClick={() => downloadFile(d.fileId!, d.fileName || 'documento')}
+                          <button onClick={() => downloadMutation.mutateAsync(d.fileId!).then((r) => window.open(r.url, '_blank')).catch(() => {})}
                             className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                             Descargar
                           </button>
@@ -879,6 +857,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
   const [downloading, setDownloading] = useState(false)
   const [viewFileLoading, setViewFileLoading] = useState(false)
   const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
+  const docDownload = useDownloadFile()
 
   if (!detail) return <p className="py-12 text-center text-sm text-slate-400">Seleccioná un alumno.</p>
 
@@ -1050,7 +1029,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
                         {doc.currentFileId ? (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleViewFile(doc.currentFileId!, doc.currentFileName || 'Documento', doc.currentFileMimeType || '')}>Ver</Button>
-                            <button onClick={() => downloadFile(doc.currentFileId!, doc.currentFileName || 'documento')}
+                            <button onClick={() => docDownload.mutateAsync(doc.currentFileId!).then((r) => window.open(r.url, '_blank')).catch(() => {})}
                               className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                               Descargar
                             </button>
