@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
+import { config } from '@/lib/config'
 import {
   useCourses, useDocumentTypes, useStudents, useStudentDetail,
   useCreateDocumentRequest, usePreviewFile, useDownloadFile,
@@ -26,6 +27,7 @@ function isImage(m: string | null) { return String(m || '').toLowerCase().starts
 function isPdf(m: string | null) { return String(m || '').toLowerCase() === 'application/pdf' }
 
 export default function RecordsPage() {
+  const [pageTab, setPageTab] = useState<'records' | 'documents'>('records')
   const [draft, setDraft] = useState({ search: '', courseId: '', status: '', documentStatus: '' })
   const [applied, setApplied] = useState({ search: '', courseId: '', status: '', documentStatus: '' })
   const { data: students = [], isLoading, error } = useStudents(applied)
@@ -120,7 +122,19 @@ export default function RecordsPage() {
         </div>
       </section>
 
-      {/* FILTROS */}
+      {/* NAV INTERNO */}
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+        <button onClick={() => setPageTab('records')}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'records' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          Legajos
+        </button>
+        <button onClick={() => setPageTab('documents')}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'documents' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          Documentos
+        </button>
+      </div>
+
+      {pageTab === 'records' ? (
       <Card className="p-4 sm:p-5">
         <button className="flex w-full items-center justify-between sm:hidden" onClick={() => setShowFilters((p) => !p)}>
           <div className="flex items-center gap-2">
@@ -307,6 +321,13 @@ export default function RecordsPage() {
             </>
           )}
         </Card>
+      ) : (
+        <MainDocumentsView
+          students={students}
+          courses={courses}
+          documentTypes={documentTypes}
+          onOpenDetail={(id: string) => setShowDetailId(id)}
+        />
       )}
 
       {/* MODALS / DRAWERS */}
@@ -610,6 +631,95 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
   )
 }
 
+/* ─── MainDocumentsView ─── */
+function MainDocumentsView({ students, courses, documentTypes, onOpenDetail }: {
+  students: Student[]
+  courses: { id: string; name: string }[]
+  documentTypes: { id: string; name: string }[]
+  onOpenDetail: (id: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [filterCourse, setFilterCourse] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
+  const filtered = students.filter((s) => {
+    if (search) {
+      const q = search.toLowerCase()
+      const name = (s.fullName || '').toLowerCase()
+      if (!name.includes(q) && !(s.email || '').toLowerCase().includes(q)) return false
+    }
+    if (filterCourse && s.courseId !== filterCourse) return false
+    if (filterStatus === 'pending' && !s.pendingCount) return false
+    if (filterStatus === 'submitted' && !s.submittedCount) return false
+    if (filterStatus === 'approved' && !s.approvedCount) return false
+    if (filterStatus === 'rejected' && !s.rejectedCount) return false
+    if (filterStatus === 'expired' && !s.expiredCount) return false
+    return true
+  })
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h2 className="text-sm font-bold">Documentos por alumno</h2>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Input placeholder="Buscar alumno..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="">Todos los cursos</option>
+          {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendientes</option>
+          <option value="submitted">En revisión</option>
+          <option value="approved">Aprobados</option>
+          <option value="rejected">Rechazados</option>
+          <option value="expired">Vencidos</option>
+        </select>
+      </div>
+      {filtered.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-400">Sin resultados.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <th className="px-3 py-3">Alumno</th>
+                <th className="px-3 py-3 text-center">Pendientes</th>
+                <th className="px-3 py-3 text-center">En revisión</th>
+                <th className="px-3 py-3 text-center">Aprobados</th>
+                <th className="px-3 py-3 text-center">Rechazados</th>
+                <th className="px-3 py-3 text-center">Vencidos</th>
+                <th className="w-24 px-3 py-3 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filtered.map((s) => (
+                <tr key={s.studentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="px-3 py-3">
+                    <p className="font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
+                    <p className="text-xs text-slate-400">{s.email || '-'}</p>
+                  </td>
+                  <td className="px-3 py-3 text-center"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${s.pendingCount > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'}`}>{s.pendingCount}</span></td>
+                  <td className="px-3 py-3 text-center"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${s.submittedCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'}`}>{s.submittedCount}</span></td>
+                  <td className="px-3 py-3 text-center"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${s.approvedCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'}`}>{s.approvedCount}</span></td>
+                  <td className="px-3 py-3 text-center"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${s.rejectedCount > 0 ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'}`}>{s.rejectedCount}</span></td>
+                  <td className="px-3 py-3 text-center"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${s.expiredCount > 0 ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'}`}>{s.expiredCount}</span></td>
+                  <td className="px-3 py-3 text-right">
+                    <Button variant="outline" size="sm" onClick={() => onOpenDetail(s.studentId)}>Ver legajo</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  )
+}
+
 /* ─── DocumentosTab ─── */
 function DocumentosTab({ detail, documentTypes, toast }: {
   detail: import('./hooks').StudentDetail | null
@@ -666,7 +776,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
         const dt = documentTypes.find((t) => t.name.toLowerCase().includes(docFilter.toLowerCase()))
         if (dt) body.documentTypeId = dt.id
       }
-      const res = await fetch(`/api/admin/${slug()}/student-files/students/${detail.studentId}/documents/download-zip`, {
+      const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/students/${detail.studentId}/documents/download-zip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuth.getState().token}` },
         body: JSON.stringify(body),
