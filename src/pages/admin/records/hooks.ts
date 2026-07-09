@@ -18,6 +18,13 @@ export function normalizeStatus(status: number | string | undefined): string {
   if (s === 3) return 'Aprobado'
   if (s === 4) return 'Rechazado'
   if (s === 5) return 'Vencido'
+  // Handle string values (PascalCase from JsonStringEnumConverter)
+  const str = String(status ?? '').toLowerCase().trim()
+  if (str === 'pending') return 'Pendiente'
+  if (str === 'submitted' || str === 'uploaded') return 'En revisión'
+  if (str === 'approved') return 'Aprobado'
+  if (str === 'rejected') return 'Rechazado'
+  if (str === 'expired') return 'Vencido'
   return String(status ?? '')
 }
 

@@ -749,53 +749,87 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
       ) : documents.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-400">Sin documentos.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="px-3 py-3">Alumno</th>
-                <th className="px-3 py-3 min-w-[180px] max-w-[320px]">Documento</th>
-                <th className="px-3 py-3">Estado</th>
-                <th className="px-3 py-3 hidden md:table-cell">Fecha</th>
-                <th className="w-24 px-3 py-3 text-right">Descargar</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {documents.map((d) => {
-                const statusLabel = normalizeStatus(d.status)
-                const statusClass = getStatusBadgeClass(d.status)
-                const bestDate = getBestDate(d)
-                return (
-                  <tr key={d.assignmentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                    <td className="px-3 py-3">
-                      <p className="font-semibold text-slate-900 dark:text-white">{d.studentName}</p>
-                      <p className="text-xs text-slate-400">{d.dni || d.courseName || '-'}</p>
-                    </td>
-                    <td className="px-3 py-3 min-w-[180px] max-w-[320px]">
-                      <p className="font-semibold text-slate-900 dark:text-white truncate" title={d.documentTypeName}>{d.documentTypeName}</p>
-                      {d.fileName && <p className="text-xs text-slate-400 truncate" title={d.fileName}>{d.fileName}</p>}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
-                    </td>
-                    <td className="px-3 py-3 hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
-                    <td className="px-3 py-3 text-right">
-                      {d.fileId ? (
-                        <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                          Descargar
-                        </a>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* MOBILE CARDS */}
+          <div className="space-y-3 sm:hidden">
+            {documents.map((d) => {
+              const statusLabel = normalizeStatus(d.status)
+              const statusClass = getStatusBadgeClass(d.status)
+              return (
+                <div key={d.assignmentId} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                  <p className="font-semibold text-slate-900 dark:text-white whitespace-nowrap">{d.studentName}</p>
+                  <p className="text-xs text-slate-400 mb-2">{d.dni || d.courseName || '-'}</p>
+                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <p><span className="font-semibold text-slate-600 dark:text-slate-300">Documento:</span> {d.documentTypeName}</p>
+                    {d.fileName && <p className="truncate"><span className="font-semibold text-slate-600 dark:text-slate-300">Archivo:</span> <span title={d.fileName}>{d.fileName}</span></p>}
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
+                    <span className="text-xs text-slate-400">{formatDateSafe(getBestDate(d))}</span>
+                  </div>
+                  {d.fileId && (
+                    <div className="mt-3">
+                      <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                        Descargar
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* DESKTOP TABLE */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <th className="px-3 py-3 w-[30%] min-w-[220px]">Alumno</th>
+                  <th className="px-3 py-3 w-[18%] min-w-[140px] max-w-[220px]">Documento</th>
+                  <th className="px-3 py-3 w-[14%]">Estado</th>
+                  <th className="px-3 py-3 w-[14%] hidden md:table-cell">Fecha</th>
+                  <th className="px-3 py-3 w-[12%] text-right">Descargar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {documents.map((d) => {
+                  const statusLabel = normalizeStatus(d.status)
+                  const statusClass = getStatusBadgeClass(d.status)
+                  const bestDate = getBestDate(d)
+                  return (
+                    <tr key={d.assignmentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                      <td className="px-3 py-3 w-[30%] min-w-[220px]">
+                        <p className="font-semibold text-slate-900 dark:text-white whitespace-nowrap truncate">{d.studentName}</p>
+                        <p className="text-xs text-slate-400">{d.dni || d.courseName || '-'}</p>
+                      </td>
+                      <td className="px-3 py-3 w-[18%] min-w-[140px] max-w-[220px]">
+                        <p className="font-semibold text-slate-900 dark:text-white truncate" title={d.documentTypeName}>{d.documentTypeName}</p>
+                        {d.fileName && <p className="text-xs text-slate-400 truncate max-w-[200px]" title={d.fileName}>{d.fileName}</p>}
+                      </td>
+                      <td className="px-3 py-3 w-[14%]">
+                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
+                      </td>
+                      <td className="px-3 py-3 w-[14%] hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
+                      <td className="px-3 py-3 w-[12%] text-right">
+                        {d.fileId ? (
+                          <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                            Descargar
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </Card>
   )
