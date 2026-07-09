@@ -657,6 +657,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
   }
 
   async function handleDownloadZip(fileIds?: string[]) {
+    if (!detail) return
     setDownloading(true)
     try {
       const body: Record<string, unknown> = {}
