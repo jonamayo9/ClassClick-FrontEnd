@@ -107,7 +107,7 @@ function StudentsPageInner() {
   const [detailStudent, setDetailStudent] = useState<Student | null>(null)
   const [detailGuardians, setDetailGuardians] = useState<{ firstName: string; lastName: string; email?: string; phone?: string; documentNumber?: string; relationshipType?: number; canPayCharges?: boolean; isPrimary?: boolean }[]>([])
   const [editStudent, setEditStudent] = useState<Student | null>(null)
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '' })
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', isActive: true })
   const [toggleStudent, setToggleStudent] = useState<Student | null>(null)
   const [deleteStudent, setDeleteStudent] = useState<Student | null>(null)
   const [resetPwStudent, setResetPwStudent] = useState<Student | null>(null)
@@ -182,7 +182,7 @@ function StudentsPageInner() {
 
   function handleSubmit(e: React.FormEvent) { e.preventDefault(); if (!validate()) return; createMutation.mutate(form) }
   function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '' }); setErrors({}) }
-  function openEdit(s: Student) { setEditStudent(s); setEditForm({ firstName: s.firstName, lastName: s.lastName, email: s.email }) }
+  function openEdit(s: Student) { setEditStudent(s); setEditForm({ firstName: s.firstName, lastName: s.lastName, email: s.email, isActive: s.isActive }) }
   function openDetail(s: Student) {
     setDetailStudent(s)
     apiService.get<unknown[]>(`/api/admin/${slug}/students/${s.id}/guardians`).then((data) => {
@@ -341,7 +341,7 @@ function StudentsPageInner() {
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nombre</label><Input value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Apellido</label><Input value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
             </div>
-            <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Email</label><Input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} disabled /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Email</label><Input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setEditStudent(null)}>Cancelar</Button>
               <Button loading={updateMutation.isPending} onClick={() => updateMutation.mutate()} className="bg-blue-600 text-white hover:bg-blue-700">Guardar cambios</Button>

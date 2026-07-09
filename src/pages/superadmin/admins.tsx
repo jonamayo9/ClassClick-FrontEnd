@@ -234,7 +234,6 @@ function AdminsInner() {
                 <Button variant="outline" onClick={() => { setShowForm(false); resetForm() }}>Cancelar</Button>
                 <Button loading={createMutation.isPending || updateMutation.isPending}
                   onClick={() => {
-                    if (!editId && !form.password.trim()) { toast('La contraseña es obligatoria.', 'error'); return }
                     if (editId) updateMutation.mutate()
                     else createMutation.mutate()
                   }}

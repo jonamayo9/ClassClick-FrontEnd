@@ -2,9 +2,9 @@ import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react'
 import { DayPicker, type DateRange } from 'react-day-picker'
-import { format, isValid, parse } from 'date-fns'
+import { format, isValid, parse, setMonth, setYear } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
 import { SelectField } from './select-field'
@@ -136,14 +136,43 @@ interface DatePickerProps {
   disabled?: boolean
   className?: string
   title?: string
+  yearRange?: { from: number; to: number }
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha', min, max, disabled, className, title = 'Elegir fecha' }: DatePickerProps) {
+const monthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha', min, max, disabled, className, title = 'Elegir fecha', yearRange }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Date | undefined>(() => parseDate(value))
-  useEffect(() => { if (open) setDraft(parseDate(value)) }, [open, value])
+  const [viewMode, setViewMode] = useState<'days' | 'monthYear'>('days')
+  const [pickerMonth, setPickerMonth] = useState<Date>(draft ?? new Date())
+  const yearScrollRef = useRef<HTMLDivElement>(null)
+  const currentYear = new Date().getFullYear()
+  const yrFrom = yearRange?.from ?? currentYear - 100
+  const yrTo = yearRange?.to ?? currentYear
+
+  useEffect(() => { if (open) { setDraft(parseDate(value)); setViewMode('days'); setPickerMonth(parseDate(value) ?? new Date()) } }, [open, value])
+  useEffect(() => { if (viewMode === 'monthYear' && yearScrollRef.current) yearScrollRef.current.scrollTop = ((pickerMonth.getFullYear() - yrFrom) / (yrTo - yrFrom)) * yearScrollRef.current.scrollHeight }, [viewMode, pickerMonth, yrFrom, yrTo])
+
   const selected = parseDate(value)
   const label = selected ? format(selected, "EEEE d 'de' MMMM 'de' yyyy", { locale: es }) : placeholder
+
+  const years = useMemo(() => {
+    const arr: number[] = []
+    for (let y = yrTo; y >= yrFrom; y--) arr.push(y)
+    return arr
+  }, [yrFrom, yrTo])
+
+  const selectMonthYear = useCallback((m: number, y: number) => {
+    const newDate = setYear(setMonth(pickerMonth, m), y)
+    setPickerMonth(newDate)
+    setViewMode('days')
+  }, [pickerMonth])
+
+  const handleCaptionClick = useCallback(() => {
+    if (yearRange) setViewMode('monthYear')
+  }, [yearRange])
+
   const trigger = (
     <button type="button" disabled={disabled} className={cn('flex min-h-11 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-sm outline-none transition hover:border-slate-300 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600', className)}>
       <CalendarDays className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
@@ -152,26 +181,70 @@ export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha',
   )
 
   return (
-    <PickerSurface open={open} onOpenChange={setOpen} trigger={trigger} title={title}>
-      <DayPicker
-        mode="single"
-        locale={es}
-        weekStartsOn={1}
-        selected={draft}
-        onSelect={setDraft}
-        startMonth={parseDate(min)}
-        endMonth={parseDate(max)}
-        disabled={{ before: parseDate(min) ?? new Date(1900, 0, 1), after: parseDate(max) ?? new Date(2200, 11, 31) }}
-        classNames={calendarClassNames}
-        components={{ Chevron: ({ orientation }) => orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" /> }}
-      />
-      {draft && <p className="mt-2 text-center text-xs font-medium capitalize text-slate-500 dark:text-slate-400">{format(draft, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })}</p>}
-      <CalendarFooter
-        onToday={() => setDraft(new Date())}
-        onClear={() => setDraft(undefined)}
-        onCancel={() => setOpen(false)}
-        onApply={() => { onChange(isoDate(draft)); setOpen(false) }}
-      />
+    <PickerSurface open={open} onOpenChange={(next) => { setOpen(next); if (!next) setViewMode('days') }} trigger={trigger} title={viewMode === 'monthYear' ? 'Elegir mes y año' : title}>
+      {viewMode === 'monthYear' && yearRange ? (
+        <div className="space-y-4">
+          {/* Month grid */}
+          <div className="grid grid-cols-3 gap-2">
+            {monthsShort.map((mName, idx) => {
+              const m = idx
+              const isCurrent = pickerMonth.getMonth() === m
+              return (
+                <button key={m} type="button" onClick={() => selectMonthYear(m, pickerMonth.getFullYear())}
+                  className={`rounded-xl py-2.5 text-sm font-semibold transition ${isCurrent ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700'}`}>
+                  {mName}
+                </button>
+              )
+            })}
+          </div>
+          {/* Year scroll list */}
+          <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
+            <p className="mb-2 text-xs font-semibold text-slate-500">Año</p>
+            <div ref={yearScrollRef} className="flex flex-wrap gap-1.5 max-h-[180px] overflow-y-auto">
+              {years.map((y) => {
+                const isCurrent = pickerMonth.getFullYear() === y
+                return (
+                  <button key={y} type="button" onClick={() => selectMonthYear(pickerMonth.getMonth(), y)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${isCurrent ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700'}`}>
+                    {y}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <DayPicker
+            mode="single"
+            locale={es}
+            weekStartsOn={1}
+            selected={draft}
+            onSelect={setDraft}
+            month={pickerMonth}
+            onMonthChange={setPickerMonth}
+            startMonth={parseDate(min)}
+            endMonth={parseDate(max)}
+            disabled={{ before: parseDate(min) ?? new Date(1900, 0, 1), after: parseDate(max) ?? new Date(2200, 11, 31) }}
+            classNames={calendarClassNames}
+            components={{
+              Chevron: ({ orientation }) => orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />,
+              MonthCaption: yearRange ? ({ calendarMonth }) => (
+                <button type="button" onClick={handleCaptionClick} className="text-sm font-bold capitalize hover:text-blue-600 transition">
+                  {format(calendarMonth.date, 'MMMM yyyy', { locale: es })}
+                </button>
+              ) : undefined,
+            }}
+          />
+          {draft && <p className="mt-2 text-center text-xs font-medium capitalize text-slate-500 dark:text-slate-400">{format(draft, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })}</p>}
+          <CalendarFooter
+            onToday={() => setDraft(new Date())}
+            onClear={() => setDraft(undefined)}
+            onCancel={() => setOpen(false)}
+            onApply={() => { onChange(isoDate(draft)); setOpen(false) }}
+          />
+        </>
+      )}
     </PickerSurface>
   )
 }

@@ -247,7 +247,7 @@ function Field({ label, value, onChange, required, type = 'text', placeholder }:
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {type === 'date'
-        ? <DatePicker value={value} onChange={onChange} placeholder={placeholder ?? 'Elegir fecha'} />
+        ? <DatePicker value={value} onChange={onChange} placeholder={placeholder ?? 'Elegir fecha'} yearRange={{ from: 1920, to: new Date().getFullYear() }} />
         : <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} />}
     </div>
   )

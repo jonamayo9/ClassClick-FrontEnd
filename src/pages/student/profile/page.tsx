@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { PageHero } from '@/components/ui/page-hero'
@@ -55,6 +55,8 @@ function ProfilePageInner() {
   const [notes, setNotes] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoPreviewModal, setPhotoPreviewModal] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const { data: guardians = [] } = useQuery({
     queryKey: ['student-guardians', slug()],
@@ -92,6 +94,21 @@ function ProfilePageInner() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['student-profile'] }); toast('Perfil actualizado.'); setEditMode(false) },
   })
 
+  const uploadPhotoMutation = useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData(); fd.append('file', file)
+      return apiService.postForm('/api/profile/upload-photo', fd)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['student-profile'] }); qc.invalidateQueries({ queryKey: ['student-profile-photo'] }); setPhotoPreviewModal(false); toast('Foto actualizada.') },
+    onError: () => toast('Error al actualizar la foto.', 'error'),
+  })
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: () => apiService.del('/api/profile/photo'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['student-profile'] }); qc.invalidateQueries({ queryKey: ['student-profile-photo'] }); setPhotoPreviewModal(false); toast('Foto eliminada.') },
+    onError: () => toast('Error al eliminar la foto.', 'error'),
+  })
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     const body: Record<string, unknown> = {
@@ -108,12 +125,6 @@ function ProfilePageInner() {
     }
     try {
       await saveMutation.mutateAsync(body)
-      if (photoFile) {
-        const fd = new FormData(); fd.append('file', photoFile)
-        await apiService.postForm('/api/profile/upload-photo', fd)
-        qc.invalidateQueries({ queryKey: ['student-profile'] })
-        setPhotoPreview(null); setPhotoFile(null)
-      }
     } catch { toast('Error al guardar.', 'error') }
   }
 
@@ -157,24 +168,17 @@ function ProfilePageInner() {
       {/* Profile photo + name card */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-4">
-          <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 shadow-md dark:bg-slate-800">
-            {photoPreview ? <img src={photoPreview} className="h-full w-full object-cover" /> : photoUrl ? <img src={photoUrl} className="h-full w-full object-cover" /> : <span className="text-xl font-bold text-slate-400">{initials}</span>}
-          </div>
+          <button type="button" onClick={() => setPhotoPreviewModal(true)}
+            className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 shadow-md hover:ring-2 hover:ring-violet-400 transition dark:bg-slate-800">
+            {photoUrl ? <img src={photoUrl} className="h-full w-full object-cover" /> : <span className="text-xl font-bold text-slate-400">{initials}</span>}
+          </button>
           <div className="min-w-0 flex-1">
             <p className="text-base font-bold text-slate-900 dark:text-white truncate">{name}</p>
             <p className="text-xs text-slate-500">{profile?.email}</p>
             {profile?.dni && <p className="text-xs text-slate-400">DNI: {profile.dni}</p>}
             {profile?.memberNumber && <Badge variant="violet" className="mt-1">N° {profile.memberNumber}</Badge>}
           </div>
-          <div className="flex flex-col gap-2">
-            {!editMode && <Button size="sm" onClick={() => setEditMode(true)} className="bg-violet-600 text-white hover:bg-violet-700">Editar</Button>}
-          </div>
         </div>
-        {editMode && (
-          <input type="file" accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhotoFile(f); setPhotoPreview(URL.createObjectURL(f)) } }}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs file:font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:file:bg-slate-700" />
-        )}
       </Card>
 
       {/* Personal data */}
@@ -218,9 +222,13 @@ function ProfilePageInner() {
           )}
 
           <div className="flex gap-3 pt-1">
-            {editMode && (
+            {editMode ? (
               <Button type="submit" loading={saveMutation.isPending} className="bg-violet-600 text-white hover:bg-violet-700">
                 Guardar cambios
+              </Button>
+            ) : (
+              <Button type="button" onClick={() => setEditMode(true)} className="bg-violet-600 text-white hover:bg-violet-700">
+                Editar perfil
               </Button>
             )}
             <Button type="button" variant="outline" onClick={() => setPwModal(true)}>Cambiar contraseña</Button>
@@ -340,6 +348,29 @@ function ProfilePageInner() {
           </div>
         </div>
       </Modal>
+
+      {/* Photo preview modal */}
+      {photoPreviewModal && (
+        <Modal open={photoPreviewModal} onClose={() => setPhotoPreviewModal(false)} title="Foto de perfil" className="sm:max-w-sm">
+          <div className="p-5 flex flex-col items-center gap-4">
+            <div className="h-48 w-48 overflow-hidden rounded-full bg-slate-100 shadow-md dark:bg-slate-800">
+              {photoUrl ? <img src={photoUrl} alt="Foto" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-4xl font-bold text-slate-400">{initials}</div>}
+            </div>
+            <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhotoMutation.mutate(f) }} />
+            <div className="flex gap-3 w-full">
+              <Button onClick={() => photoInputRef.current?.click()} loading={uploadPhotoMutation.isPending} className="flex-1 bg-violet-600 text-white hover:bg-violet-700">
+                Cambiar foto
+              </Button>
+              {photoUrl && (
+                <Button onClick={() => deletePhotoMutation.mutate()} loading={deletePhotoMutation.isPending} variant="outline" className="text-red-500 border-red-200 hover:bg-red-50">
+                  Eliminar
+                </Button>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -357,7 +388,7 @@ function Field({ label, value, onChange, disabled, type = 'text', placeholder }:
     <div>
       <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">{label}</label>
       {type === 'date'
-        ? <DatePicker value={value} onChange={onChange} placeholder={placeholder ?? 'Elegir fecha'} />
+        ? <DatePicker value={value} onChange={onChange} placeholder={placeholder ?? 'Elegir fecha'} yearRange={{ from: 1920, to: new Date().getFullYear() }} />
         : <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />}
     </div>
   )

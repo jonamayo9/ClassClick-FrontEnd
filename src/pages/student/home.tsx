@@ -15,7 +15,7 @@ import {
   useStudentProfile, useStudentBilling, useStudentAnnouncements,
   useStudentSponsors, useStudentCourses, useProfilePhotoUrl
 } from './student.hooks'
-import type { StudentMatch } from './student.hooks'
+// import type { StudentMatch } from './student.hooks'
 
 const _fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 const ARS = (n: number) => _fmt.format(n)
@@ -50,8 +50,8 @@ export function StudentHome() {
   const [showAllNews, setShowAllNews] = useState(false)
   const [selectedSponsor, setSelectedSponsor] = useState<{ id: string; name: string; imageUrl?: string; overlayText?: string; description?: string; websiteUrl?: string; instagramUrl?: string; facebookUrl?: string; whatsApp?: string } | null>(null)
   const [sponsorIndex, setSponsorIndex] = useState(0)
-  const [selectedMatch, setSelectedMatch] = useState<StudentMatch | null>(null)
-  const [matchesModalOpen, setMatchesModalOpen] = useState(false)
+  // const [selectedMatch, setSelectedMatch] = useState<StudentMatch | null>(null)
+  // const [matchesModalOpen, setMatchesModalOpen] = useState(false)
   const { isAvailable: bioAvailable, isEnabled: bioEnabled, register: bioRegister, isRegistering } = useBiometric()
   const [bioDismissed, setBioDismissed] = useState(() => sessionStorage.getItem('bio_prompt_dismissed') === 'true')
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>(() => {
@@ -61,7 +61,7 @@ export function StudentHome() {
   const hasPayments = hasModule('payments')
   const hasNews = hasModule('news')
   const hasSponsors = hasModule('sponsors')
-  const hasMatchesModule = false
+  // const hasMatchesModule = false
 
   const { data: profile, isLoading } = useStudentProfile()
   const { data: billingRaw } = useStudentBilling()
@@ -73,7 +73,7 @@ export function StudentHome() {
   const billing = useMemo(() => hasPayments ? billingRaw ?? [] : [], [hasPayments, billingRaw])
   const announcements = useMemo(() => hasNews ? announcementsRaw ?? [] : [], [hasNews, announcementsRaw])
   const sponsors = useMemo(() => hasSponsors ? sponsorsRaw ?? [] : [], [hasSponsors, sponsorsRaw])
-  const matches = useMemo<StudentMatch[]>(() => [], [])
+  // const matches = useMemo<StudentMatch[]>(() => [], [])
   const companies = useAuth((s) => s.companies)
   const activeSlug = useAuth((s) => s.activeCompanySlug)
   const activeCompany = companies.find((c) => (c.slug ?? c.companySlug) === activeSlug)
@@ -120,8 +120,8 @@ export function StudentHome() {
   }, [announcements, latestAnnouncement])
 
   const activeCourses = courses.filter((c) => c.isActive !== false)
-  const upcomingMatches = matches.filter((m: StudentMatch) => m.matchDateUtc ? new Date(m.matchDateUtc) >= new Date() : true).sort((a, b) => { if (!a.matchDateUtc) return 1; if (!b.matchDateUtc) return -1; return new Date(a.matchDateUtc).getTime() - new Date(b.matchDateUtc).getTime() })
-  const pastMatches = matches.filter((m: StudentMatch) => m.matchDateUtc ? new Date(m.matchDateUtc) < new Date() : false).sort((a, b) => { if (!b.matchDateUtc) return 1; if (!a.matchDateUtc) return -1; return new Date(b.matchDateUtc).getTime() - new Date(a.matchDateUtc).getTime() })
+  // const upcomingMatches = matches.filter((m: StudentMatch) => m.matchDateUtc ? new Date(m.matchDateUtc) >= new Date() : true).sort((a, b) => { if (!a.matchDateUtc) return 1; if (!b.matchDateUtc) return -1; return new Date(a.matchDateUtc).getTime() - new Date(b.matchDateUtc).getTime() })
+  // const pastMatches = matches.filter((m: StudentMatch) => m.matchDateUtc ? new Date(m.matchDateUtc) < new Date() : false).sort((a, b) => { if (!b.matchDateUtc) return 1; if (!a.matchDateUtc) return -1; return new Date(b.matchDateUtc).getTime() - new Date(a.matchDateUtc).getTime() })
   const userDisplayName = profile?.fullName || profile?.firstName || user?.name || user?.email || 'Alumno'
   const initials = userDisplayName.split(' ').map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2) || 'AL'
   const photoUrl = imgUrl(photoView?.url || profile?.profileImageUrl)
@@ -226,7 +226,7 @@ export function StudentHome() {
       )}
 
       {/* ─── Matches with VS layout ─── */}
-      {hasModule('matches') && (
+      {/* hasModule('matches') && (
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Partidos</h2>
@@ -268,7 +268,7 @@ export function StudentHome() {
             </div>
           )}
         </section>
-      )}
+      ) */}
 
       {/* ─── Announcements ─── */}
       {(latestAnnouncement || historicalAnnouncements.length > 0) && (
@@ -345,7 +345,8 @@ export function StudentHome() {
       <StudentCarnetModal open={carnetOpen} onClose={() => setCarnetOpen(false)} />
 
       {/* ─── All matches modal ─── */}
-      {matchesModalOpen && (
+      {/* ─── All matches modal ─── */}
+      {/* matchesModalOpen && (
           <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-950/60" onClick={() => setMatchesModalOpen(false)} />
             <div className="relative z-10 w-full max-w-4xl animate-slide-up rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 max-h-[80vh] overflow-y-auto">
@@ -364,10 +365,10 @@ export function StudentHome() {
               </div>
             </div>
           </div>
-      )}
+      ) */}
 
       {/* ─── Match detail modal ─── */}
-      {selectedMatch && (
+      {/* selectedMatch && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/60" onClick={() => setSelectedMatch(null)} />
           <div className="relative z-10 w-full max-w-2xl animate-slide-up rounded-[28px] bg-white p-5 shadow-2xl dark:bg-slate-900 max-h-[85vh] overflow-y-auto">
@@ -450,7 +451,7 @@ export function StudentHome() {
             </div>
           </div>
         </div>
-      )}
+      ) */}
 
       {/* ─── Announcement detail modal ─── */}
       {selectedAnnouncement && (
@@ -556,6 +557,8 @@ export function StudentHome() {
   )
 }
 
+/* ─── MatchesSection (commented out) ─── */
+/*
 function MatchesSection({ title, matches, emptyText, companyLogo, companyName, onSelect, formatDate, formatTime, historical }: {
   title: string; matches: StudentMatch[]; emptyText: string; companyLogo: string; companyName: string;
   onSelect: (m: StudentMatch) => void; formatDate: (v: string | null | undefined) => string;
@@ -593,3 +596,4 @@ function MatchesSection({ title, matches, emptyText, companyLogo, companyName, o
     </section>
   )
 }
+*/
