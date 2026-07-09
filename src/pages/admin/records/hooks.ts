@@ -207,3 +207,43 @@ export function useRejectDocument() {
     },
   })
 }
+
+export interface AdminDocumentItem {
+  assignmentId: string
+  studentId: string
+  studentName: string
+  dni: string | null
+  courseName: string | null
+  documentTypeName: string
+  status: string
+  submittedAtUtc: string | null
+  dueDateUtc: string | null
+  fileId: string | null
+  fileName: string | null
+  fileMimeType: string | null
+}
+
+export function useAllDocuments(filters: {
+  search: string
+  courseId: string
+  documentTypeId: string
+  status: string
+}) {
+  return useQuery({
+    queryKey: ['records-all-documents', slug(), filters],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (filters.search) params.set('search', filters.search)
+      if (filters.courseId) params.set('courseId', filters.courseId)
+      if (filters.documentTypeId) params.set('documentTypeId', filters.documentTypeId)
+      if (filters.status) params.set('status', filters.status)
+      const qs = params.toString()
+      const url = qs
+        ? `/api/admin/${slug()}/student-files/documents?${qs}`
+        : `/api/admin/${slug()}/student-files/documents`
+      return apiService.get<AdminDocumentItem[]>(url)
+    },
+    enabled: !!slug(),
+    select: (data) => (Array.isArray(data) ? data : []),
+  })
+}
