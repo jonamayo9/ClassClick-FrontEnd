@@ -22,11 +22,15 @@ function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 async function downloadFile(fileId: string, fileName: string) {
   try {
     const token = useAuth.getState().token
-    const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/files/${fileId}/download-file`, {
+    const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/files/${fileId}/download`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
     if (!res.ok) throw new Error('Error al descargar')
-    const blob = await res.blob()
+    const data = await res.json()
+    if (!data?.url) throw new Error('URL no disponible')
+    const fileRes = await fetch(data.url)
+    if (!fileRes.ok) throw new Error('Error al descargar archivo')
+    const blob = await fileRes.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
