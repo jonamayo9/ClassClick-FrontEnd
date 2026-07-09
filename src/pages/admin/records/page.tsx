@@ -297,6 +297,7 @@ export default function RecordsPage() {
         courses={courses}
         documentTypes={documentTypes}
         onOpenDetail={(id: string) => setShowDetailId(id)}
+        toast={toast}
       />
     )
   }
@@ -642,10 +643,11 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
 }
 
 /* ─── MainDocumentsView ─── */
-function MainDocumentsView({ courses, documentTypes, onOpenDetail }: {
+function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
   courses: { id: string; name: string }[]
   documentTypes: { id: string; name: string }[]
   onOpenDetail: (id: string) => void
+  toast: (msg: string, type?: 'success' | 'error') => void
 }) {
   const [search, setSearch] = useState('')
   const [filterCourse, setFilterCourse] = useState('')
@@ -657,18 +659,13 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail }: {
 
   const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
   const [viewFileLoading, setViewFileLoading] = useState(false)
+  const [zipLoading, setZipLoading] = useState(false)
 
-  const statusColors: Record<string, string> = {
-    Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
-    Submitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-    Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
-    Rejected: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
-    Expired: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
-  }
-
-  function getStatusBadge(s: string) { return statusColors[s] ?? 'bg-slate-100 text-slate-700' }
-  function formatStatus(s: string) { return normalizeStatus(s) }
   function formatDateSafe(v: string | null) { return v ? formatDate(v) : '-' }
+
+  function getBestDate(d: import('./hooks').AdminDocumentItem): string {
+    return d.submittedAtUtc || d.dueDateUtc || ''
+  }
 
   async function handleViewFile(fileId: string, fileName: string, mimeType: string) {
     setViewFileLoading(true)
@@ -679,11 +676,50 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail }: {
     } catch { /* ignore */ } finally { setViewFileLoading(false) }
   }
 
+  async function handleDownloadZip() {
+    setZipLoading(true)
+    try {
+      const body: Record<string, unknown> = {}
+      if (search) body.search = search
+      if (filterCourse) body.courseId = filterCourse
+      if (filterDocType) body.documentTypeId = filterDocType
+      if (filterStatus) body.status = filterStatus
+
+      // Endpoint necesario: POST /api/admin/{slug}/student-files/documents/download-zip
+      // Body: { search?, courseId?, documentTypeId?, status? }
+      // Debe devolver application/zip con todos los documentos que coincidan con los filtros.
+      // Actualmente este endpoint no existe en backend.
+      const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/documents/download-zip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuth.getState().token}` },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Error al descargar')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `documentos_filtrados.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast('Descarga masiva por filtros no disponible. Funcionalidad requiere endpoint backend.', 'error')
+    } finally {
+      setZipLoading(false)
+    }
+  }
+
   return (
     <Card className="p-5 space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h2 className="text-sm font-bold">Documentos</h2>
-        <span className="text-xs text-slate-400">{documents.length} documento{documents.length !== 1 ? 's' : ''}</span>
+        <div>
+          <h2 className="text-sm font-bold">Documentos</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{documents.length} documento{documents.length !== 1 ? 's' : ''}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleDownloadZip} loading={zipLoading}
+          disabled={documents.length === 0}>
+          Descargar ZIP
+        </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Input placeholder="Buscar alumno o documento..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -708,7 +744,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail }: {
         </select>
       </div>
       {isLoading ? (
-        <div className="space-y-2 py-8">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div>
+        <div className="space-y-2 py-8">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div>
       ) : documents.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-400">Sin documentos.</p>
       ) : (
@@ -716,92 +752,48 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail }: {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="px-3 py-3">Documento</th>
                 <th className="px-3 py-3">Alumno</th>
-                <th className="px-3 py-3 hidden sm:table-cell">Curso</th>
+                <th className="px-3 py-3 w-1/4 min-w-[120px]">Documento</th>
                 <th className="px-3 py-3">Estado</th>
                 <th className="px-3 py-3 hidden md:table-cell">Fecha</th>
-                <th className="w-28 px-3 py-3 text-right">Acciones</th>
+                <th className="w-24 px-3 py-3 text-right">Descargar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {documents.map((d) => (
-                <tr key={d.assignmentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="px-3 py-3">
-                    <p className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{d.documentTypeName}</p>
-                    {d.fileName && <p className="text-xs text-slate-400 truncate max-w-[200px]">{d.fileName}</p>}
-                  </td>
-                  <td className="px-3 py-3">
-                    <p className="font-medium text-slate-900 dark:text-white">{d.studentName}</p>
-                    <p className="text-xs text-slate-400">{d.dni || '-'}</p>
-                  </td>
-                  <td className="px-3 py-3 hidden sm:table-cell text-slate-500">{d.courseName || '-'}</td>
-                  <td className="px-3 py-3">
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${getStatusBadge(d.status)}`}>{formatStatus(d.status)}</span>
-                  </td>
-                  <td className="px-3 py-3 hidden md:table-cell text-slate-500">{formatDateSafe(d.submittedAtUtc || d.dueDateUtc)}</td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="flex justify-end gap-1.5">
-                      {d.fileId && (
-                        <>
-                          <Button variant="outline" size="sm" onClick={() => handleViewFile(d.fileId!, d.fileName || 'Documento', d.fileMimeType || '')}>Ver</Button>
-                          <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                            Descargar
-                          </a>
-                        </>
+              {documents.map((d) => {
+                const statusLabel = normalizeStatus(d.status)
+                const statusClass = getStatusBadgeClass(d.status)
+                const bestDate = getBestDate(d)
+                return (
+                  <tr key={d.assignmentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-3 py-3">
+                      <p className="font-semibold text-slate-900 dark:text-white">{d.studentName}</p>
+                      <p className="text-xs text-slate-400">{d.dni || d.courseName || '-'}</p>
+                    </td>
+                    <td className="px-3 py-3 w-1/4 min-w-[120px]">
+                      <p className="font-medium text-slate-900 dark:text-white truncate">{d.documentTypeName}</p>
+                      {d.fileName && <p className="text-xs text-slate-400 truncate">{d.fileName}</p>}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
+                    </td>
+                    <td className="px-3 py-3 hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
+                    <td className="px-3 py-3 text-right">
+                      {d.fileId ? (
+                        <a href={`/api/admin/${slug()}/student-files/files/${d.fileId}/download-file`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                          Descargar
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* View File Modal */}
-      {viewFileData && (
-        <div className="fixed inset-0 z-[65] flex items-end sm:items-center sm:justify-center sm:p-4" onClick={() => setViewFileData(null)}>
-          <div className="absolute inset-0 bg-black/70" />
-          <div className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{viewFileData.fileName}</h3>
-              <button onClick={() => setViewFileData(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-500 dark:hover:bg-slate-800">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            {viewFileLoading ? (
-              <div className="flex items-center justify-center py-16"><span className="text-sm text-slate-500">Cargando...</span></div>
-            ) : viewFileData.url ? (
-              <>
-                <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
-                  <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                    Descargar
-                  </a>
-                </div>
-                <div className="bg-slate-100 p-4 dark:bg-slate-800 flex-1 overflow-auto">
-                  {viewFileData.isImage ? (
-                    <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
-                  ) : viewFileData.isPdf ? (
-                    <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-4 py-16">
-                      <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
-                      <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
-                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                        Descargar archivo
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
-            )}
-          </div>
         </div>
       )}
     </Card>
