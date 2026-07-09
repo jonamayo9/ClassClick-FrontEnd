@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
@@ -8,7 +8,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
 import { apiService } from '@/lib/api'
-import { imgUrl } from '@/lib/media'
 import { useAuth } from '@/stores/auth'
 import { formatDate } from '../student.hooks'
 
@@ -72,7 +71,14 @@ function getStatusVariant(status: unknown) {
   return statusVariants[formatDocumentStatus(status).toLowerCase()] ?? 'default'
 }
 
-/* ─── Normalizer ─── */
+/* ─── Types ─── */
+
+interface DocFile {
+  id: string
+  fileName: string
+  mimeType: string
+  uploadedAtUtc: string
+}
 
 interface NormalizedDoc {
   assignmentId: string
@@ -85,12 +91,15 @@ interface NormalizedDoc {
   assignedAt: string
   dueDate: string
   expirationDateUtc: string
-  fileId: string
-  fileName: string
-  fileMimeType: string
+  files: DocFile[]
+  maxFiles: number
+  allowMultipleFiles: boolean
   canUpload: boolean
+  uploadLabel: string
   raw: Record<string, unknown>
 }
+
+/* ─── Normalizer ─── */
 
 function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
   const assignmentId = pickString(raw, ['assignmentId', 'AssignmentId'])
@@ -103,12 +112,46 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
   const assignedAt = pickString(raw, ['assignedAtUtc', 'AssignedAtUtc'])
   const dueDate = pickString(raw, ['dueDateUtc', 'DueDateUtc'])
   const expirationDateUtc = pickString(raw, ['expirationDateUtc', 'ExpirationDateUtc'])
-  const fileId = pickString(raw, ['currentFileId', 'CurrentFileId'])
-  const fileName = pickString(raw, ['currentFileName', 'CurrentFileName'])
-  const fileMimeType = pickString(raw, ['currentFileMimeType', 'CurrentFileMimeType'])
+  const maxFiles = Number(pick(raw, ['maxFiles', 'MaxFiles'])) || 1
+  const allowMultipleFiles = pickBool(raw, ['allowMultipleFiles', 'AllowMultipleFiles'])
 
+  // Files collection
+  const filesRaw = pick<unknown[]>(raw, ['files', 'Files'])
+  const files: DocFile[] = Array.isArray(filesRaw)
+    ? filesRaw.map((f: Record<string, unknown>) => ({
+        id: pickString(f, ['id', 'Id']),
+        fileName: pickString(f, ['fileName', 'FileName']),
+        mimeType: pickString(f, ['mimeType', 'MimeType']),
+        uploadedAtUtc: pickString(f, ['uploadedAtUtc', 'UploadedAtUtc']),
+      })).filter((f) => !!f.id)
+    : []
+
+  // Backward compatibility: single file
+  const singleFileId = pickString(raw, ['currentFileId', 'CurrentFileId'])
+  const singleFileName = pickString(raw, ['currentFileName', 'CurrentFileName'])
+  const singleFileMimeType = pickString(raw, ['currentFileMimeType', 'CurrentFileMimeType'])
+
+  // If no files collection but single file exists, create one
+  const effectiveFiles = files.length > 0
+    ? files
+    : singleFileId
+      ? [{ id: singleFileId, fileName: singleFileName, mimeType: singleFileMimeType, uploadedAtUtc: '' }]
+      : []
+
+  // Upload rules
   const label = statusLabel.toLowerCase()
-  const canUpload = !!assignmentId && label !== 'aprobado'
+  const uploadedCount = effectiveFiles.length
+  const canUpload = !!assignmentId && (
+    (label === 'pendiente' && uploadedCount < maxFiles) ||
+    (label === 'rechazado')
+  )
+
+  let uploadLabel = 'Subir documento'
+  if (label === 'rechazado') {
+    uploadLabel = 'Volver a subir documento'
+  } else if (uploadedCount > 0 && uploadedCount < maxFiles) {
+    uploadLabel = 'Agregar documento'
+  }
 
   return {
     assignmentId,
@@ -121,10 +164,11 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
     assignedAt,
     dueDate,
     expirationDateUtc,
-    fileId,
-    fileName,
-    fileMimeType,
+    files: effectiveFiles,
+    maxFiles,
+    allowMultipleFiles,
     canUpload,
+    uploadLabel,
     raw,
   }
 }
@@ -138,11 +182,7 @@ function DocumentsPageInner() {
 
   const { data: rawList, isLoading, error } = useQuery({
     queryKey: ['my-documents', slug()],
-    queryFn: async () => {
-      const res = await apiService.get<unknown>(`/api/student/${slug()}/student-files/my-documents`)
-      console.log('MY_DOCUMENTS RESPONSE', res)
-      return res
-    },
+    queryFn: () => apiService.get<unknown>(`/api/student/${slug()}/student-files/my-documents`),
     enabled: !!slug(),
   })
 
@@ -151,7 +191,10 @@ function DocumentsPageInner() {
   const [selected, setSelected] = useState<NormalizedDoc | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [viewing, setViewing] = useState<{ url?: string; name?: string } | null>(null)
+
+  /* View file state */
+  const [viewFileLoading, setViewFileLoading] = useState(false)
+  const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
 
   const pendingCount = docs.filter((d) => {
     const s = d.statusLabel.toLowerCase()
@@ -192,12 +235,27 @@ function DocumentsPageInner() {
     setUploadFile(file)
   }
 
-  useEffect(() => {
-    if (selected) console.log('SELECTED DOCUMENT', selected)
-  }, [selected])
-
-  const isImage = (mime?: string) => mime?.toLowerCase().startsWith('image/')
-  const isPdf = (mime?: string) => mime?.toLowerCase() === 'application/pdf'
+  async function handleViewFile(fileId: string, fileName: string, mimeType: string) {
+    setViewFileLoading(true)
+    setViewFileData(null)
+    try {
+      const res = await apiService.get<{ url: string }>(
+        `/api/student/${slug()}/student-files/files/${fileId}/view`,
+      )
+      if (res?.url) {
+        setViewFileData({
+          url: res.url,
+          fileName,
+          isImage: mimeType?.toLowerCase().startsWith('image/') ?? false,
+          isPdf: mimeType?.toLowerCase() === 'application/pdf',
+        })
+      }
+    } catch {
+      toast('No se pudo cargar el archivo.', 'error')
+    } finally {
+      setViewFileLoading(false)
+    }
+  }
 
   /* ─── Loading ─── */
   if (isLoading) {
@@ -256,6 +314,7 @@ function DocumentsPageInner() {
                   <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{d.title || 'Documento'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {d.isRequired ? 'Obligatorio' : 'Opcional'} · {d.statusLabel}
+                    {d.maxFiles > 1 && <span className="ml-1">({d.files.length}/{d.maxFiles})</span>}
                   </p>
                 </div>
                 <Badge variant={getStatusVariant(d.status)} className="shrink-0">{d.statusLabel}</Badge>
@@ -266,21 +325,30 @@ function DocumentsPageInner() {
               {d.rejectionReason && (
                 <p className="text-xs text-amber-600 bg-amber-50 rounded-xl p-2.5 dark:bg-amber-950/30 line-clamp-2">{d.rejectionReason}</p>
               )}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-                {d.fileName && <span className="truncate max-w-[200px]">Archivo: {d.fileName}</span>}
-                {d.dueDate && <span>Vence: {formatDateSafe(d.dueDate)}</span>}
-              </div>
+              {d.files.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                  {d.files.map((f) => (
+                    <span key={f.id} className="truncate max-w-[200px]">Archivo: {f.fileName}</span>
+                  ))}
+                  {d.dueDate && <span>Vence: {formatDateSafe(d.dueDate)}</span>}
+                </div>
+              )}
+              {!d.files.length && d.dueDate && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                  <span>Vence: {formatDateSafe(d.dueDate)}</span>
+                </div>
+              )}
               <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                {d.fileId && (
+                {d.files.length > 0 && d.files[0].id && (
                   <Button variant="outline" size="sm"
-                    onClick={() => setViewing({ name: d.fileName, url: `/api/student/${slug()}/student-files/files/${d.fileId}/view` })}>
+                    onClick={() => handleViewFile(d.files[0].id, d.files[0].fileName, d.files[0].mimeType)}>
                     Ver archivo
                   </Button>
                 )}
                 {d.canUpload && (
                   <Button size="sm" className="bg-violet-600 text-white hover:bg-violet-700"
                     onClick={() => setSelected(d)}>
-                    {d.fileName ? 'Reemplazar' : 'Subir archivo'}
+                    {d.uploadLabel}
                   </Button>
                 )}
               </div>
@@ -295,22 +363,11 @@ function DocumentsPageInner() {
           title={selected.title || 'Documento'} className="sm:max-w-lg">
           <div className="px-5 py-4 sm:px-6 space-y-4 max-h-[85vh] overflow-y-auto">
 
-            {/* Debug */}
-            <details className="text-[10px] text-slate-400 border border-dashed border-slate-200 rounded-xl p-2 dark:border-slate-700">
-              <summary className="cursor-pointer font-mono">debug</summary>
-              <pre className="mt-1 font-mono leading-relaxed">{JSON.stringify({
-                assignmentId: selected.assignmentId,
-                fileId: selected.fileId,
-                status: selected.status,
-                statusLabel: selected.statusLabel,
-                canUpload: selected.canUpload,
-              }, null, 2)}</pre>
-            </details>
-
             {/* Header */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {selected.isRequired ? 'Obligatorio' : 'Opcional'}
+                {selected.maxFiles > 1 && <span className="ml-1">({selected.files.length}/{selected.maxFiles})</span>}
               </span>
               <Badge variant={getStatusVariant(selected.status)}>{selected.statusLabel}</Badge>
             </div>
@@ -331,7 +388,7 @@ function DocumentsPageInner() {
               </div>
             )}
 
-            {/* Dates & File */}
+            {/* Dates */}
             <div className="grid grid-cols-2 gap-3 text-sm">
               {selected.assignedAt && (
                 <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
@@ -345,27 +402,38 @@ function DocumentsPageInner() {
                   <p className="font-semibold text-slate-900 dark:text-white">{formatDateSafe(selected.dueDate)}</p>
                 </div>
               )}
-              {selected.fileId && (
-                <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50 col-span-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Archivo actual</p>
-                  <p className="font-semibold text-slate-900 dark:text-white truncate mt-0.5">{selected.fileName || 'Archivo cargado'}</p>
-                  <div className="flex gap-2 mt-2">
-                    <Button variant="outline" size="sm"
-                      onClick={() => setViewing({ name: selected.fileName || 'Documento', url: `/api/student/${slug()}/student-files/files/${selected.fileId}/view` })}>
-                      Ver archivo
-                    </Button>
-                    <a
-                      href={`/api/student/${slug()}/student-files/files/${selected.fileId}/download-file`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                    >
-                      Descargar
-                    </a>
-                  </div>
-                </div>
-              )}
             </div>
+
+            {/* Files list */}
+            {selected.files.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Archivos cargados ({selected.files.length}/{selected.maxFiles})
+                </p>
+                {selected.files.map((f) => (
+                  <div key={f.id} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{f.fileName}</p>
+                      <p className="text-xs text-slate-400">{formatDateSafe(f.uploadedAtUtc)}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button variant="outline" size="sm"
+                        onClick={() => handleViewFile(f.id, f.fileName, f.mimeType)}>
+                        Ver
+                      </Button>
+                      <a
+                        href={`/api/student/${slug()}/student-files/files/${f.id}/download-file`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        Descargar
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* No assignmentId warning */}
             {!selected.assignmentId && (
@@ -378,7 +446,7 @@ function DocumentsPageInner() {
             {selected.canUpload && (
               <div className="rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
                 <p className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-3">
-                  {selected.fileName ? 'Reemplazar archivo' : 'Subir documento'}
+                  {selected.uploadLabel}
                 </p>
                 <input
                   ref={fileInputRef}
@@ -411,33 +479,37 @@ function DocumentsPageInner() {
       )}
 
       {/* View File Modal */}
-      {viewing && (
-        <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing.name ?? 'Documento'} className="sm:max-w-4xl">
-          <div className="p-5">
-            <div className="flex flex-col items-center gap-4 py-4">
-              {viewing.url ? (
-                <>
-                  {isPdf(selected?.fileMimeType) || isImage(selected?.fileMimeType) ? (
-                    <iframe src={imgUrl(viewing.url) ?? ''} className="h-[70vh] w-full rounded-xl" title={viewing.name ?? 'Documento'} />
-                  ) : (
-                    <div className="flex flex-col items-center gap-4 py-10">
-                      <p className="text-sm text-slate-500">Vista previa no disponible para este tipo de archivo.</p>
-                      <a href={imgUrl(viewing.url) ?? '#'} target="_blank" rel="noopener noreferrer"
-                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                        Descargar archivo
-                      </a>
-                    </div>
-                  )}
-                  <a href={imgUrl(viewing.url) ?? '#'} target="_blank" rel="noopener noreferrer"
-                    className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-                    Abrir en nueva pestaña
-                  </a>
-                </>
-              ) : (
-                <p className="text-sm text-slate-500">No se pudo cargar el archivo.</p>
-              )}
-            </div>
-          </div>
+      {viewFileData && (
+        <Modal open={!!viewFileData} onClose={() => setViewFileData(null)} title={viewFileData.fileName} className="sm:max-w-4xl">
+          {viewFileLoading ? (
+            <div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-violet-600" /></div>
+          ) : viewFileData.url ? (
+            <>
+              <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
+                <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                  Descargar
+                </a>
+              </div>
+              <div className="bg-slate-100 p-4 dark:bg-slate-800">
+                {viewFileData.isImage ? (
+                  <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
+                ) : viewFileData.isPdf ? (
+                  <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
+                ) : (
+                  <div className="flex flex-col items-center gap-4 py-16">
+                    <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
+                    <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                      Descargar archivo
+                    </a>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
+          )}
         </Modal>
       )}
     </div>
