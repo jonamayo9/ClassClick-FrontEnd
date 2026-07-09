@@ -34,6 +34,17 @@ function pickBool(raw: Record<string, unknown>, keys: string[]): boolean {
   return v === true
 }
 
+function asArray<T = unknown>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[]
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if (Array.isArray(obj.items)) return obj.items as T[]
+    if (Array.isArray(obj.data)) return obj.data as T[]
+    if (Array.isArray(obj.documents)) return obj.documents as T[]
+  }
+  return []
+}
+
 function formatDocumentStatus(status: unknown): string {
   const value = String(status ?? '').toLowerCase().trim()
   if (value === '' || value === 'null' || value === 'undefined') return 'Pendiente'
@@ -135,8 +146,7 @@ function DocumentsPageInner() {
     enabled: !!slug(),
   })
 
-  const docs: NormalizedDoc[] = (Array.isArray(rawList) ? rawList : (rawList as Record<string, unknown>)?.items ?? (rawList as Record<string, unknown>)?.data ?? [])
-    .map((d: unknown) => normalizeDocument(d as Record<string, unknown>))
+  const docs: NormalizedDoc[] = asArray(rawList).map((d) => normalizeDocument(d as Record<string, unknown>))
 
   const [selected, setSelected] = useState<NormalizedDoc | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
