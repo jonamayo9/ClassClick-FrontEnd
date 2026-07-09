@@ -220,6 +220,7 @@ export interface AdminDocumentItem {
   studentId: string
   studentName: string
   dni: string | null
+  courseId: string | null
   courseName: string | null
   documentTypeName: string
   status: string
