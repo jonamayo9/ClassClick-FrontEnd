@@ -564,7 +564,7 @@ function PromotionsSection({ siblingDiscounts, sdLoading, scholarships, schLoadi
     const discPct = Number(discountPercent)
     if (!discountPercent || discPct <= 0 || discPct > 100) { setError('El descuento debe ser entre 1 y 100.'); return }
     try {
-      await saveSiblingMutation.mutateAsync({ siblingCount: sibNum, discountPercent })
+      await saveSiblingMutation.mutateAsync({ siblingCount: sibNum, discountPercent: discPct })
       resetSiblingForm()
       toast('Descuento guardado correctamente.')
     } catch { setError('Error al guardar.'); toast('Error al guardar.', 'error') }

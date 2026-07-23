@@ -278,8 +278,8 @@ function ProfilePageInner() {
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Contacto de emergencia" value={emergencyName} onChange={emergencyName} placeholder="Nombre" />
-                <Field label="Tel. emergencia" value={emergencyPhone} onChange={emergencyPhone} placeholder="Teléfono" />
+                <Field label="Contacto de emergencia" value={emergencyName} onChange={setEmergencyName} placeholder="Nombre" />
+                <Field label="Tel. emergencia" value={emergencyPhone} onChange={setEmergencyPhone} placeholder="Teléfono" />
               </div>
 
               <div>

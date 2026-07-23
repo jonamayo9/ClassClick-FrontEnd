@@ -291,7 +291,7 @@ export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha',
             }}
             components={{
               Chevron: (props: any) => {
-                if (isBirth) return null
+                if (isBirth) return <></>
                 return props.orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
               },
               ...(isBirth ? {

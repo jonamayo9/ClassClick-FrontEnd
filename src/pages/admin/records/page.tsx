@@ -466,7 +466,7 @@ export default function RecordsPage() {
             : ''
         }
         confirmText="Eliminar solicitud"
-        confirmDestructive
+        variant="danger"
         loading={deleteAssignment.isPending}
         onConfirm={() => {
           if (!deleteConfirmAssignmentId) return
