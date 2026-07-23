@@ -10,10 +10,30 @@ export interface ClassSchedule {
   id: string
   courseId: string
   courseName?: string
-  dayOfWeek: number
+  dayOfWeek: string
   startTime: string
   endTime?: string
   isActive?: boolean
+}
+
+const DAY_TO_JS: Record<string, number> = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+  Thursday: 4, Friday: 5, Saturday: 6,
+}
+
+export function getDayIndex(d: string | undefined): number {
+  return DAY_TO_JS[d ?? ''] ?? 0
+}
+
+export function getClosestPastDate(dayOfWeek: string): string {
+  const today = new Date()
+  const targetDay = DAY_TO_JS[dayOfWeek] ?? 0
+  const currentDay = today.getDay()
+  let diff = currentDay - targetDay
+  if (diff < 0) diff += 7
+  const result = new Date(today)
+  result.setDate(result.getDate() - diff)
+  return `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`
 }
 
 export interface AttendanceRecord {

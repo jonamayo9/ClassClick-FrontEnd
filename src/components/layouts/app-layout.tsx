@@ -40,6 +40,7 @@ const adminGroups: NavGroup[] = [
     { label: 'Sponsors', path: '/admin/sponsors', icon: '🤝', module: 'sponsors' },
   ]},
   { name: 'Configuración', key: 'settings', items: [
+    { label: 'Página pública', path: '/admin/public-page', icon: '🌐' },
     { label: 'Mi empresa', path: '/admin/company', icon: '🏢' },
     { label: 'Mi perfil', path: '/admin/profile', icon: '👤' },
   ]},

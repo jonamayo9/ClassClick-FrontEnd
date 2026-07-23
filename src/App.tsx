@@ -58,6 +58,8 @@ import StudentDocumentsPage from '@/pages/student/documents/page'
 import StudentClothingCatalog from '@/pages/student/clothing/page'
 import StudentClothingOrders from '@/pages/student/clothing/orders/page'
 import StudentClothingOrderDetail from '@/pages/student/clothing/order-detail'
+import PublicPageAdmin from '@/pages/admin/public-page/page'
+import PublicLandingPage from '@/pages/public/landing'
 import { SuperAdminDashboard } from '@/pages/superadmin/dashboard'
 import SuperAdminCompaniesPage from '@/pages/superadmin/companies'
 import SuperAdminAdminsPage from '@/pages/superadmin/admins'
@@ -153,6 +155,7 @@ export default function App() {
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
           <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="register" element={<RegistrationGate />} />
+          <Route path="c/:companySlug" element={<PublicLandingPage />} />
 
           <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
             <Route index element={<AdminDashboard />} />
@@ -183,6 +186,7 @@ export default function App() {
             <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
             <Route path="attendance" element={<AttendancePage />} />
             <Route path="company" element={<CompanyPage />} />
+            <Route path="public-page" element={<PublicPageAdmin />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 

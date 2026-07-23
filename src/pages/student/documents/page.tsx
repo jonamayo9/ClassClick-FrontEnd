@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
+import { DatePicker } from '@/components/ui/date-picker'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
-import { formatDate } from '../student.hooks'
+import { formatDate, formatDateOnly } from '../student.hooks'
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024
 
@@ -96,6 +97,8 @@ interface NormalizedDoc {
   allowMultipleFiles: boolean
   canUpload: boolean
   uploadLabel: string
+  hasExpiration: boolean
+  maxValidityDays: number | null
   raw: Record<string, unknown>
 }
 
@@ -167,6 +170,8 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
     assignedAt,
     dueDate,
     expirationDateUtc,
+    hasExpiration: pickBool(raw, ['hasExpiration', 'HasExpiration']),
+    maxValidityDays: pick<number>(raw, ['maxValidityDays', 'MaxValidityDays']) ?? null,
     files: effectiveFiles,
     maxFiles,
     allowMultipleFiles,
@@ -193,7 +198,9 @@ function DocumentsPageInner() {
 
   const [selected, setSelected] = useState<NormalizedDoc | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadExpiration, setUploadExpiration] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
   /* View file state */
   const [viewFileLoading, setViewFileLoading] = useState(false)
@@ -204,14 +211,18 @@ function DocumentsPageInner() {
     return s === 'pendiente' || s === 'rechazado' || s === 'vencido' || s === 'faltante'
   }).length
 
-  function formatDateSafe(v: string) { return v ? formatDate(v) : '-' }
+  function formatDateSafe(v: string) { return v ? formatDateOnly(v) : '-' }
 
   async function handleUpload() {
     if (!selected || !uploadFile) return
     setUploading(true)
+    setUploadError('')
     try {
       const fd = new FormData()
       fd.append('file', uploadFile)
+      if (selected.hasExpiration && uploadExpiration) {
+        fd.append('expirationDate', uploadExpiration)
+      }
       await apiService.postForm(
         `/api/student/${slug()}/student-files/assignments/${selected.assignmentId}/upload`,
         fd,
@@ -220,8 +231,10 @@ function DocumentsPageInner() {
       toast('Documento subido correctamente.')
       setUploadFile(null)
       setSelected(null)
-    } catch {
-      toast('Error al subir el documento. Verificá el formato y tamaño.', 'error')
+    } catch (err: any) {
+      const serverMsg = err?.response?.data ?? err?.message ?? 'Error al subir el documento.'
+      setUploadError(serverMsg)
+      toast(serverMsg, 'error')
     } finally {
       setUploading(false)
     }
@@ -310,7 +323,7 @@ function DocumentsPageInner() {
             <Card
               key={d.assignmentId}
               className="p-4 space-y-3 cursor-pointer transition hover:shadow-md active:scale-[0.99]"
-              onClick={() => setSelected(d)}
+              onClick={() => { setSelected(d); setUploadError('') }}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -350,7 +363,7 @@ function DocumentsPageInner() {
                 )}
                 {d.canUpload && (
                   <Button size="sm" className="bg-violet-600 text-white hover:bg-violet-700"
-                    onClick={() => setSelected(d)}>
+                    onClick={() => { setSelected(d); setUploadError('') }}>
                     {d.uploadLabel}
                   </Button>
                 )}
@@ -362,7 +375,7 @@ function DocumentsPageInner() {
 
       {/* Detail Modal */}
       {selected && (
-        <Modal open={!!selected} onClose={() => { setSelected(null); setUploadFile(null) }}
+        <Modal open={!!selected} onClose={() => { setSelected(null); setUploadFile(null); setUploadExpiration(''); setUploadError('') }}
           title={selected.title || 'Documento'} className="sm:max-w-lg">
           <div className="px-5 py-4 sm:px-6 space-y-4 max-h-[85vh] overflow-y-auto">
 
@@ -448,9 +461,33 @@ function DocumentsPageInner() {
             {/* Upload */}
             {selected.canUpload && (
               <div className="rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
+                {uploadError && (
+                  <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                    {uploadError}
+                  </div>
+                )}
                 <p className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-3">
                   {selected.uploadLabel}
                 </p>
+                {/* Expiration date */}
+                {selected.hasExpiration && (
+                  <div className="mb-3">
+                    {selected.expirationDateUtc ? (
+                      <>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento del documento</label>
+                        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                          {formatDateOnly(selected.expirationDateUtc)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento *</label>
+                        <DatePicker value={uploadExpiration} onChange={setUploadExpiration} placeholder="Seleccionar fecha" title="Vencimiento" />
+                        <p className="mt-0.5 text-[10px] text-slate-400">Ingresá la fecha que figura en el documento.</p>
+                      </>
+                    )}
+                  </div>
+                )}
                 {/* Custom file input */}
                 <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
                   onChange={handleFileChange} className="hidden" />
@@ -467,7 +504,7 @@ function DocumentsPageInner() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-3">
-                  <Button onClick={handleUpload} disabled={!uploadFile || uploading} loading={uploading}
+                  <Button onClick={handleUpload} disabled={!uploadFile || uploading || (selected.hasExpiration && !selected.expirationDateUtc && !uploadExpiration)} loading={uploading}
                     className="flex-1 bg-violet-600 text-white hover:bg-violet-700">
                     {uploading ? 'Subiendo...' : 'Subir documento'}
                   </Button>
@@ -478,7 +515,7 @@ function DocumentsPageInner() {
 
             {/* Close */}
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => { setSelected(null); setUploadFile(null) }}>Cerrar</Button>
+              <Button variant="outline" onClick={() => { setSelected(null); setUploadFile(null); setUploadExpiration(''); setUploadError('') }}>Cerrar</Button>
             </div>
           </div>
         </Modal>

@@ -10,12 +10,15 @@ export function formatDate(v: string | null | undefined): string {
   return new Date(v).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+export { formatDateOnly } from '@/lib/date'
+
 export interface StudentProfile {
   fullName: string
   firstName?: string
   lastName?: string
   email?: string
   phone?: string
+  whatsAppNumber?: string
   dni?: string
   profileImageUrl?: string
   memberNumber?: string

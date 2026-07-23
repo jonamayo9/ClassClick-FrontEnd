@@ -10,6 +10,7 @@ interface AuthState {
   activeCompanySlug: string | null
   activeRole: string | null
   isLoading: boolean
+  dashboardAlertsShown: boolean
 
   hydrate: () => void
   login: (email: string, password: string) => Promise<void>
@@ -18,6 +19,7 @@ interface AuthState {
   switchCompany: (company: Company) => void
   fetchCompanies: () => Promise<void>
   invalidateLocalSession: () => void
+  dismissAlerts: () => void
 }
 
 function normalizeLoginResponse(data: Record<string, unknown>) {
@@ -52,6 +54,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
   activeCompanySlug: storage.getActiveCompanySlug(),
   activeRole: storage.getActiveRole(),
   isLoading: false,
+  dashboardAlertsShown: false,
 
   hydrate: () => {
     const token = storage.getToken()
@@ -59,13 +62,20 @@ export const useAuth = create<AuthState>((set, _get) => ({
     const companies = storage.getCompanies<Company>()
     const activeCompanySlug = storage.getActiveCompanySlug()
     const activeRole = storage.getActiveRole()
-    set({ token, user, companies, activeCompanySlug, activeRole })
+    const shown = sessionStorage.getItem('dashboardAlertsShown') === 'true'
+    set({ token, user, companies, activeCompanySlug, activeRole, dashboardAlertsShown: shown })
+  },
+
+  dismissAlerts: () => {
+    sessionStorage.setItem('dashboardAlertsShown', 'true')
+    set({ dashboardAlertsShown: true })
   },
 
   login: async (email: string, password: string) => {
     set({ isLoading: true })
     try {
       storage.clearSession()
+      sessionStorage.removeItem('dashboardAlertsShown')
 
       const raw = await apiService.post<Record<string, unknown>>('/api/auth/login', { email, password })
       const { token, refreshToken, accessTokenExpiresAtUtc, user, companies } = normalizeLoginResponse(raw)
@@ -106,6 +116,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
         activeCompanySlug: companySlug,
         activeRole: role,
         isLoading: false,
+        dashboardAlertsShown: false,
       })
     } catch (err) {
       set({ isLoading: false })
@@ -117,6 +128,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
     set({ isLoading: true })
     try {
       storage.clearSession()
+      sessionStorage.removeItem('dashboardAlertsShown')
 
       const raw = await apiService.post<Record<string, unknown>>('/api/auth/google', { idToken })
       const { token, refreshToken, accessTokenExpiresAtUtc, user, companies } = normalizeLoginResponse(raw)
@@ -170,7 +182,8 @@ export const useAuth = create<AuthState>((set, _get) => ({
       // ignore
     }
     storage.clearSession()
-    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null })
+    sessionStorage.removeItem('dashboardAlertsShown')
+    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, dashboardAlertsShown: false })
   },
 
   switchCompany: (company: Company) => {
@@ -233,6 +246,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
     }
   },
   invalidateLocalSession: () => {
-    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, isLoading: false })
+    sessionStorage.removeItem('dashboardAlertsShown')
+    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, isLoading: false, dashboardAlertsShown: false })
   },
 }))

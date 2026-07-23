@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input'
+import 'react-phone-number-input/style.css'
+import { PhoneCountrySelect } from '@/components/ui/phone-country-select'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +15,7 @@ import { useAuth } from '@/stores/auth'
 
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
-interface Guardian { firstName: string; lastName: string; email?: string; phone?: string; documentNumber?: string; relationshipType?: number; canPayCharges?: boolean; isPrimary?: boolean }
+interface Guardian { firstName: string; lastName: string; email?: string; phone?: string; whatsApp?: string; documentNumber?: string; relationshipType?: number; canPayCharges?: boolean; isPrimary?: boolean }
 
 const RELATIONSHIP_OPTIONS = [
   { value: 1, label: 'Madre' },
@@ -42,6 +45,7 @@ function RegistrationInner() {
   const [dni, setDni] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [phone, setPhone] = useState('')
+  const [whatsApp, setWhatsApp] = useState('')
   const [address, setAddress] = useState('')
   const [hasInsurance, setHasInsurance] = useState(false)
   const [insName, setInsName] = useState('')
@@ -52,6 +56,7 @@ function RegistrationInner() {
   const [guardians, setGuardians] = useState<Guardian[]>([{ firstName: '', lastName: '' }])
 
   const [error, setError] = useState('')
+  const [whatsAppError, setWhatsAppError] = useState('')
 
   const completeMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -77,6 +82,12 @@ function RegistrationInner() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setWhatsAppError('')
+
+    if (whatsApp.trim() && !isValidPhoneNumber(whatsApp.trim())) {
+      setWhatsAppError('Ingresá un número de WhatsApp válido.')
+      return
+    }
 
     if (!firstName.trim() || !lastName.trim() || !dni.trim() || !dateOfBirth || !phone.trim() || !address.trim() || !emergencyName.trim() || !emergencyPhone.trim()) {
       setError('Completá todos los campos obligatorios.')
@@ -92,6 +103,7 @@ function RegistrationInner() {
       lastName: g.lastName.trim(),
       email: g.email?.trim() || null,
       phone: g.phone?.trim() || null,
+      whatsAppNumber: g.whatsApp?.trim() || null,
       documentNumber: g.documentNumber?.trim() || null,
       relationshipType: g.relationshipType ?? 0,
       canPayCharges: g.canPayCharges ?? false,
@@ -104,6 +116,7 @@ function RegistrationInner() {
       dni: dni.trim(),
       dateOfBirth,
       phone: phone.trim(),
+      whatsAppNumber: whatsApp.trim() || null,
       address: address.trim(),
       emergencyContactName: emergencyName.trim(),
       emergencyContactPhone: emergencyPhone.trim(),
@@ -139,6 +152,20 @@ function RegistrationInner() {
             <Field label="DNI" value={dni} onChange={setDni} required />
             <Field label="Fecha de nacimiento" type="date" value={dateOfBirth} onChange={setDateOfBirth} required />
             <Field label="Teléfono" value={phone} onChange={setPhone} required placeholder="Ej: 11 1234-5678" />
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">WhatsApp</label>
+              <PhoneInput
+                defaultCountry="AR"
+                international
+                countryCallingCodeEditable={false}
+                countrySelectComponent={PhoneCountrySelect}
+                value={whatsApp}
+                onChange={(v) => { setWhatsApp(v ?? ''); setWhatsAppError('') }}
+                numberInputProps={{ autoComplete: 'tel', placeholder: '11 1234-5678' }}
+                className="flex min-h-11 rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent dark:border-slate-700 dark:bg-slate-800 dark:focus-within:ring-blue-400 [&_.PhoneInputInput]:flex-1 [&_.PhoneInputInput]:min-w-0 [&_.PhoneInputInput]:border-0 [&_.PhoneInputInput]:bg-transparent [&_.PhoneInputInput]:py-3 [&_.PhoneInputInput]:pr-4 [&_.PhoneInputInput]:text-sm [&_.PhoneInputInput]:text-slate-900 [&_.PhoneInputInput]:outline-none [&_.PhoneInputInput]:ring-0 dark:[&_.PhoneInputInput]:text-white [&_.PhoneInputInput]:placeholder:text-slate-400 dark:[&_.PhoneInputInput]:placeholder:text-slate-500"
+              />
+              {whatsAppError && <p className="mt-0.5 text-xs text-red-500">{whatsAppError}</p>}
+            </div>
             <Field label="Dirección" value={address} onChange={setAddress} required />
 
             {/* Health insurance */}
@@ -206,6 +233,19 @@ function RegistrationInner() {
                     <Input value={g.email ?? ''} onChange={(e) => updateGuardian(i, { email: e.target.value })} placeholder="Email (opcional)" />
                     <Input value={g.phone ?? ''} onChange={(e) => updateGuardian(i, { phone: e.target.value })} placeholder="Teléfono (opcional)" />
                   </div>
+                  <div className="mt-2">
+                    <label className="mb-0.5 block text-[10px] font-semibold text-slate-600 dark:text-slate-400">WhatsApp</label>
+                    <PhoneInput
+                      defaultCountry="AR"
+                      international
+                      countryCallingCodeEditable={false}
+                      countrySelectComponent={PhoneCountrySelect}
+                      value={g.whatsApp ?? ''}
+                      onChange={(v) => updateGuardian(i, { whatsApp: v ?? '' })}
+                      numberInputProps={{ autoComplete: 'tel', placeholder: '11 1234-5678' }}
+                      className="flex min-h-11 rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent dark:border-slate-700 dark:bg-slate-800 dark:focus-within:ring-blue-400 [&_.PhoneInputInput]:flex-1 [&_.PhoneInputInput]:min-w-0 [&_.PhoneInputInput]:border-0 [&_.PhoneInputInput]:bg-transparent [&_.PhoneInputInput]:py-3 [&_.PhoneInputInput]:pr-4 [&_.PhoneInputInput]:text-sm [&_.PhoneInputInput]:text-slate-900 [&_.PhoneInputInput]:outline-none [&_.PhoneInputInput]:ring-0 dark:[&_.PhoneInputInput]:text-white [&_.PhoneInputInput]:placeholder:text-slate-400 dark:[&_.PhoneInputInput]:placeholder:text-slate-500"
+                    />
+                  </div>
                   <div className="flex gap-4 mt-2">
                     <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                       <input type="checkbox" checked={g.canPayCharges ?? false} onChange={(e) => updateGuardian(i, { canPayCharges: e.target.checked })}
@@ -247,7 +287,7 @@ function Field({ label, value, onChange, required, type = 'text', placeholder }:
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {type === 'date'
-        ? <DatePicker value={value} onChange={onChange} placeholder={placeholder ?? 'Elegir fecha'} yearRange={{ from: 1920, to: new Date().getFullYear() }} />
+        ? <DatePicker variant="birthDate" value={value} onChange={onChange} placeholder={placeholder ?? 'Elegir fecha'} yearRange={{ from: 1920, to: new Date().getFullYear() }} />
         : <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} />}
     </div>
   )

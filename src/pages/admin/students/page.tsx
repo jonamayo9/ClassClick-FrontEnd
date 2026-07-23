@@ -11,15 +11,17 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Select } from '@/components/ui/select'
 import { AxiosError } from 'axios'
+import { createWhatsAppUrl } from '@/lib/whatsapp'
 
 interface Student {
   id: string; firstName: string; lastName: string; fullName?: string; email: string
   isActive: boolean; isRegistrationCompleted: boolean; dni: string | null
-  dateOfBirth: string | null; phone: string | null; address: string | null
+  dateOfBirth: string | null; phone: string | null; whatsAppNumber?: string | null
+  address: string | null
   emergencyContactName: string | null; emergencyContactPhone: string | null
   hasHealthInsurance: boolean; healthInsuranceName: string | null
   healthInsuranceMemberNumber: string | null; healthInsurancePlan: string | null
-  notes: string | null; profileImageUrl: string | null; photoUrl: string | null
+  memberNumber: string | null; notes: string | null; profileImageUrl: string | null; photoUrl: string | null
 }
 
 interface CourseOption { id: string; name: string }
@@ -102,18 +104,18 @@ function StudentsPageInner() {
   })
   const students = data?.items ?? []; const totalCount = data?.totalCount ?? 0; const totalPages = data?.totalPages ?? 1
 
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', memberNumber: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [detailStudent, setDetailStudent] = useState<Student | null>(null)
   const [detailGuardians, setDetailGuardians] = useState<{ firstName: string; lastName: string; email?: string; phone?: string; documentNumber?: string; relationshipType?: number; canPayCharges?: boolean; isPrimary?: boolean }[]>([])
   const [editStudent, setEditStudent] = useState<Student | null>(null)
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', isActive: true })
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', isActive: true, memberNumber: '' })
   const [toggleStudent, setToggleStudent] = useState<Student | null>(null)
   const [deleteStudent, setDeleteStudent] = useState<Student | null>(null)
   const [resetPwStudent, setResetPwStudent] = useState<Student | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [importResult, setImportResult] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: string[]; errorDetails?: { row: number; field?: string; message: string }[] } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const debouncedSearch = (value: string) => {
@@ -166,10 +168,13 @@ function StudentsPageInner() {
     },
     onSuccess: (d: unknown) => {
       const r = d as Record<string, unknown>
-      setImportResult(`Importación completada: ${String(r?.created ?? 0)} creados, ${String(r?.skipped ?? 0)} omitidos`)
+      const rawErrors = (r?.errors as string[]) ?? []
+      const rawDetails = (r?.errorDetails as unknown[]) ?? []
+      const errorDetails = rawDetails.map((e: any) => ({ row: Number(e?.row ?? 0), field: e?.field ?? '', message: e?.message ?? '' }))
+      setImportResult({ created: Number(r?.created ?? 0), skipped: Number(r?.skipped ?? 0), errors: rawErrors, errorDetails })
       qc.invalidateQueries({ queryKey: ['students'] })
     },
-    onError: () => setImportResult('Error al importar. Verificá el formato del archivo.'),
+    onError: () => setImportResult({ created: 0, skipped: 0, errors: ['Error al importar. Verificá el formato del archivo.'], errorDetails: [] }),
   })
 
   function validate() {
@@ -181,8 +186,8 @@ function StudentsPageInner() {
   }
 
   function handleSubmit(e: React.FormEvent) { e.preventDefault(); if (!validate()) return; createMutation.mutate(form) }
-  function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '' }); setErrors({}) }
-  function openEdit(s: Student) { setEditStudent(s); setEditForm({ firstName: s.firstName, lastName: s.lastName, email: s.email, isActive: s.isActive }) }
+  function resetForm() { setForm({ firstName: '', lastName: '', email: '', password: '', memberNumber: '' }); setErrors({}) }
+  function openEdit(s: Student) { setEditStudent(s); setEditForm({ firstName: s.firstName, lastName: s.lastName, email: s.email, isActive: s.isActive, memberNumber: s.memberNumber ?? '' }) }
   function openDetail(s: Student) {
     setDetailStudent(s)
     apiService.get<unknown[]>(`/api/admin/${slug}/students/${s.id}/guardians`).then((data) => {
@@ -208,18 +213,102 @@ function StudentsPageInner() {
         <p className="mb-4 text-sm text-slate-500">Alta inicial — luego completa su perfil desde la app</p>
         <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
           <h3 className="text-sm font-bold">Alta masiva por Excel</h3>
-          <p className="mt-0.5 text-xs text-slate-500">Columnas: Nombre, Apellido, Correo, Contraseña, MetodoAcceso opcional. Si MetodoAcceso es google, la contraseña no es obligatoria.</p>
-          <div className="mt-2 flex items-center gap-3">
+          <p className="mt-0.5 text-xs text-slate-500">Cargá varios alumnos desde un archivo .xlsx.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={async () => {
+              try {
+                const blob = await apiService.getBlob(`/api/admin/${slug}/students/import-template`)
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a'); a.href = url; a.download = 'plantilla-importacion-alumnos.xlsx'
+                document.body.appendChild(a); a.click(); a.remove()
+                URL.revokeObjectURL(url)
+              } catch { importResult?.errors?.push('Error al descargar la plantilla.'); setImportResult(importResult ? { ...importResult } : { created: 0, skipped: 0, errors: [], errorDetails: [] }) }
+            }}>Descargar plantilla</Button>
             <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} loading={importMutation.isPending}>Importar Excel</Button>
             <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) importMutation.mutate(f) }} />
           </div>
-          {importResult && <p className="mt-2 text-xs font-medium text-green-700 dark:text-green-300">{importResult}</p>}
+
+          {/* Format help */}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs font-semibold text-blue-700 dark:text-blue-300">Ver formato esperado</summary>
+            <div className="mt-1 space-y-1 text-[11px] text-slate-600 dark:text-slate-400">
+              <p className="font-semibold">Columnas del archivo (en orden):</p>
+              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                <p><b>Nombre</b> — obligatorio</p>
+                <p><b>Apellido</b> — obligatorio</p>
+                <p><b>Correo</b> — obligatorio, único por empresa</p>
+                <p><b>Contraseña</b> — obligatoria si MetodoAcceso es password</p>
+                <p><b>MetodoAcceso</b> — opcional. Valores: <code>password</code>, <code>google</code> o vacío (equivale a password)</p>
+                <p><b>Contraseña</b> — obligatoria si MetodoAcceso es <code>password</code> o está vacío</p>
+                <p><b>N° Carnet</b> — opcional, se genera automáticamente si se deja vacío</p>
+              </div>
+              <p className="mt-1 text-blue-600 dark:text-blue-400"><b>MetodoAcceso:</b> vacío o <code>password</code> = el alumno inicia sesión con email y contraseña (contraseña obligatoria). <code>google</code> = el alumno inicia sesión con Google (contraseña no obligatoria).</p>
+            </div>
+          </details>
+
+          {/* Import result */}
+          {importResult && (
+            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+              <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">Importación finalizada</p>
+              <div className="mt-1 flex gap-4 text-xs text-emerald-700 dark:text-emerald-300">
+                <span>Creados: <b>{importResult.created}</b></span>
+                <span>Omitidos: <b>{importResult.skipped}</b></span>
+              </div>
+
+              {importResult.errors.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">Errores por fila:</p>
+                  {/* Group errors by message */}
+                  {(() => {
+                    const groups: Record<string, { count: number; rows: number[] }> = {}
+                    for (const err of importResult.errorDetails?.length ? importResult.errorDetails : importResult.errors.map((e, i) => {
+                      const m = e.match(/Fila (\d+): (.+)/)
+                      return { row: m ? Number(m[1]) : i + 2, message: m ? m[2] : e }
+                    })) {
+                      if (!groups[err.message]) groups[err.message] = { count: 0, rows: [] }
+                      groups[err.message].count++
+                      groups[err.message].rows.push(err.row)
+                    }
+                    return Object.entries(groups).map(([msg, info]) => (
+                      <details key={msg} className="text-[11px]">
+                        <summary className="cursor-pointer text-rose-600 dark:text-rose-400">{info.count} fila(s): {msg}</summary>
+                        {info.rows.length > 0 && (
+                          <p className="ml-2 text-slate-500">Filas: {info.rows.join(', ')}</p>
+                        )}
+                      </details>
+                    ))
+                  })()}
+                </div>
+              )}
+
+              {importResult.errors.length > 0 && (
+                <button type="button" onClick={() => {
+                  const header = 'Fila,Error\n'
+                  const rows = importResult!.errorDetails?.length
+                    ? importResult!.errorDetails.map(e => `${e.row},"${e.message}"`).join('\n')
+                    : importResult!.errors.map(e => {
+                        const m = e.match(/Fila (\d+): (.+)/)
+                        return m ? `${m[1]},"${m[2]}"` : `,${e}`
+                      }).join('\n')
+                  const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a'); a.href = url; a.download = `errores-importacion-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+                  URL.revokeObjectURL(url)
+                }} className="mt-2 text-xs font-semibold text-rose-600 underline hover:text-rose-500 dark:text-rose-400">
+                  Descargar reporte de errores (CSV)
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Nombre" error={errors.firstName}><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></Field>
           <Field label="Apellido" error={errors.lastName}><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></Field>
           <Field label="Email" error={errors.email}><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           <Field label="Contraseña" error={errors.password}><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
+          <Field label="N° Carnet" error={errors.memberNumber}>
+            <Input value={form.memberNumber} onChange={(e) => setForm({ ...form, memberNumber: e.target.value })} placeholder="Automático" maxLength={15} />
+          </Field>
           <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-4">
             <Button type="submit" loading={createMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-700">Guardar</Button>
           </div>
@@ -342,6 +431,7 @@ function StudentsPageInner() {
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Apellido</label><Input value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
             </div>
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Email</label><Input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">N° Carnet</label><Input value={editForm.memberNumber} onChange={(e) => setEditForm({ ...editForm, memberNumber: e.target.value })} placeholder="Automático" maxLength={15} /></div>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setEditStudent(null)}>Cancelar</Button>
               <Button loading={updateMutation.isPending} onClick={() => updateMutation.mutate()} className="bg-blue-600 text-white hover:bg-blue-700">Guardar cambios</Button>
@@ -353,35 +443,102 @@ function StudentsPageInner() {
       {/* Detail Modal */}
       {detailStudent && (
         <Modal open={true} onClose={() => setDetailStudent(null)} title="Detalle del alumno" className="sm:max-w-lg">
-          <div className="px-5 py-4 sm:px-6 space-y-4">
-            <div className="flex items-center gap-4">
-              <StudentAvatar student={detailStudent} className="h-14 w-14" />
-              <div>
-                <p className="text-base font-bold">{detailStudent.fullName ?? `${detailStudent.firstName} ${detailStudent.lastName}`}</p>
-                <p className="text-sm text-slate-500">{detailStudent.email}</p>
+          <div className="px-5 py-4 sm:px-6 space-y-5 text-sm">
+            {/* Información general */}
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Información general</h3>
+              <div className="flex items-center gap-4 mb-3">
+                <StudentAvatar student={detailStudent} className="h-14 w-14" />
+                <div>
+                  <p className="text-base font-bold">{detailStudent.fullName ?? `${detailStudent.firstName} ${detailStudent.lastName}`}</p>
+                  <p className="text-sm text-slate-500">{detailStudent.email}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                <RowDetail label="N° de carnet" value={detailStudent.memberNumber} />
+                <RowDetail label="Estado" value={detailStudent.isActive ? 'Activo' : 'Inactivo'} />
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <RowDetail label="DNI" value={detailStudent.dni} />
-              <RowDetail label="Teléfono" value={detailStudent.phone} />
-              <RowDetail label="Dirección" value={detailStudent.address} />
-              <RowDetail label="Nacimiento" value={detailStudent.dateOfBirth ? new Date(detailStudent.dateOfBirth).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} />
-              <RowDetail label="Emergencia" value={detailStudent.emergencyContactName ? `${detailStudent.emergencyContactName} (${detailStudent.emergencyContactPhone})` : '-'} />
-              <RowDetail label="Obra social" value={detailStudent.hasHealthInsurance ? detailStudent.healthInsuranceName ?? 'Sí' : 'No'} />
-              <RowDetail label="Estado" value={detailStudent.isActive ? 'Activo' : 'Inactivo'} />
-              <RowDetail label="Notas" value={detailStudent.notes} className="sm:col-span-2" />
+
+            {/* Contacto */}
+            <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Contacto</h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                <RowDetail label="Teléfono" value={detailStudent.phone} />
+                <RowDetail label="WhatsApp" value={detailStudent.whatsAppNumber ?? '—'} />
+              </div>
+              {(() => {
+                const waUrl = createWhatsAppUrl(detailStudent.whatsAppNumber)
+                if (!waUrl) return null
+                const companyName = (useAuth.getState().companies.find(c => (c.slug ?? c.companySlug) === useAuth.getState().activeCompanySlug)?.name ?? 'ClassClick')
+                const msg = encodeURIComponent(`Hola ${detailStudent.firstName}, te contactamos desde ${companyName}.`)
+                return (
+                  <a href={`${waUrl}?text=${msg}`} target="_blank" rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition">
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    Enviar WhatsApp
+                  </a>
+                )
+              })()}
             </div>
+
+            {/* Datos personales */}
+            <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Datos personales</h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                <RowDetail label="DNI" value={detailStudent.dni} />
+                <RowDetail label="Dirección" value={detailStudent.address} />
+                <RowDetail label="Nacimiento" value={detailStudent.dateOfBirth ? new Date(detailStudent.dateOfBirth).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} />
+                <RowDetail label="Obra social" value={detailStudent.hasHealthInsurance ? detailStudent.healthInsuranceName ?? 'Sí' : 'No'} />
+              </div>
+            </div>
+
+            {/* Emergencia */}
+            {detailStudent.emergencyContactName && (
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Emergencia</h3>
+                <RowDetail label="Contacto" value={`${detailStudent.emergencyContactName} (${detailStudent.emergencyContactPhone ?? '—'})`} />
+              </div>
+            )}
+
+            {/* Tutores */}
             {detailGuardians.length > 0 && (
-              <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tutores</p>
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tutores / Responsables</h3>
                 <div className="space-y-2">
-                  {detailGuardians.map((g, i) => (
-                    <div key={i} className="rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800">
-                      <p className="font-semibold">{g.firstName} {g.lastName}</p>
-                      <p className="text-slate-400">{g.email}{g.phone ? ` · ${g.phone}` : ''}{g.documentNumber ? ` · DNI: ${g.documentNumber}` : ''}</p>
-                    </div>
-                  ))}
+                  {detailGuardians.map((g: any, i: number) => {
+                    const waNum = g.whatsAppNumber ?? g.whatsappNumber ?? g.WhatsAppNumber
+                    const waUrl = createWhatsAppUrl(waNum)
+                    const companyName = (useAuth.getState().companies.find(c => (c.slug ?? c.companySlug) === useAuth.getState().activeCompanySlug)?.name ?? 'ClassClick')
+                    return (
+                      <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold">{g.firstName} {g.lastName}</p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">{g.email}{g.phone ? ` · ${g.phone}` : ''}</p>
+                          </div>
+                          {g.isPrimary && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">Principal</span>}
+                        </div>
+                        {waUrl && (
+                          <a href={`${waUrl}?text=${encodeURIComponent(`Hola ${g.firstName}, te contactamos desde ${companyName}.`)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-emerald-700 transition">
+                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            Enviar WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
+              </div>
+            )}
+
+            {/* Notas */}
+            {detailStudent.notes && (
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Notas</h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400">{detailStudent.notes}</p>
               </div>
             )}
           </div>

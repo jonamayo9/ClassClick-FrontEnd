@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
@@ -10,7 +10,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Select } from '@/components/ui/select'
 import { apiService } from '@/lib/api'
 
-interface Company { id: string; name: string; slug: string; email?: string; phone?: string; whatsapp?: string; description?: string; addressLine1?: string; addressLine2?: string; city?: string; stateOrProvince?: string; postalCode?: string; country?: string; isActive: boolean; isMatchOrganizationEnabled?: boolean; createdAtUtc: string }
+interface Company { id: string; name: string; slug: string; email?: string; phone?: string; whatsapp?: string; description?: string; addressLine1?: string; addressLine2?: string; city?: string; stateOrProvince?: string; postalCode?: string; country?: string; isActive: boolean; isMatchOrganizationEnabled?: boolean; emailNotificationsEnabled?: boolean; companySlugLanding?: string; createdAtUtc: string }
 
 function CompaniesInner() {
   const toast = useToast()
@@ -27,7 +27,8 @@ function CompaniesInner() {
   const [form, setForm] = useState({
     name: '', slug: '', description: '', email: '', phone: '', whatsapp: '',
     addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '',
-    isMatchOrganizationEnabled: false, isActive: true,
+    isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false,
+    companySlugLanding: '',
   })
   const [modules, setModules] = useState<Record<string, boolean>>({
     payments: true, documents: true, news: true, sponsors: false,
@@ -44,6 +45,33 @@ function CompaniesInner() {
   const [detailTarget, setDetailTarget] = useState<Company | null>(null)
   const [toggleTarget, setToggleTarget] = useState<Company | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null)
+
+  // Slug validation for landing page
+  const [slugStatus, setSlugStatus] = useState<'idle' | 'invalid' | 'checking' | 'available' | 'unavailable'>('idle')
+  const [slugMsg, setSlugMsg] = useState('')
+  const abortRef = useRef<AbortController | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const originalSlug = useRef('')
+
+  const checkSlug = useCallback(async (slug: string) => {
+    if (!slug || slug.length < 3) { setSlugStatus('idle'); setSlugMsg(''); return }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { setSlugStatus('invalid'); setSlugMsg('Usá letras minúsculas, números y guiones.'); return }
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setSlugStatus('checking')
+    try {
+      const res = await apiService.get<any>(`/api/superadmin/companies/landing-slug-availability?landingSlug=${slug}&excludeCompanyId=${editId ?? ''}`)
+      if (controller.signal.aborted) return
+      if (res.available) { setSlugStatus('available'); setSlugMsg('Dirección disponible') }
+      else { setSlugStatus('unavailable'); setSlugMsg('Esta dirección ya está siendo utilizada.') }
+    } catch { if (!controller.signal.aborted) { setSlugStatus('idle'); setSlugMsg('') } }
+  }, [editId])
+
+  useEffect(() => {
+    return () => { if (abortRef.current) abortRef.current.abort() }
+  }, [])
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -94,9 +122,12 @@ function CompaniesInner() {
           allowsManualProof: clothing.manualProof, allowsMercadoPago: clothing.mercadoPago,
           paymentAlias: clothing.alias, paymentAliasHolder: clothing.aliasHolder,
         })
-        const pmList = Object.entries(paymentMethods).filter(([, v]) => v.enabled).map(([k]) => ({ paymentMethod: k, isEnabledByAdmin: true }))
-        const mpAuto = paymentMethods.MercadoPago?.autoCollection
-        if (mpAuto) pmList.push({ paymentMethod: 'MercadoPagoAutoCollection', isEnabledByAdmin: true })
+        const pmValues: Record<string, number> = { Transfer: 1, DebitCard: 2, CreditCard: 3, MercadoPago: 4, Cash: 5 }
+        const pmList = Object.entries(paymentMethods).map(([key, val]) => ({
+          paymentMethod: pmValues[key] ?? 0,
+          enabledBySuperAdmin: val.enabled,
+          autoCollectionEnabledBySuperAdmin: val.autoCollection,
+        }))
         await apiService.put(`/api/superadmin/companies/${editId}/payment-methods`, pmList)
         if (logoFile) {
           const fd = new FormData(); fd.append('file', logoFile)
@@ -121,7 +152,7 @@ function CompaniesInner() {
 
   function closeForm() { setShowForm(false); setEditId(null); setSlugTouched(false); setLogoFile(null); setLogoPreview(null) }
   function resetForm() {
-    setForm({ name: '', slug: '', description: '', email: '', phone: '', whatsapp: '', addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '', isMatchOrganizationEnabled: false, isActive: true })
+    setForm({ name: '', slug: '', description: '', email: '', phone: '', whatsapp: '', addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '', isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false, companySlugLanding: '' })
     setModules({ payments: true, documents: true, news: true, sponsors: false, matches: false, clothing: false, tournaments: false, notifications: true })
     setClothing({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
     setPaymentMethods({
@@ -136,8 +167,21 @@ function CompaniesInner() {
 
   function openEdit(c: Company) {
     setEditId(c.id)
-    setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive })
+    setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive, emailNotificationsEnabled: c.emailNotificationsEnabled ?? false, companySlugLanding: c.companySlugLanding ?? '' })
     setShowForm(true)
+    // Load existing payment methods
+    apiService.get<{ paymentMethod: string | number; enabledBySuperAdmin: boolean }[]>(`/api/superadmin/companies/${c.id}/payment-methods`).then((pms) => {
+      const nameMap: Record<string, string> = { 'Transfer': 'Transfer', 'DebitCard': 'DebitCard', 'CreditCard': 'CreditCard', 'MercadoPago': 'MercadoPago', 'Cash': 'Cash' }
+      const intMap: Record<number, string> = { 1: 'Transfer', 2: 'DebitCard', 3: 'CreditCard', 4: 'MercadoPago', 5: 'Cash' }
+      setPaymentMethods((prev) => {
+        const updated = { ...prev }
+        for (const pm of pms) {
+          const key = typeof pm.paymentMethod === 'string' ? nameMap[pm.paymentMethod] : intMap[pm.paymentMethod]
+          if (key) updated[key] = { ...updated[key], enabled: pm.enabledBySuperAdmin }
+        }
+        return updated
+      })
+    }).catch(() => {})
   }
 
   function handleNameChange(name: string) {
@@ -227,6 +271,50 @@ function CompaniesInner() {
                   <option value="true">Activa</option>
                   <option value="false">Inactiva</option>
                 </Select>
+              </div>
+            )}
+            {editId && (
+              <label className="flex items-center gap-2 text-xs font-medium">
+                <input type="checkbox" checked={!!(form as any).emailNotificationsEnabled}
+                  onChange={(e) => setForm({ ...form, emailNotificationsEnabled: e.target.checked })}
+                  className="rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
+                Notificaciones por email habilitadas
+              </label>
+            )}
+
+             {editId && (
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                <h3 className="text-sm font-bold mb-3">Presencia Digital</h3>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Dirección de la página pública</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">classclick.com.ar/</span>
+                    <Input value={(form as any).companySlugLanding ?? ''} onChange={(e) => {
+                      const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').replace(/-+/g, '-')
+                      setForm({ ...form, companySlugLanding: val })
+                      clearTimeout(debounceRef.current)
+                      if (!val || val.length < 3) { setSlugStatus('idle'); setSlugMsg(''); return }
+                      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(val)) { setSlugStatus('invalid'); setSlugMsg('Usá letras minúsculas, números y guiones.'); return }
+                      setSlugStatus('checking')
+                      debounceRef.current = setTimeout(() => checkSlug(val), 500)
+                    }} onBlur={() => {
+                      const val = (form as any).companySlugLanding ?? ''
+                      if (val && val.length >= 3 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(val)) checkSlug(val)
+                    }} placeholder="la-florida-fc" className="font-mono text-sm" />
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 min-h-5">
+                    {slugStatus === 'checking' && <Spinner className="h-3.5 w-3.5 text-indigo-600" />}
+                    {slugStatus === 'available' && <svg className="h-4 w-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                    {slugStatus === 'unavailable' && <svg className="h-4 w-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>}
+                    {slugStatus === 'invalid' && <svg className="h-4 w-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>}
+                    <span className={`text-xs ${slugStatus === 'available' ? 'text-emerald-600' : slugStatus === 'unavailable' ? 'text-red-600' : slugStatus === 'invalid' ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {slugStatus === 'checking' ? 'Comprobando disponibilidad...' : slugMsg || 'Elegí una dirección corta y fácil de compartir.'}
+                    </span>
+                  </div>
+                  {slugStatus === 'available' && (form as any).companySlugLanding && (
+                    <p className="mt-0.5 text-xs text-slate-400">Tu página será: /c/{(form as any).companySlugLanding}</p>
+                  )}
+                </div>
               </div>
             )}
 

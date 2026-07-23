@@ -11,6 +11,8 @@ export function formatDate(value: string | null | undefined) {
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+export { formatDateOnly } from '@/lib/date'
+
 export function normalizeStatus(status: number | string | undefined): string {
   const s = Number(status)
   if (s === 1) return 'Pendiente'
@@ -76,6 +78,13 @@ export interface StudentDetail {
   documents: StudentDocument[]
 }
 
+export interface StudentFile {
+  id: string
+  fileName: string
+  mimeType: string
+  uploadedAtUtc: string
+}
+
 export interface StudentDocument {
   assignmentId: string
   documentTypeName: string
@@ -90,6 +99,7 @@ export interface StudentDocument {
   currentFileMimeType: string | null
   requestNote: string | null
   reviewNote: string | null
+  files: StudentFile[]
 }
 
 export interface Course {
@@ -126,6 +136,9 @@ export function useDocumentTypes() {
 
 export function useStudents(filters: {
   search: string; courseId: string; status: string; documentStatus: string
+  hasPendingDocuments?: boolean
+  hasExpiringDocuments?: boolean
+  hasExpiredDocuments?: boolean
 }) {
   return useQuery({
     queryKey: ['records-students', slug(), filters],
@@ -135,6 +148,9 @@ export function useStudents(filters: {
       if (filters.courseId) params.set('courseId', filters.courseId)
       if (filters.status) params.set('status', filters.status)
       if (filters.documentStatus) params.set('documentStatus', filters.documentStatus)
+      if (filters.hasPendingDocuments) params.set('hasPendingDocuments', 'true')
+      if (filters.hasExpiringDocuments) params.set('hasExpiringDocuments', 'true')
+      if (filters.hasExpiredDocuments) params.set('hasExpiredDocuments', 'true')
       const qs = params.toString()
       const url = qs
         ? `/api/admin/${slug()}/student-files/students?${qs}`
@@ -211,6 +227,21 @@ export function useRejectDocument() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records-students'] })
       qc.invalidateQueries({ queryKey: ['records-student-detail'] })
+    },
+  })
+}
+
+export function useDeleteAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (assignmentId: string) =>
+      apiService.del(`/api/admin/${slug()}/student-files/assignments/${assignmentId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['records-students'] })
+      qc.invalidateQueries({ queryKey: ['records-student-detail'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-alerts'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-distribution'] })
     },
   })
 }

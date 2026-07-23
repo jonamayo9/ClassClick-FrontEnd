@@ -439,18 +439,19 @@ function PricingSection({ courses, pricings, prLoading, saveMutation, deleteMuta
   setConfirmAction: (a: { title: string; message: string; confirmText: string; onConfirm: () => void } | null) => void
 }) {
   const [courseId, setCourseId] = useState('')
-  const [classesPerWeek, setClassesPerWeek] = useState(1)
-  const [price, setPrice] = useState(0)
+  const [classesPerWeek, setClassesPerWeek] = useState('')
+  const [price, setPrice] = useState('')
   const [error, setError] = useState('')
 
-  function resetForm() { setCourseId(''); setClassesPerWeek(1); setPrice(0); setError('') }
+  function resetForm() { setCourseId(''); setClassesPerWeek(''); setPrice(''); setError('') }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!courseId) { setError('Seleccioná un curso.'); return }
-    if (price <= 0) { setError('El precio debe ser mayor a 0.'); return }
+    const priceNum = Number(price)
+    if (!price || priceNum <= 0) { setError('El precio debe ser mayor a 0.'); return }
     try {
-      await saveMutation.mutateAsync({ courseId, classesPerWeek, price })
+      await saveMutation.mutateAsync({ courseId, classesPerWeek: Number(classesPerWeek), price: priceNum })
       resetForm()
       toast('Precio guardado correctamente.')
     } catch { setError('Error al guardar el precio.'); toast('Error al guardar.', 'error') }
@@ -486,12 +487,12 @@ function PricingSection({ courses, pricings, prLoading, saveMutation, deleteMuta
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Clases por semana</label>
             <Input type="number" min={1} value={classesPerWeek}
-              onChange={(e) => setClassesPerWeek(Number(e.target.value) || 1)} />
+              onChange={(e) => setClassesPerWeek(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Precio</label>
             <Input type="number" min={0} step="0.01" value={price}
-              onChange={(e) => setPrice(Number(e.target.value) || 0)} />
+              onChange={(e) => setPrice(e.target.value)} />
           </div>
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>
@@ -550,18 +551,20 @@ function PromotionsSection({ siblingDiscounts, sdLoading, scholarships, schLoadi
   toast: (msg: string, type?: 'success' | 'error') => void
   setConfirmAction: (a: { title: string; message: string; confirmText: string; onConfirm: () => void } | null) => void
 }) {
-  const [siblingCount, setSiblingCount] = useState(2)
-  const [discountPercent, setDiscountPercent] = useState(0)
+  const [siblingCount, setSiblingCount] = useState('2')
+  const [discountPercent, setDiscountPercent] = useState('')
   const [error, setError] = useState('')
 
-  function resetSiblingForm() { setSiblingCount(2); setDiscountPercent(0); setError('') }
+  function resetSiblingForm() { setSiblingCount('2'); setDiscountPercent(''); setError('') }
 
   async function handleSaveSibling(e: React.FormEvent) {
     e.preventDefault(); setError('')
-    if (siblingCount < 2) { setError('La cantidad mínima de hermanos es 2.'); return }
-    if (discountPercent <= 0 || discountPercent > 100) { setError('El descuento debe ser entre 1 y 100.'); return }
+    const sibNum = Number(siblingCount)
+    if (!siblingCount || sibNum < 2) { setError('La cantidad mínima de hermanos es 2.'); return }
+    const discPct = Number(discountPercent)
+    if (!discountPercent || discPct <= 0 || discPct > 100) { setError('El descuento debe ser entre 1 y 100.'); return }
     try {
-      await saveSiblingMutation.mutateAsync({ siblingCount, discountPercent })
+      await saveSiblingMutation.mutateAsync({ siblingCount: sibNum, discountPercent })
       resetSiblingForm()
       toast('Descuento guardado correctamente.')
     } catch { setError('Error al guardar.'); toast('Error al guardar.', 'error') }
@@ -611,12 +614,12 @@ function PromotionsSection({ siblingDiscounts, sdLoading, scholarships, schLoadi
         <form onSubmit={handleSaveSibling} className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Cantidad mínima de hermanos</label>
-            <Input type="number" min={2} value={siblingCount} onChange={(e) => setSiblingCount(Number(e.target.value) || 2)} />
+            <Input type="number" min={2} value={siblingCount} onChange={(e) => setSiblingCount(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Descuento (%)</label>
             <Input type="number" min={0} max={100} step="0.01" value={discountPercent}
-              onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)} />
+              onChange={(e) => setDiscountPercent(e.target.value)} />
           </div>
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>
@@ -767,28 +770,30 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
 }) {
   const [name, setName] = useState('')
   const [courseId, setCourseId] = useState('')
-  const [dueDay, setDueDay] = useState(15)
+  const [dueDay, setDueDay] = useState('15')
   const [recurrenceType, setRecurrenceType] = useState<number | string>(LATE_FEE_RECURRENCE.ONE_TIME)
-  const [percentIncrease, setPercentIncrease] = useState(0)
-  const [fixedIncrease, setFixedIncrease] = useState(0)
+  const [percentIncrease, setPercentIncrease] = useState('')
+  const [fixedIncrease, setFixedIncrease] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState('')
 
   function resetForm() {
-    setName(''); setCourseId(''); setDueDay(15); setRecurrenceType(LATE_FEE_RECURRENCE.ONE_TIME)
-    setPercentIncrease(0); setFixedIncrease(0); setIsActive(true); setError(''); setEditId(null)
+    setName(''); setCourseId(''); setDueDay('15'); setRecurrenceType(LATE_FEE_RECURRENCE.ONE_TIME)
+    setPercentIncrease(''); setFixedIncrease(''); setIsActive(true); setError(''); setEditId(null)
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!name.trim()) { setError('El nombre es obligatorio.'); return }
     if (!courseId) { setError('Seleccioná un curso.'); return }
-    if (percentIncrease <= 0 && fixedIncrease <= 0) { setError('Debe haber al menos un recargo (porcentaje o fijo).'); return }
+    const pctNum = Number(percentIncrease)
+    const fixedNum = Number(fixedIncrease)
+    if ((!percentIncrease || pctNum <= 0) && (!fixedIncrease || fixedNum <= 0)) { setError('Debe haber al menos un recargo (porcentaje o fijo).'); return }
     try {
       if (editId) {
-        await updateMutation.mutateAsync({ id: editId, name, courseId, dueDayOfMonth: dueDay, recurrenceType, percentIncrease, fixedIncrease, isActive })
+        await updateMutation.mutateAsync({ id: editId, name, courseId, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
       } else {
-        await saveMutation.mutateAsync({ name, courseId, dueDayOfMonth: dueDay, recurrenceType, percentIncrease, fixedIncrease, isActive })
+        await saveMutation.mutateAsync({ name, courseId, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
       }
       resetForm(); toast(editId ? 'Mora actualizada correctamente.' : 'Mora guardada correctamente.')
     } catch { setError('Error al guardar.'); toast('Error al guardar.', 'error') }
@@ -796,8 +801,8 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
 
   function handleEdit(item: LatePaymentConfig) {
     setEditId(item.id); setName(item.name); setCourseId(item.courseId ?? '')
-    setDueDay(item.dueDayOfMonth); setRecurrenceType(item.recurrenceType)
-    setPercentIncrease(item.percentIncrease); setFixedIncrease(item.fixedIncrease)
+    setDueDay(String(item.dueDayOfMonth)); setRecurrenceType(item.recurrenceType)
+    setPercentIncrease(String(item.percentIncrease)); setFixedIncrease(String(item.fixedIncrease))
     setIsActive(item.isActive)
   }
 
@@ -831,7 +836,7 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Día vencimiento</label>
-              <Input type="number" min={1} max={31} value={dueDay} onChange={(e) => setDueDay(Number(e.target.value) || 1)} />
+              <Input type="number" min={1} max={31} value={dueDay} onChange={(e) => setDueDay(e.target.value)} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Recurrencia</label>
@@ -847,12 +852,12 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Recargo %</label>
               <Input type="number" min={0} step="0.01" value={percentIncrease}
-                onChange={(e) => setPercentIncrease(Number(e.target.value) || 0)} />
+                onChange={(e) => setPercentIncrease(e.target.value)} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Recargo fijo</label>
               <Input type="number" min={0} step="0.01" value={fixedIncrease}
-                onChange={(e) => setFixedIncrease(Number(e.target.value) || 0)} />
+                onChange={(e) => setFixedIncrease(e.target.value)} />
             </div>
           </div>
           <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
@@ -1134,7 +1139,7 @@ function PaymentMethodsModal({ pMethods, saveMutation, onClose, toast }: {
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Valor</label>
                 <Input type="number" min={0} step="0.01" value={m.surchargeValue}
-                  onChange={(e) => updateField(m.id, 'surchargeValue', Number(e.target.value) || 0)} />
+                  onChange={(e) => updateField(m.id, 'surchargeValue', e.target.value === '' ? '' : Number(e.target.value))} />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Alias</label>
@@ -1179,17 +1184,18 @@ function ScholarshipsModal({ scholarships, saveMutation, onClose, toast }: {
 }) {
   const [name, setName] = useState('')
   const [discountType, setDiscountType] = useState<number>(DISCOUNT_TYPE.PERCENTAGE)
-  const [discountValue, setDiscountValue] = useState(0)
+  const [discountValue, setDiscountValue] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState('')
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!name.trim()) { setError('El nombre es obligatorio.'); return }
-    if (discountValue <= 0) { setError('El valor del descuento debe ser mayor a 0.'); return }
+    const discountNum = Number(discountValue)
+    if (discountValue.trim() === '' || discountNum <= 0) { setError('El valor del descuento debe ser mayor a 0.'); return }
     try {
-      await saveMutation.mutateAsync({ name: name.trim(), discountType, discountValue, isActive })
-      setName(''); setDiscountValue(0); setIsActive(true)
+      await saveMutation.mutateAsync({ name: name.trim(), discountType, discountValue: discountNum, isActive })
+      setName(''); setDiscountValue(''); setIsActive(true)
       toast('Beca creada correctamente.')
     } catch { setError('Error al crear la beca.'); toast('Error al crear.', 'error') }
   }
@@ -1222,7 +1228,7 @@ function ScholarshipsModal({ scholarships, saveMutation, onClose, toast }: {
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Valor</label>
             <Input type="number" min={0} step="0.01" value={discountValue}
-              onChange={(e) => setDiscountValue(Number(e.target.value) || 0)} />
+              onChange={(e) => setDiscountValue(e.target.value)} />
           </div>
         </div>
         <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">

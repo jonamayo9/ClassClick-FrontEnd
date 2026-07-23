@@ -137,7 +137,8 @@ function CoursesPageInner() {
   })
 
   function resetForm() {
-    setForm({ name: '', description: '', teacherId: '' })
+    // Preserve teacher across consecutive creates so Radix Select stays controlled
+    setForm({ name: '', description: '', teacherId: form.teacherId })
     setErrors({})
   }
 

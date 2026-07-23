@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Modal } from '@/components/ui/modal'
 import { apiService } from '@/lib/api'
 
-interface DocType { id: string; name: string; description?: string; isRequired: boolean; isActive: boolean; hasExpiration: boolean; expirationWarningDays?: number; allowMultipleFiles: boolean; maxFiles: number; maxFileSizeMb: number; allowedExtensions?: string }
+interface DocType { id: string; name: string; description?: string; isRequired: boolean; isActive: boolean; hasExpiration: boolean; expirationWarningDays?: number; maxValidityDays?: number; allowMultipleFiles: boolean; maxFiles: number; maxFileSizeMb: number; allowedExtensions?: string }
 interface Company { id: string; name: string; slug: string }
 
 function DocumentTypesInner() {
@@ -24,7 +24,7 @@ function DocumentTypesInner() {
   const [selectedSlug, setSelectedSlug] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png' })
+  const [form, setForm] = useState({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, maxValidityDays: '' as string | number, allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png' })
 
   const { data: docTypes = [], isLoading } = useQuery({
     queryKey: ['document-types', selectedSlug],
@@ -32,13 +32,21 @@ function DocumentTypesInner() {
     enabled: !!selectedSlug,
   })
 
+  function buildPayload() {
+    const mv = form.maxValidityDays
+    return {
+      ...form,
+      maxValidityDays: (mv === '' || mv === null || mv === undefined) ? null : Number(mv),
+    }
+  }
+
   const createMutation = useMutation({
-    mutationFn: () => apiService.post(`/api/superadmin/companies/${selectedSlug}/document-types`, form),
+    mutationFn: () => apiService.post(`/api/superadmin/companies/${selectedSlug}/document-types`, buildPayload()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['document-types'] }); setShowForm(false); resetForm(); toast('Tipo documental creado.') },
     onError: () => toast('Error al crear.', 'error'),
   })
   const updateMutation = useMutation({
-    mutationFn: () => apiService.put(`/api/superadmin/companies/${selectedSlug}/document-types/${editId}`, form),
+    mutationFn: () => apiService.put(`/api/superadmin/companies/${selectedSlug}/document-types/${editId}`, buildPayload()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['document-types'] }); setShowForm(false); resetForm(); toast('Tipo documental actualizado.') },
     onError: () => toast('Error al actualizar.', 'error'),
   })
@@ -48,11 +56,11 @@ function DocumentTypesInner() {
     onError: () => toast('Error al desactivar.', 'error'),
   })
 
-  function resetForm() { setForm({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png' }); setEditId(null) }
+  function resetForm() { setForm({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, maxValidityDays: '', allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png' }); setEditId(null) }
 
   function openEdit(d: DocType) {
     setEditId(d.id)
-    setForm({ name: d.name, description: d.description ?? '', isRequired: d.isRequired, isActive: d.isActive, hasExpiration: d.hasExpiration, expirationWarningDays: d.expirationWarningDays ?? 30, allowMultipleFiles: d.allowMultipleFiles, maxFiles: d.maxFiles, maxFileSizeMb: d.maxFileSizeMb, allowedExtensions: d.allowedExtensions ?? '.pdf,.jpg,.jpeg,.png' })
+    setForm({ name: d.name, description: d.description ?? '', isRequired: d.isRequired, isActive: d.isActive, hasExpiration: d.hasExpiration, expirationWarningDays: d.expirationWarningDays ?? 30, maxValidityDays: d.maxValidityDays ?? '', allowMultipleFiles: d.allowMultipleFiles, maxFiles: d.maxFiles, maxFileSizeMb: d.maxFileSizeMb, allowedExtensions: d.allowedExtensions ?? '.pdf,.jpg,.jpeg,.png' })
     setShowForm(true)
   }
 
@@ -130,8 +138,31 @@ function DocumentTypesInner() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer dark:border-slate-700"><input type="checkbox" checked={form.hasExpiration} onChange={(e) => setForm({ ...form, hasExpiration: e.target.checked })} className="rounded border-slate-300 text-slate-800" /><span className="text-xs font-medium">Tiene vencimiento</span></label>
-              {form.hasExpiration && <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Días aviso</label><Input type="number" min={0} value={form.expirationWarningDays} onChange={(e) => setForm({ ...form, expirationWarningDays: Number(e.target.value) })} /></div>}
+              {form.hasExpiration && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Días aviso</label>
+                  <Input type="number" min={0} value={form.expirationWarningDays} onChange={(e) => setForm({ ...form, expirationWarningDays: Number(e.target.value) })} />
+                </div>
+              )}
             </div>
+            {form.hasExpiration && (
+              <div className="grid grid-cols-2 gap-3">
+                <div />
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Validez máxima (días)</label>
+                  <Input type="number" min={1} max={365} value={form.maxValidityDays} placeholder="Sin límite"
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === '') { setForm({ ...form, maxValidityDays: '' }); return }
+                      const n = Number(v)
+                      if (n < 1) return setForm({ ...form, maxValidityDays: 1 })
+                      if (n > 365) return setForm({ ...form, maxValidityDays: 365 })
+                      setForm({ ...form, maxValidityDays: n })
+                    }} />
+                  <p className="mt-0.5 text-[10px] text-slate-400">Cantidad máxima de días entre la fecha de carga y la fecha de vencimiento. Vacío = sin límite.</p>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer dark:border-slate-700"><input type="checkbox" checked={form.allowMultipleFiles} onChange={(e) => setForm({ ...form, allowMultipleFiles: e.target.checked })} className="rounded border-slate-300 text-slate-800" /><span className="text-xs font-medium">Múltiples archivos</span></label>
               {form.allowMultipleFiles && <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Cant. máxima</label><Input type="number" min={2} value={form.maxFiles} onChange={(e) => setForm({ ...form, maxFiles: Number(e.target.value) })} /></div>}

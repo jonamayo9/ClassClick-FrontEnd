@@ -1,21 +1,40 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
-import { DatePicker } from '@/components/ui/date-picker'
+import { DayNavigator } from '@/components/ui/day-navigator'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 
 function useSlug() { return useAuth((s) => s.activeCompanySlug ?? '') }
 
-const DAYS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+const DAY_JS: Record<string, number> = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+  Thursday: 4, Friday: 5, Saturday: 6,
+}
+
+function getClosestPastDate(dayOfWeek: string): string {
+  const today = new Date()
+  const targetDay = DAY_JS[dayOfWeek] ?? 0
+  const currentDay = today.getDay()
+  let diff = currentDay - targetDay
+  if (diff < 0) diff += 7
+  const result = new Date(today)
+  result.setDate(result.getDate() - diff)
+  return `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`
+}
+
+const DAY_LABELS: Record<string, string> = {
+  Monday: 'Lunes', Tuesday: 'Martes', Wednesday: 'Miércoles',
+  Thursday: 'Jueves', Friday: 'Viernes', Saturday: 'Sábado', Sunday: 'Domingo',
+}
 
 interface Course { id: string; name: string }
-interface ClassItem { id: string; courseId: string; courseName: string; dayOfWeek: number; startTime: string; endTime?: string }
+interface ClassItem { id: string; courseId: string; courseName: string; dayOfWeek: string; startTime: string; endTime?: string }
 interface Student { id: string; fullName: string; dni?: string }
 interface AttendanceRecord { studentId: string; present: boolean }
 
@@ -136,7 +155,7 @@ function TeacherAttendanceInner() {
                 <option value="">Seleccionar clase</option>
                 {classes.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {DAYS[c.dayOfWeek]} {c.startTime}{c.endTime ? ` - ${c.endTime}` : ''}
+                    {DAY_LABELS[c.dayOfWeek] ?? c.dayOfWeek} {c.startTime}{c.endTime ? ` - ${c.endTime}` : ''}
                   </option>
                 ))}
               </Select>
@@ -145,14 +164,14 @@ function TeacherAttendanceInner() {
           {classId && (
             <div className="min-w-[180px]">
               <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha</label>
-              <DatePicker value={date} onChange={setDate} />
+              <DayNavigator date={date} onChange={setDate} dayOfWeek={selectedClass?.dayOfWeek} />
             </div>
           )}
         </div>
 
         {selectedClass && (
           <div className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300">
-            {DAYS[selectedClass.dayOfWeek]} {selectedClass.startTime}{selectedClass.endTime ? ` - ${selectedClass.endTime}` : ''}
+            {DAY_LABELS[selectedClass.dayOfWeek] ?? selectedClass.dayOfWeek} {selectedClass.startTime}{selectedClass.endTime ? ` - ${selectedClass.endTime}` : ''}
           </div>
         )}
 

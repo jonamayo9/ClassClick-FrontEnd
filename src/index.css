@@ -22,3 +22,18 @@ html {
 body {
   @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-white;
 }
+
+/* PhoneInput autofill override — prevents Chrome yellow background */
+.PhoneInputInput:-webkit-autofill,
+.PhoneInputInput:-webkit-autofill:hover,
+.PhoneInputInput:-webkit-autofill:focus {
+  -webkit-text-fill-color: inherit;
+  -webkit-box-shadow: 0 0 0 1000px white inset;
+  transition: background-color 9999s ease-out;
+  caret-color: inherit;
+}
+.dark .PhoneInputInput:-webkit-autofill,
+.dark .PhoneInputInput:-webkit-autofill:hover,
+.dark .PhoneInputInput:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset;
+}

@@ -1,6 +1,5 @@
-import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react'
 import { DayPicker, type DateRange } from 'react-day-picker'
 import { format, isValid, parse, setMonth, setYear } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -46,19 +45,24 @@ function PickerSurface({
   const mobile = useIsMobile()
   if (mobile) {
     return (
-      <Dialog.Root open={open} onOpenChange={onOpenChange}>
-        <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm" />
-          <Dialog.Content className="fixed inset-x-2 bottom-2 z-[111] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white">
-            <div className="mb-3 flex items-center justify-between">
-              <Dialog.Title className="text-base font-bold">{title}</Dialog.Title>
-              <Dialog.Close asChild><button type="button" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Cerrar"><X className="h-4 w-4" /></button></Dialog.Close>
+      <>
+        <div onClick={() => onOpenChange(true)}>{trigger}</div>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-[130]" onClick={() => onOpenChange(false)} />
+            <div className="fixed inset-x-2 bottom-2 z-[131] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-base font-bold">{title}</h2>
+                <button type="button" onClick={() => onOpenChange(false)}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Cerrar">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {children}
             </div>
-            {children}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </>
+        )}
+      </>
     )
   }
   return (
@@ -107,17 +111,18 @@ function CalendarFooter({
   onClear,
   onCancel,
   onApply,
-  applyDisabled,
+  applyDisabled, hideToday,
 }: {
   onToday: () => void
   onClear: () => void
   onCancel: () => void
   onApply: () => void
   applyDisabled?: boolean
+  hideToday?: boolean
 }) {
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
-      <Button type="button" variant="ghost" size="sm" onClick={onToday}>Hoy</Button>
+      {!hideToday && <Button type="button" variant="ghost" size="sm" onClick={onToday}>Hoy</Button>}
       <Button type="button" variant="ghost" size="sm" onClick={onClear}>Limpiar</Button>
       <div className="ml-auto flex gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
@@ -137,21 +142,72 @@ interface DatePickerProps {
   className?: string
   title?: string
   yearRange?: { from: number; to: number }
+  variant?: 'default' | 'birthDate'
 }
 
 const monthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha', min, max, disabled, className, title = 'Elegir fecha', yearRange }: DatePickerProps) {
+function CustomSelect({ value, options, onChange }: {
+  value: number
+  options: { value: number; label: string }[]
+  onChange: (value: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+        {selected?.label ?? value}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-[120] max-h-48 min-w-[80px] overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+          {options.map(opt => (
+            <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false) }}
+              className={`block w-full whitespace-nowrap rounded-md px-3 py-1.5 text-left text-xs ${opt.value === value ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700'}`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha', min, max, disabled, className, title = 'Elegir fecha', yearRange, variant = 'default' }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Date | undefined>(() => parseDate(value))
   const [viewMode, setViewMode] = useState<'days' | 'monthYear'>('days')
-  const [pickerMonth, setPickerMonth] = useState<Date>(draft ?? new Date())
-  const yearScrollRef = useRef<HTMLDivElement>(null)
   const currentYear = new Date().getFullYear()
   const yrFrom = yearRange?.from ?? currentYear - 100
   const yrTo = yearRange?.to ?? currentYear
+  const isBirth = variant === 'birthDate'
 
-  useEffect(() => { if (open) { setDraft(parseDate(value)); setViewMode('days'); setPickerMonth(parseDate(value) ?? new Date()) } }, [open, value])
+  // Default month for birthDate: ~15 years ago if no value set
+  const defaultMonth = useMemo(() => {
+    if (isBirth) {
+      const d = parseDate(value)
+      return d ?? new Date(currentYear - 15, 0, 1)
+    }
+    return parseDate(value) ?? new Date()
+  }, [isBirth, value, currentYear])
+
+  const [pickerMonth, setPickerMonth] = useState<Date>(defaultMonth)
+  const yearScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { if (open) { setDraft(parseDate(value)); setViewMode('days'); setPickerMonth(parseDate(value) ?? defaultMonth) } }, [open, value, defaultMonth])
   useEffect(() => { if (viewMode === 'monthYear' && yearScrollRef.current) yearScrollRef.current.scrollTop = ((pickerMonth.getFullYear() - yrFrom) / (yrTo - yrFrom)) * yearScrollRef.current.scrollHeight }, [viewMode, pickerMonth, yrFrom, yrTo])
 
   const selected = parseDate(value)
@@ -223,17 +279,51 @@ export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha',
             onSelect={setDraft}
             month={pickerMonth}
             onMonthChange={setPickerMonth}
-            startMonth={parseDate(min)}
-            endMonth={parseDate(max)}
-            disabled={{ before: parseDate(min) ?? new Date(1900, 0, 1), after: parseDate(max) ?? new Date(2200, 11, 31) }}
-            classNames={calendarClassNames}
+            startMonth={parseDate(min) ?? (isBirth ? new Date(currentYear - 120, 0, 1) : undefined)}
+            endMonth={parseDate(max) ?? (isBirth ? undefined : undefined)}
+            disabled={isBirth
+              ? { after: new Date() }
+              : { before: parseDate(min) ?? new Date(1900, 0, 1), after: parseDate(max) ?? new Date(2200, 11, 31) }
+            }
+            classNames={{
+              ...calendarClassNames,
+              ...(isBirth ? { nav: 'hidden', month_caption: 'mb-3 flex h-9 items-center justify-center' } : {}),
+            }}
             components={{
-              Chevron: ({ orientation }) => orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />,
-              MonthCaption: yearRange ? ({ calendarMonth }) => (
-                <button type="button" onClick={handleCaptionClick} className="text-sm font-bold capitalize hover:text-blue-600 transition">
-                  {format(calendarMonth.date, 'MMMM yyyy', { locale: es })}
-                </button>
-              ) : undefined,
+              Chevron: (props: any) => {
+                if (isBirth) return null
+                return props.orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+              },
+              ...(isBirth ? {
+                MonthCaption: ({ calendarMonth }: any) => {
+                  const m = calendarMonth.date.getMonth()
+                  const y = calendarMonth.date.getFullYear()
+                  const yearOptions = Array.from({ length: yrTo - yrFrom + 1 }, (_, i) => yrTo - i)
+                  return (
+                    <div className="flex items-center justify-center gap-2">
+                      <CustomSelect value={m} options={monthsShort.map((name, idx) => ({ value: idx, label: name }))}
+                        onChange={(newM) => {
+                          const d = new Date(calendarMonth.date)
+                          d.setMonth(newM)
+                          setPickerMonth(d)
+                        }} />
+                      <CustomSelect value={y} options={yearOptions.map(yr => ({ value: yr, label: String(yr) }))}
+                        onChange={(newY) => {
+                          const d = new Date(calendarMonth.date)
+                          d.setFullYear(newY)
+                          setPickerMonth(d)
+                        }} />
+                    </div>
+                  )
+                },
+              } : {}),
+              ...(yearRange && !isBirth ? {
+                MonthCaption: ({ calendarMonth }: any) => (
+                  <button type="button" onClick={handleCaptionClick} className="text-sm font-bold capitalize hover:text-blue-600 transition">
+                    {format(calendarMonth.date, 'MMMM yyyy', { locale: es })}
+                  </button>
+                )
+              } : {}),
             }}
           />
           {draft && <p className="mt-2 text-center text-xs font-medium capitalize text-slate-500 dark:text-slate-400">{format(draft, "EEEE d 'de' MMMM 'de' yyyy", { locale: es })}</p>}
@@ -242,6 +332,7 @@ export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha',
             onClear={() => setDraft(undefined)}
             onCancel={() => setOpen(false)}
             onApply={() => { onChange(isoDate(draft)); setOpen(false) }}
+            hideToday={isBirth}
           />
         </>
       )}

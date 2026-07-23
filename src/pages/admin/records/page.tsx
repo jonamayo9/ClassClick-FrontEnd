@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
+import { DocumentReviewDialog } from '@/components/ui/document-review-dialog'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { config } from '@/lib/config'
@@ -12,7 +14,8 @@ import {
   useCourses, useDocumentTypes, useStudents, useStudentDetail,
   useCreateDocumentRequest, usePreviewFile, useDownloadFile,
   useApproveDocument, useRejectDocument, useAllDocuments,
-  formatDate, getStatusLabel, getStatusBadgeClass,
+  useDeleteAssignment,
+  formatDate, formatDateOnly, getStatusLabel, getStatusBadgeClass,
 } from './hooks'
 import type { Student, StudentDocument } from './hooks'
 
@@ -45,9 +48,10 @@ function isImage(m: string | null) { return String(m || '').toLowerCase().starts
 function isPdf(m: string | null) { return String(m || '').toLowerCase() === 'application/pdf' }
 
 export default function RecordsPage() {
+  const qc = useQueryClient()
   const [pageTab, setPageTab] = useState<'records' | 'documents'>('records')
-  const [draft, setDraft] = useState({ search: '', courseId: '', status: '', documentStatus: '' })
-  const [applied, setApplied] = useState({ search: '', courseId: '', status: '', documentStatus: '' })
+  const [draft, setDraft] = useState({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
+  const [applied, setApplied] = useState({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
   const { data: students = [], isLoading, error } = useStudents(applied)
   const { data: courses = [] } = useCourses()
   const { data: documentTypes = [] } = useDocumentTypes()
@@ -65,7 +69,9 @@ export default function RecordsPage() {
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showDetailId, setShowDetailId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState<{ fileId: string; url: string; fileName: string; mimeType: string } | null>(null)
-  const [showReview, setShowReview] = useState<{ action: 'approve' | 'reject'; assignmentId: string; documentName: string } | null>(null)
+  const [reviewDoc, setReviewDoc] = useState<StudentDocument | null>(null)
+  const [deleteConfirmAssignmentId, setDeleteConfirmAssignmentId] = useState<{ id: string; name: string; fileCount: number } | null>(null)
+  const deleteAssignment = useDeleteAssignment()
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([])
 
   const toastId = useRef(0)
@@ -100,6 +106,9 @@ export default function RecordsPage() {
     if (draft.documentStatus === 'rejected' && !s.rejectedCount) return false
     if (draft.documentStatus === 'expired' && !s.expiredCount) return false
     if (draft.documentStatus === 'none' && total > 0) return false
+
+    // Document status quick filters — backend handles the OR logic via EXISTS subqueries.
+    // No additional in-memory filtering needed here; rely on backend response.
     return true
   })
 
@@ -111,12 +120,12 @@ export default function RecordsPage() {
 
   function applyFilters() { setApplied({ ...draft }); setPage(1) }
   function clearFilters() {
-    setDraft({ search: '', courseId: '', status: '', documentStatus: '' })
-    setApplied({ search: '', courseId: '', status: '', documentStatus: '' })
+    setDraft({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
+    setApplied({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
     setPage(1); setShowFilters(false)
   }
 
-  const hasFilters = !!(draft.search || draft.courseId || draft.status || draft.documentStatus)
+  const hasFilters = !!(draft.search || draft.courseId || draft.status || draft.documentStatus || draft.hasPendingDocuments || draft.hasExpiringDocuments || draft.hasExpiredDocuments)
 
   function renderRecordsContent() {
     return (
@@ -179,6 +188,37 @@ export default function RecordsPage() {
           </div>
         </div>
       </Card>
+
+      {/* Quick document filters — always visible */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => { const next = !draft.hasPendingDocuments; setDraft((p) => ({ ...p, hasPendingDocuments: next })); setApplied((p) => ({ ...p, hasPendingDocuments: next })); setPage(1) }}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+            draft.hasPendingDocuments
+              ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-300'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+          }`}
+        >Pendientes</button>
+        <button
+          type="button"
+          onClick={() => { const next = !draft.hasExpiringDocuments; setDraft((p) => ({ ...p, hasExpiringDocuments: next })); setApplied((p) => ({ ...p, hasExpiringDocuments: next })); setPage(1) }}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+            draft.hasExpiringDocuments
+              ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:bg-blue-900/40 dark:text-blue-300'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+          }`}
+        >Próximos a vencer</button>
+        <button
+          type="button"
+          onClick={() => { const next = !draft.hasExpiredDocuments; setDraft((p) => ({ ...p, hasExpiredDocuments: next })); setApplied((p) => ({ ...p, hasExpiredDocuments: next })); setPage(1) }}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+            draft.hasExpiredDocuments
+              ? 'bg-red-100 text-red-700 ring-2 ring-red-300 dark:bg-red-900/40 dark:text-red-300'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+          }`}
+        >Vencidos</button>
+      </div>
 
       {/* LOADING */}
       {isLoading && (
@@ -315,6 +355,7 @@ export default function RecordsPage() {
         courses={courses}
         documentTypes={documentTypes}
         onOpenDetail={(id: string) => setShowDetailId(id)}
+        onReview={(doc: StudentDocument) => setReviewDoc(doc)}
         toast={toast}
       />
     )
@@ -382,15 +423,17 @@ export default function RecordsPage() {
         <DetailDrawer detail={detail ?? null} isLoading={detailLoading}
           documentTypes={documentTypes}
           onClose={() => setShowDetailId(null)}
-          onPreview={async (doc) => {
+          onPreview={async (fileId: string) => {
             try {
-              const r = await previewFile.mutateAsync(doc.currentFileId!)
-              setShowPreview({ fileId: doc.currentFileId!, url: r.url, fileName: doc.currentFileName || 'Documento', mimeType: doc.currentFileMimeType || r.contentType || '' })
+              const r = await previewFile.mutateAsync(fileId)
+              const doc = detail?.documents.find(d => d.files?.some(f => f.id === fileId))
+              const f = doc?.files?.find(f => f.id === fileId)
+              setShowPreview({ fileId, url: r.url, fileName: f?.fileName || 'Documento', mimeType: f?.mimeType || r.contentType || '' })
             } catch { toast('No se pudo abrir el archivo.', 'error') }
           }}
           onDownload={async (fileId) => { try { const r = await downloadFile.mutateAsync(fileId); downloadBlob(r.url, 'documento') } catch { toast('Error al descargar.', 'error') } }}
-          onApprove={(aid, name) => setShowReview({ action: 'approve', assignmentId: aid, documentName: name })}
-          onReject={(aid, name) => setShowReview({ action: 'reject', assignmentId: aid, documentName: name })} />
+          onReview={(doc) => setReviewDoc(doc)}
+          onDeleteAssignmentRequest={(assignmentId, docName, fileCount) => setDeleteConfirmAssignmentId({ id: assignmentId, name: docName, fileCount })} />
       )}
 
       {showPreview && (
@@ -399,18 +442,40 @@ export default function RecordsPage() {
           onDownload={async () => { try { const r = await downloadFile.mutateAsync(showPreview.fileId); downloadBlob(r.url, 'documento') } catch { toast('Error al descargar.', 'error') } }} />
       )}
 
-      {showReview && (
-        <ReviewModal action={showReview.action} documentName={showReview.documentName}
-          isPending={approveDoc.isPending || rejectDoc.isPending} serverError={approveDoc.error || rejectDoc.error}
-          onSubmit={async ({ reviewNote, expirationDateUtc }) => {
-            try {
-              if (showReview.action === 'approve') { await approveDoc.mutateAsync({ assignmentId: showReview.assignmentId, reviewNote, expirationDateUtc }); toast('Documento aprobado.') }
-              else { await rejectDoc.mutateAsync({ assignmentId: showReview.assignmentId, reviewNote: reviewNote! }); toast('Documento rechazado.') }
-              setShowReview(null)
-            } catch { toast('Error en la revisión.', 'error') }
-          }}
-          onClose={() => setShowReview(null)} />
-      )}
+      <DocumentReviewDialog doc={reviewDoc} slug={slug()} studentName={detail?.fullName}
+        onClose={() => setReviewDoc(null)}
+        onDone={() => {
+          setReviewDoc(null)
+          qc.invalidateQueries({ queryKey: ['records-students'] })
+          qc.invalidateQueries({ queryKey: ['records-student-detail'] })
+          qc.invalidateQueries({ queryKey: ['records-all-documents'] })
+        }} />
+
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        open={!!deleteConfirmAssignmentId}
+        onClose={() => setDeleteConfirmAssignmentId(null)}
+        title="Eliminar solicitud documental"
+        message={
+          deleteConfirmAssignmentId
+            ? `¿Seguro que querés eliminar la solicitud '${deleteConfirmAssignmentId.name}'?` +
+              (deleteConfirmAssignmentId.fileCount > 0
+                ? ` También se eliminarán los ${deleteConfirmAssignmentId.fileCount} archivos asociados.`
+                : '') +
+              ' Esta acción no se puede deshacer.'
+            : ''
+        }
+        confirmText="Eliminar solicitud"
+        confirmDestructive
+        loading={deleteAssignment.isPending}
+        onConfirm={() => {
+          if (!deleteConfirmAssignmentId) return
+          deleteAssignment.mutate(deleteConfirmAssignmentId.id, {
+            onSuccess: () => { toast('Solicitud documental eliminada correctamente.'); setDeleteConfirmAssignmentId(null) },
+            onError: () => { toast('Error al eliminar la solicitud.', 'error'); setDeleteConfirmAssignmentId(null) },
+          })
+        }}
+      />
 
       {/* TOASTS */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[70] flex flex-col items-center gap-2 p-4 sm:right-4 sm:left-auto sm:top-4 sm:bottom-auto sm:items-end sm:p-0">
@@ -661,10 +726,11 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
 }
 
 /* ─── MainDocumentsView ─── */
-function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
+function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toast }: {
   courses: { id: string; name: string }[]
   documentTypes: { id: string; name: string }[]
   onOpenDetail: (id: string) => void
+  onReview?: (doc: StudentDocument) => void
   toast: (msg: string, type?: 'success' | 'error') => void
 }) {
   const PAGE_SIZE = 20
@@ -682,7 +748,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
   const [zipLoading, setZipLoading] = useState(false)
   const downloadMutation = useDownloadFile()
 
-  function formatDateSafe(v: string | null) { return v ? formatDate(v) : '-' }
+  function formatDateSafe(v: string | null) { return v ? formatDateOnly(v) : '-' }
 
   function getBestDate(d: import('./hooks').AdminDocumentItem): string {
     return d.submittedAtUtc || d.dueDateUtc || ''
@@ -756,8 +822,8 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
         <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
           <option value="">Todos los estados</option>
-          <option value="Pending">Pendientes</option>
-          <option value="Submitted">En revisión</option>
+          <option value="Pending">Pendientes de entrega</option>
+          <option value="Submitted">Pendientes de aprobar</option>
           <option value="Approved">Aprobados</option>
           <option value="Rejected">Rechazados</option>
           <option value="Expired">Vencidos</option>
@@ -837,9 +903,33 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, toast }: {
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusClass}`}>{statusLabel}</span>
                       </td>
                       <td className="px-3 py-3 w-[14%] hidden md:table-cell text-slate-500 whitespace-nowrap">{formatDateSafe(bestDate)}</td>
-                      <td className="px-3 py-3 w-[12%] text-right">
+                      <td className="px-3 py-3 w-[18%] text-right">
                         {d.fileId ? (
                           <div className="flex justify-end gap-1.5">
+                            {d.status === 'Submitted' && onReview && (
+                              <button onClick={(e) => {
+                                e.stopPropagation()
+                                onReview({
+                                  assignmentId: d.assignmentId,
+                                  documentTypeName: d.documentTypeName,
+                                  status: 2,
+                                  assignedAtUtc: null,
+                                  dueDateUtc: d.dueDateUtc,
+                                  submittedAtUtc: d.submittedAtUtc,
+                                  reviewedAtUtc: null,
+                                  expirationDateUtc: null,
+                                  currentFileId: d.fileId,
+                                  currentFileName: d.fileName,
+                                  currentFileMimeType: d.fileMimeType,
+                                  requestNote: null,
+                                  reviewNote: null,
+                                  files: d.fileId ? [{ id: d.fileId, fileName: d.fileName || 'Archivo', mimeType: d.fileMimeType || '', uploadedAtUtc: '' }] : [],
+                                })
+                              }}
+                                className="inline-flex items-center rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+                                Revisar
+                              </button>
+                            )}
                             <button onClick={() => handleViewFile(d.fileId!, d.fileName || 'Documento', d.fileMimeType || '')}
                               className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                               Ver
@@ -1089,7 +1179,7 @@ function DocumentosTab({ detail, documentTypes, toast }: {
                       <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${getStatusBadgeClass(doc.status)}`}>{statusLabel}</span>
                     </td>
                     <td className="px-3 py-3 hidden sm:table-cell text-slate-500 truncate max-w-[180px]">{doc.currentFileName || '—'}</td>
-                    <td className="px-3 py-3 hidden md:table-cell text-slate-500 whitespace-nowrap">{bestDate ? formatDate(bestDate) : '—'}</td>
+                    <td className="px-3 py-3 hidden md:table-cell text-slate-500 whitespace-nowrap">{bestDate ? formatDateOnly(bestDate) : '—'}</td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex justify-end gap-1.5">
                         {doc.currentFileId ? (
@@ -1161,14 +1251,14 @@ function DocumentosTab({ detail, documentTypes, toast }: {
 }
 
 /* ─── DetailDrawer ─── */
-function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, onDownload, onApprove, onReject }: {
+function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, onDownload, onReview, onDeleteAssignmentRequest }: {
   detail: import('./hooks').StudentDetail | null; isLoading: boolean
   documentTypes: { id: string; name: string }[]
   onClose: () => void
-  onPreview: (doc: import('./hooks').StudentDocument) => void
+  onPreview: (fileId: string) => void
   onDownload: (fileId: string) => void
-  onApprove: (assignmentId: string, documentName: string) => void
-  onReject: (assignmentId: string, documentName: string) => void
+  onReview: (doc: import('./hooks').StudentDocument) => void
+  onDeleteAssignmentRequest?: (assignmentId: string, docName: string, fileCount: number) => void
 }) {
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<'legajo' | 'documentos'>('legajo')
@@ -1291,10 +1381,10 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, on
                 ) : (
                   detail.documents.map((doc) => (
                     <DocumentCard key={doc.assignmentId} doc={doc}
-                      onPreview={doc.currentFileId ? () => onPreview(doc) : undefined}
-                      onDownload={doc.currentFileId ? () => onDownload(doc.currentFileId!) : undefined}
-                      onApprove={() => onApprove(doc.assignmentId, doc.documentTypeName)}
-                      onReject={() => onReject(doc.assignmentId, doc.documentTypeName)} />
+                      onPreview={(fileId) => onPreview(fileId)}
+                      onDownload={(fileId) => onDownload(fileId)}
+                      onReview={() => onReview(doc)}
+                      onDelete={() => onDeleteAssignmentRequest?.(doc.assignmentId, doc.documentTypeName, doc.files?.length ?? 0)} />
                   ))
                 )}
               </div>
@@ -1347,11 +1437,14 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onPreview, on
 }
 
 /* ─── DocumentCard ─── */
-function DocumentCard({ doc, onPreview, onDownload, onApprove, onReject }: {
-  doc: StudentDocument; onPreview?: () => void; onDownload?: () => void
-  onApprove?: () => void; onReject?: () => void
+function DocumentCard({ doc, onPreview, onDownload, onReview, onDelete }: {
+  doc: StudentDocument; onPreview?: (fileId: string) => void; onDownload?: (fileId: string) => void
+  onReview?: () => void; onDelete?: () => void
 }) {
-  const canReview = normalizeStatus(doc.status) === 'Submitted'
+  const status = normalizeStatus(doc.status)
+  const isInReview = status === 'En revisión'
+  const isApproved = status === 'Aprobado'
+  const isRejected = status === 'Rechazado'
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-700 dark:bg-slate-800/30">
@@ -1359,16 +1452,22 @@ function DocumentCard({ doc, onPreview, onDownload, onApprove, onReject }: {
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <h5 className="text-sm font-bold text-slate-900 sm:text-base dark:text-white">{doc.documentTypeName || 'Documento'}</h5>
-            <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${getStatusBadgeClass(doc.status)}`}>{getStatusLabel(doc.status)}</span>
+            <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${getStatusBadgeClass(doc.status)}`}>{status}</span>
+            {onDelete && (
+              <button type="button" onClick={onDelete}
+                className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:border-slate-600 dark:hover:bg-red-950/30"
+                aria-label="Eliminar solicitud" title="Eliminar solicitud">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-x-5 gap-y-1.5 text-sm text-slate-500 dark:text-slate-400">
-            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Asignado:</b> {formatDate(doc.assignedAtUtc)}</span>
-            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Límite:</b> {formatDate(doc.dueDateUtc)}</span>
-            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Enviado:</b> {formatDate(doc.submittedAtUtc)}</span>
-            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Revisado:</b> {formatDate(doc.reviewedAtUtc)}</span>
-            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Vence:</b> {formatDate(doc.expirationDateUtc)}</span>
-            <span className="truncate"><b className="font-semibold text-slate-600 dark:text-slate-400">Archivo:</b> {doc.currentFileName || '—'}</span>
+            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Asignado:</b> {formatDateOnly(doc.assignedAtUtc)}</span>
+            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Límite:</b> {formatDateOnly(doc.dueDateUtc)}</span>
+            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Enviado:</b> {formatDateOnly(doc.submittedAtUtc)}</span>
+            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Revisado:</b> {formatDateOnly(doc.reviewedAtUtc)}</span>
+            <span><b className="font-semibold text-slate-600 dark:text-slate-400">Vence:</b> {formatDateOnly(doc.expirationDateUtc)}</span>
           </div>
 
           {doc.requestNote && (
@@ -1386,10 +1485,15 @@ function DocumentCard({ doc, onPreview, onDownload, onApprove, onReject }: {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1.5 sm:flex-col sm:w-28">
-          {onPreview && <DocActionBtn onClick={onPreview}>Ver archivo</DocActionBtn>}
-          {onDownload && <DocActionBtn onClick={onDownload}>Descargar</DocActionBtn>}
-          {canReview && onApprove && <DocActionBtn className="bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800" onClick={onApprove}>Aprobar</DocActionBtn>}
-          {canReview && onReject && <DocActionBtn className="bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800" onClick={onReject}>Rechazar</DocActionBtn>}
+          {isInReview && onReview && (
+            <DocActionBtn className="bg-indigo-600 text-white hover:bg-indigo-700" onClick={onReview}>Revisar entrega</DocActionBtn>
+          )}
+          {(isApproved || isRejected) && onReview && (
+            <DocActionBtn onClick={onReview}>Ver detalle</DocActionBtn>
+          )}
+          {!isInReview && !isApproved && !isRejected && onReview && (
+            <DocActionBtn onClick={onReview}>Ver solicitud</DocActionBtn>
+          )}
         </div>
       </div>
     </div>

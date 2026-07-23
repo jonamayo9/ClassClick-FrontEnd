@@ -78,7 +78,7 @@ function AdminsInner() {
             companyIds: Array.from(selectedCompanies)
           })
         } catch {
-          toast('Error al asignar empresas. El admin se creó pero sin empresas.', 'warning')
+          toast('Error al asignar empresas. El admin se creó pero sin empresas.', 'error')
         }
       }
       setShowForm(false)
@@ -102,7 +102,7 @@ function AdminsInner() {
           if (toAdd.length > 0) await assignCompaniesMutation.mutateAsync({ adminId: editId, companyIds: toAdd })
           for (const companyId of toRemove) await removeCompanyMutation.mutateAsync({ adminId: editId, companyId })
         } catch {
-          toast('Error al sincronizar empresas.', 'warning')
+          toast('Error al sincronizar empresas.', 'error')
         }
       }
       setShowForm(false)

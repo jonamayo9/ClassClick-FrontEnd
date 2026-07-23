@@ -18,7 +18,12 @@ export function ForgotPasswordPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await apiService.post<{ message?: string }>('/api/auth/forgot-password', { email: email.trim() })
+      const res = await apiService.post<{ message?: string; code?: string }>('/api/auth/forgot-password', { email: email.trim() })
+      if (res?.code === 'PASSWORD_RESET_DAILY_LIMIT_REACHED') {
+        setError(res.message || 'Ya solicitaste un restablecimiento de contraseña durante el día de hoy.')
+        setLoading(false)
+        return
+      }
       if (res?.message && !res.message.includes('Si el correo')) {
         setError(res.message)
         setLoading(false)

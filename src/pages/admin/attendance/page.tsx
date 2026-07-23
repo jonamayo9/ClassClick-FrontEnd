@@ -1,19 +1,28 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { PageHero } from '@/components/ui/page-hero'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { DatePicker } from '@/components/ui/date-picker'
-import { useClasses, useClassAttendance, useSaveAttendance } from './hooks'
+import { DayNavigator } from '@/components/ui/day-navigator'
+import { useClasses, useClassAttendance, useSaveAttendance, getDayIndex, getClosestPastDate } from './hooks'
 
-const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const DAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
 function AttendancePageInner() {
   const toast = useToast()
   const { data: classes = [], isLoading } = useClasses()
   const [selectedClass, setSelectedClass] = useState<string | null>(null)
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+
+  // Recalculate date when selectedClass changes (based on the class's dayOfWeek)
+  const selectClass = useCallback((id: string) => {
+    setSelectedClass(id)
+    const cls = classes.find((c) => c.id === id)
+    if (cls?.dayOfWeek) {
+      setDate(getClosestPastDate(cls.dayOfWeek))
+    }
+  }, [classes])
 
   const { data: attendanceRecords = [], isLoading: loadingAttendance } = useClassAttendance(selectedClass, date)
   const saveMutation = useSaveAttendance()
@@ -56,13 +65,14 @@ function AttendancePageInner() {
   }
 
   const grouped = useMemo(() => {
-    const groups: Record<number, typeof classes> = {}
+    const groups: Record<string, typeof classes> = {}
     classes.forEach((c) => {
-      const day = c.dayOfWeek ?? 0
+      const day = c.dayOfWeek ?? 'Monday'
       if (!groups[day]) groups[day] = []
       groups[day].push(c)
     })
-    return Object.entries(groups).sort(([a], [b]) => Number(a) - Number(b))
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    return dayOrder.filter((d) => groups[d]).map((d) => [String(getDayIndex(d)), groups[d]] as [string, typeof classes])
   }, [classes])
 
   const selected = classes.find((c) => c.id === selectedClass)
@@ -94,11 +104,11 @@ function AttendancePageInner() {
               {grouped.map(([day, items]) => (
                 <div key={day}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    {daysOfWeek[Number(day)]}
+                    {DAY_LABELS[Number(day)]}
                   </p>
                   <div className="space-y-1">
                     {items.map((c) => (
-                      <button key={c.id} onClick={() => setSelectedClass(c.id)}
+                      <button key={c.id} onClick={() => selectClass(c.id)}
                         className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
                           selectedClass === c.id
                             ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-300'
@@ -132,7 +142,7 @@ function AttendancePageInner() {
                     {selected ? `${selected.startTime} - ${selected.endTime ?? ''}` : ''}
                   </p>
                 </div>
-                <DatePicker value={date} onChange={setDate} className="sm:w-64" />
+                <DayNavigator date={date} onChange={setDate} dayOfWeek={selected?.dayOfWeek} />
               </div>
 
               {loadingAttendance ? (
