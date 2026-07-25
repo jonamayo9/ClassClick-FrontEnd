@@ -26,6 +26,7 @@ interface CompanySettings {
   postalCode?: string
   country?: string
   logoUrl?: string
+  showOnPublicLanding?: boolean
 }
 
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
@@ -48,6 +49,7 @@ function unwrapSettings(raw: unknown): CompanySettings {
     postalCode: (source.postalCode ?? source.zipCode ?? '') as string,
     country: (source.country ?? '') as string,
     logoUrl: (source.logoUrl ?? source.logo ?? '') as string,
+    showOnPublicLanding: (source.showOnPublicLanding ?? false) as boolean,
   }
 }
 
@@ -90,7 +92,7 @@ function CompanyPageInner() {
   const [form, setForm] = useState<CompanySettings>({
     name: '', description: '', whatsapp: '', email: '', phone: '',
     addressLine1: '', addressLine2: '', city: '', stateOrProvince: '',
-    postalCode: '', country: '', logoUrl: '',
+    postalCode: '', country: '', logoUrl: '', showOnPublicLanding: false,
   })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -142,6 +144,7 @@ function CompanyPageInner() {
         stateOrProvince: form.stateOrProvince?.trim() || null,
         postalCode: form.postalCode?.trim() || null,
         country: form.country?.trim() || null,
+        showOnPublicLanding: form.showOnPublicLanding ?? false,
       })
 
       if (logoFile) {
@@ -191,6 +194,20 @@ function CompanyPageInner() {
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Descripción</label>
                 <Textarea rows={3} value={form.description ?? ''} onChange={(e) => patch('description', e.target.value)} maxLength={1500} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={form.showOnPublicLanding ?? false}
+                    onChange={(e) => setForm((prev) => ({ ...prev, showOnPublicLanding: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 dark:border-slate-600"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Mostrar en landing pública</p>
+                    <p className="text-xs text-slate-500">El logo de la institución aparecerá en la sección de instituciones de la página principal.</p>
+                  </div>
+                </label>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">WhatsApp</label>

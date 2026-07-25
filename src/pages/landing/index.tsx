@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { apiService } from '@/lib/api'
 
 const WHATSAPP = 'https://wa.me/5491140733436'
 const contactText = encodeURIComponent('Hola, quiero hablar con ustedes sobre ClassClick.')
@@ -358,23 +360,57 @@ function PricingSection() {
 }
 
 function ContactSection() {
+  const [logos, setLogos] = useState<{ logoUrl: string }[]>([])
+  useEffect(() => {
+    apiService.get<{ logoUrl: string }[]>('/api/public/companies/logos').then(setLogos).catch(() => {})
+  }, [])
   return (
-    <section id="contacto" className="bg-slate-950 py-16 text-white md:py-24">
-      <div className="mx-auto max-w-4xl px-5 text-center">
-        <div className="text-sm font-black uppercase tracking-[0.22em] text-blue-300">Hablemos</div>
-        <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Tu institucion puede estar operando en ClassClick esta semana.</h2>
-        <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-300">
-          Te ayudamos a crear la empresa, cargar la base inicial, configurar cuotas y dejar a alumnos, docentes y administradores usando la plataforma.
-        </p>
-        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link to="/prueba-gratis" className="inline-flex items-center justify-center rounded-2xl bg-blue-500 px-7 py-4 text-sm font-black text-white shadow-xl shadow-blue-500/25 transition hover:bg-blue-400">
-            Proba gratis 7 dias
-          </Link>
-          <Link to="/login" className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-7 py-4 text-sm font-black text-white transition hover:bg-white/15">
-            Ya soy cliente
-          </Link>
+    <>
+      <section id="contacto" className="bg-slate-950 py-16 text-white md:py-24">
+        <div className="mx-auto max-w-4xl px-5 text-center">
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-blue-300">Hablemos</div>
+          <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Tu institucion puede estar operando en ClassClick esta semana.</h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-300">
+            Te ayudamos a crear la empresa, cargar la base inicial, configurar cuotas y dejar a alumnos, docentes y administradores usando la plataforma.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link to="/prueba-gratis" className="inline-flex items-center justify-center rounded-2xl bg-blue-500 px-7 py-4 text-sm font-black text-white shadow-xl shadow-blue-500/25 transition hover:bg-blue-400">
+              Proba gratis 7 dias
+            </Link>
+            <Link to="/login" className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-7 py-4 text-sm font-black text-white transition hover:bg-white/15">
+              Ya soy cliente
+            </Link>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section className="bg-white py-16 sm:py-20 dark:bg-slate-950">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          {logos.length > 0 ? (
+            <>
+              <p className="text-center text-sm font-bold uppercase tracking-[0.2em] text-slate-400">
+                Más de {logos.length} instituciones gestionan su día a día con ClassClick
+              </p>
+              <div className="mt-10 hidden flex-wrap items-center justify-center gap-10 sm:flex">
+                {logos.map((item, i) => (
+                  <img key={i} src={item.logoUrl} alt="Institución" loading="lazy" decoding="async"
+                    className="h-12 w-auto max-w-[140px] object-contain opacity-60 grayscale transition hover:opacity-100 hover:grayscale-0" />
+                ))}
+              </div>
+              <div className="mt-6 flex gap-6 overflow-x-auto pb-4 sm:hidden snap-x snap-mandatory scrollbar-none">
+                {logos.map((item, i) => (
+                  <img key={i} src={item.logoUrl} alt="Institución" loading="lazy" decoding="async"
+                    className="h-10 w-auto max-w-[120px] shrink-0 snap-center object-contain opacity-60 grayscale" />
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-sm text-slate-400">
+              {import.meta.env.DEV ? 'No hay instituciones publicadas' : ''}
+            </p>
+          )}
+        </div>
+      </section>
+    </>
   )
 }

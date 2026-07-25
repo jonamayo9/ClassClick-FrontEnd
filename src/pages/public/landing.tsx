@@ -22,6 +22,25 @@ const PRESET_COLORS: Record<string, Record<string, string>> = {
 
 const LOGO_SIZE_MAP: Record<string, number> = { small: 64, medium: 96, large: 136 }
 
+function logoPosStyle(x: number, y: number, isMobile?: boolean): React.CSSProperties {
+  const h = isMobile ? 5 : 6
+  const v = isMobile ? 6 : 8
+  const col = x < 33 ? 'left' : x < 66 ? 'center' : 'right'
+  const row = y < 33 ? 'top' : y < 66 ? 'center' : 'bottom'
+  const map: Record<string, React.CSSProperties> = {
+    'top-left':      { top: v, left: h },
+    'top-center':    { top: v, left: '50%', transform: 'translateX(-50%)' },
+    'top-right':     { top: v, right: h },
+    'center-left':   { top: '50%', left: h, transform: 'translateY(-50%)' },
+    'center':        { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+    'center-right':  { top: '50%', right: h, transform: 'translateY(-50%)' },
+    'bottom-left':   { bottom: v, left: h },
+    'bottom-center': { bottom: v, left: '50%', transform: 'translateX(-50%)' },
+    'bottom-right':  { bottom: v, right: h },
+  }
+  return map[`${row}-${col}`]
+}
+
 function FlagIcon({ country, className }: { country: string; className?: string }) {
   const FlagComponent = (Flags as any)[country]
   if (FlagComponent) return <FlagComponent className={className || 'h-4 w-5 rounded-sm object-cover'} title={country} />
@@ -219,9 +238,7 @@ export default function LandingPage() {
           {c.logoUrl && (
             <img src={c.logoUrl} alt={c.name} className="absolute rounded-2xl border-2 border-white/20 object-cover shadow-lg"
               style={{
-                left: `${c.logoPositionX ?? 50}%`,
-                top: `${c.logoPositionY ?? 50}%`,
-                transform: 'translate(-50%, -50%)',
+                ...logoPosStyle(c.logoPositionX ?? 50, c.logoPositionY ?? 50),
                 width: logoPx, height: logoPx,
               }} />
           )}
