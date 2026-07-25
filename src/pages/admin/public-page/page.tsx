@@ -8,9 +8,10 @@ import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { ToastProvider } from '@/components/ui/toast'
 import { useAuth } from '@/stores/auth'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
 import { GalleryCarousel } from '@/components/ui/gallery-carousel'
 import { usePublicPage, useUpdatePublicPage, usePublishPage, useUnpublishPage } from '@/hooks/usePublicPage'
+import { hasModule } from '@/hooks/useModule'
 
 const VISUAL_STYLES = [
   { id: 'modern', label: 'Moderno', desc: 'Espacios amplios y limpios' },
@@ -81,6 +82,7 @@ function PublicPageInner() {
   const [logoPosX, setLogoPosX] = useState(50)
   const [logoPosY, setLogoPosY] = useState(50)
   const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('medium')
+  const [showCapabilityModal, setShowCapabilityModal] = useState(false)
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center')
 
   // Gallery
@@ -258,12 +260,16 @@ function PublicPageInner() {
       await apiService.put(`/api/admin/${slug}/public-page/courses`, { courseIds: selectedCourseIds })
       setDirty(false)
       toast('Guardado.')
-    } catch {
-      toast('Error al guardar.', 'error')
+    } catch (err) {
+      toast(getApiError(err), 'error')
     }
   }
 
   async function handlePublish() {
+    if (!hasModule('public_page')) {
+      setShowCapabilityModal(true)
+      return
+    }
     try {
       await handleSave()
       const result: any = await publishMutation.mutateAsync()
@@ -272,7 +278,26 @@ function PublicPageInner() {
       setIsEnabled(true)
       setDirty(false)
     } catch (err: any) {
-      toast(err?.message || 'Error al publicar.', 'error')
+      const status = err?.response?.status
+      const serverMsg = err?.response?.data?.message as string | undefined
+      if (status === 403) {
+        setShowCapabilityModal(true)
+        return
+      }
+      if (status === 404) {
+        toast('No se encontró la configuración de la página pública.', 'error')
+        return
+      }
+      if (status === 400 && serverMsg) {
+        toast(serverMsg, 'error')
+        return
+      }
+      if (status >= 500) {
+        toast('No pudimos publicar la página. Intentá nuevamente.', 'error')
+        return
+      }
+      if (import.meta.env.DEV) console.error('Error al publicar:', err)
+      toast(serverMsg || getApiError(err), 'error')
     }
   }
 
@@ -280,7 +305,7 @@ function PublicPageInner() {
     if (!confirm('¿Despublicar la página?')) return
     unpublishMutation.mutate(undefined, {
       onSuccess: () => { toast('Página despublicada.'); setIsEnabled(false) },
-      onError: () => toast('Error al despublicar.', 'error'),
+      onError: (err) => toast(getApiError(err), 'error'),
     })
   }
 
@@ -762,6 +787,24 @@ function PublicPageInner() {
           )}
         </div>
 
+        <Modal open={showCapabilityModal} onClose={() => setShowCapabilityModal(false)} title="Publicación no habilitada">
+          <div className="space-y-5 p-5 sm:p-6">
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              La funcionalidad Página pública no está habilitada para tu institución. Para publicarla, el Super Administrador debe habilitar esta funcionalidad. Comunicate con el soporte de ClassClick.
+            </p>
+            <div className="flex gap-3">
+              <a href="https://wa.me/5491140733436?text=Hola%2C%20quiero%20habilitar%20la%20funcionalidad%20P%C3%A1gina%20p%C3%BAblica%20para%20mi%20instituci%C3%B3n." target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700">
+                Contactar soporte
+              </a>
+              <button onClick={() => setShowCapabilityModal(false)}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </Modal>
+
         {/* Right: Preview - Sticky on desktop */}
         <div className={`${activeTab === 'consultas' ? 'hidden' : 'lg:col-span-3'}`}>
           <div className="lg:sticky lg:top-6">
@@ -1019,7 +1062,7 @@ function ConsultasSection({ slug }: { slug: string; whatsApp?: string }) {
       setLoading(true)
       const data = await apiService.get<any[]>(`/api/admin/${slug}/public-page/inquiries`)
       setInquiries(data)
-    } catch { toast('Error al cargar consultas.', 'error') }
+    } catch (err) { toast(getApiError(err), 'error') }
     setLoading(false)
   }, [slug, toast])
 
@@ -1032,8 +1075,8 @@ function ConsultasSection({ slug }: { slug: string; whatsApp?: string }) {
       if (selected?.id === id) setSelected((prev: any) => ({ ...prev, status }))
       toast('Estado actualizado.')
       return true
-    } catch {
-      toast('Error al actualizar el estado.', 'error')
+    } catch (err) {
+      toast(getApiError(err), 'error')
       return false
     }
   }

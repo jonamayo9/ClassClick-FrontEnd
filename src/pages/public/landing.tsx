@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { GalleryCarousel } from '@/components/ui/gallery-carousel'
 import { useLanding } from '@/hooks/usePublicPage'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
 import type { ContactFormConfig } from '@/types/public-page'
 
 const PRESET_COLORS: Record<string, Record<string, string>> = {
@@ -130,6 +130,7 @@ export default function LandingPage() {
   const [showForm, setShowForm] = useState(false)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
+  const [formErrorMsg, setFormErrorMsg] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   if (isLoading) {
@@ -172,13 +173,12 @@ export default function LandingPage() {
 
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setFormErrorMsg('')
     const errors: Record<string, boolean> = {}
 
-    // Always validate WhatsApp - must be valid E.164
     const e164 = formValues['whatsapp_e164'] || ''
     if (!e164 || !isValidPhoneNumber(e164)) errors['whatsapp'] = true
 
-    // Validate custom fields
     enabledFields.forEach((f) => {
       if (f.required && !formValues[f.name]?.trim()) errors[f.name] = true
     })
@@ -186,10 +186,9 @@ export default function LandingPage() {
     if (Object.keys(errors).length > 0) return
 
     setSubmitting(true)
+    let apiOk = false
     try {
       const responses: Record<string, string> = {}
-
-      // Always store stable WhatsApp fields
       const whatsappE164 = formValues['whatsapp_e164'] || ''
       if (whatsappE164) {
         responses['whatsappE164'] = whatsappE164
@@ -200,14 +199,23 @@ export default function LandingPage() {
           responses['whatsappNumber'] = whatsappE164.replace(/\D/g, '')
         }
       }
-
       enabledFields.forEach((f) => {
         if (formValues[f.name]?.trim()) responses[f.label || f.name] = formValues[f.name].trim()
       })
       await apiService.post(`/api/public/companies/${c.companySlugLanding}/inquiries`, {
         responsesJson: JSON.stringify(responses),
       })
-    } catch { /* silently fail, still open WhatsApp */ }
+      apiOk = true
+    } catch (err) {
+      const msg = getApiError(err)
+      if (import.meta.env.DEV) console.error('Error al enviar consulta:', err)
+      if (msg) setFormErrorMsg(msg)
+    }
+
+    if (!apiOk) {
+      setSubmitting(false)
+      return
+    }
 
     const parts: string[] = []
     if (formValues['whatsapp_e164']) parts.push(`WhatsApp: ${formValues['whatsapp_e164']}`)
@@ -355,6 +363,9 @@ export default function LandingPage() {
               </div>
             )
           })}
+          {formErrorMsg && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{formErrorMsg}</p>
+          )}
           <Button type="submit" loading={submitting} disabled={!formValues['whatsapp_e164'] || !isValidPhoneNumber(formValues['whatsapp_e164'])} className="w-full bg-emerald-600 text-white disabled:opacity-50">Enviar consulta por WhatsApp</Button>
         </form>
       </Modal>

@@ -135,4 +135,15 @@ export const apiService = {
   getBlob: (url: string) => api.get(url, { responseType: 'blob' }).then((r) => r.data),
 }
 
+export function getApiError(err: unknown): string {
+  if (err instanceof AxiosError && err.response?.data) {
+    const data = err.response.data as Record<string, unknown>
+    if (typeof data.message === 'string' && data.message) return data.message
+    if (typeof data.title === 'string' && data.title) return data.title
+    if (typeof data.error === 'string' && data.error) return data.error
+  }
+  if (import.meta.env.DEV) console.error('API Error:', err)
+  return 'Ocurrió un error inesperado.'
+}
+
 export default api
