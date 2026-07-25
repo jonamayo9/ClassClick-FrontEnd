@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiService } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 
 export function ForgotPasswordPage() {
+  useEffect(() => { document.querySelector('meta[name="robots"]')?.setAttribute('content', 'noindex, nofollow') }, [])
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)

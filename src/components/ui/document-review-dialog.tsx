@@ -3,8 +3,10 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { apiService } from '@/lib/api'
+import api from '@/lib/api'
 import { normalizeStatus, getStatusLabel, formatDateOnly } from '@/pages/admin/records/hooks'
 import type { StudentDocument, StudentFile } from '@/pages/admin/records/hooks'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ReviewDialogProps {
   doc: StudentDocument | null
@@ -22,6 +24,9 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewIdx, setPreviewIdx] = useState(0)
+  const [downloadError, setDownloadError] = useState('')
+  const [previewBlob, setPreviewBlob] = useState<string | null>(null)
 
   if (!doc) return null
 
@@ -29,13 +34,24 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
   const normalizedStatus = normalizeStatus(doc.status)
   const isInReview = normalizedStatus === 'En revisión'
 
-  const handlePreview = async (fileId: string) => {
+  const handlePreview = async (fileId: string, idx: number) => {
     try {
-      const r = await apiService.get<{ url: string }>(`/api/admin/${slug}/student-files/files/${fileId}/view`)
-      setPreviewUrl(r.url)
+      const blob = await apiService.getBlob(`/api/admin/${slug}/student-files/files/${fileId}/download-file`)
+      const url = URL.createObjectURL(blob)
+      if (previewBlob) URL.revokeObjectURL(previewBlob)
+      setPreviewUrl(url)
+      setPreviewBlob(url)
+      setPreviewIdx(idx)
     } catch {
       setPreviewUrl(null)
+      setPreviewBlob(null)
     }
+  }
+
+  function closePreview() {
+    if (previewBlob) URL.revokeObjectURL(previewBlob)
+    setPreviewUrl(null)
+    setPreviewBlob(null)
   }
 
   const handleSubmit = async () => {
@@ -62,25 +78,81 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
     setLoading(false)
   }
 
-  const currentFile = files[currentFileIdx]
-  const ext = currentFile?.fileName?.split('.').pop()?.toLowerCase()
+  const previewFile = files[previewIdx]
+  const ext = previewFile?.fileName?.split('.').pop()?.toLowerCase()
   const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext || '')
   const canShowInline = isImage || ext === 'pdf'
 
+  async function goPrev() {
+    if (previewIdx > 0) {
+      const newIdx = previewIdx - 1
+      const f = files[newIdx]
+      try {
+        const blob = await apiService.getBlob(`/api/admin/${slug}/student-files/files/${f.id}/download-file`)
+        const url = URL.createObjectURL(blob)
+        if (previewBlob) URL.revokeObjectURL(previewBlob)
+        setPreviewUrl(url); setPreviewBlob(url); setPreviewIdx(newIdx)
+      } catch { closePreview() }
+    }
+  }
+
+  async function goNext() {
+    if (previewIdx < files.length - 1) {
+      const newIdx = previewIdx + 1
+      const f = files[newIdx]
+      try {
+        const blob = await apiService.getBlob(`/api/admin/${slug}/student-files/files/${f.id}/download-file`)
+        const url = URL.createObjectURL(blob)
+        if (previewBlob) URL.revokeObjectURL(previewBlob)
+        setPreviewUrl(url); setPreviewBlob(url); setPreviewIdx(newIdx)
+      } catch { closePreview() }
+    }
+  }
+
+  async function downloadCurrentFile() {
+    setDownloadError('')
+    try {
+      if (files.length === 1) {
+        const blob = await apiService.getBlob(`/api/admin/${slug}/student-files/files/${files[0].id}/download-file`)
+        const url = URL.createObjectURL(blob); const a = document.createElement('a')
+        a.href = url; a.download = files[0].fileName; a.click(); URL.revokeObjectURL(url)
+      } else {
+        const resp = await api.post(`/api/admin/${slug}/student-files/documents/download-zip`,
+          { fileIds: files.map(f => f.id) }, { responseType: 'blob' })
+        const blob = resp.data
+        const url = URL.createObjectURL(blob); const a = document.createElement('a')
+        a.href = url; a.download = 'documentos.zip'; a.click(); URL.revokeObjectURL(url)
+      }
+    } catch { setDownloadError('Error al descargar.') }
+  }
+
   return (
-    <Modal open={!!doc} onClose={previewUrl ? () => { setPreviewUrl(null) } : onClose}
+    <Modal open={!!doc} onClose={previewUrl ? () => { closePreview() } : onClose}
       title={doc.documentTypeName || 'Documento'} className="sm:max-w-3xl">
 
       {previewUrl ? (
         <div className="flex flex-col" style={{ maxHeight: '80vh' }}>
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-700">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{currentFile?.fileName}</span>
-            <div className="flex gap-2">
-              <a href={previewUrl} target="_blank" rel="noreferrer"
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{previewFile?.fileName}</span>
+            <div className="flex items-center gap-2">
+              {files.length > 1 && (
+                <>
+                  <button type="button" onClick={goPrev} disabled={previewIdx === 0}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-xs text-slate-500">{previewIdx + 1} de {files.length}</span>
+                  <button type="button" onClick={goNext} disabled={previewIdx >= files.length - 1}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={downloadCurrentFile}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 Descargar
-              </a>
-              <button onClick={() => setPreviewUrl(null)}
+              </button>
+              <button onClick={closePreview}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 Volver
               </button>
@@ -90,7 +162,7 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
             {isImage ? (
               <img src={previewUrl} alt="" className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg object-contain" />
             ) : (
-              <iframe src={previewUrl} title={currentFile?.fileName} className="h-[70vh] w-full rounded-lg border-0" />
+              <iframe src={previewUrl} title={previewFile?.fileName} className="h-[70vh] w-full rounded-lg border-0" />
             )}
           </div>
         </div>
@@ -120,19 +192,25 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
             </p>
             {files.map((f, i) => (
               <div key={f.id}
-                className={`flex items-center gap-3 rounded-xl border p-3 transition ${i === currentFileIdx ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-700'}`}
-                onClick={() => { setCurrentFileIdx(i); handlePreview(f.id) }}>
+                className={`flex items-center gap-3 rounded-xl border p-3 transition cursor-pointer ${i === currentFileIdx ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-700'}`}
+                onClick={() => { setCurrentFileIdx(i); handlePreview(f.id, i) }}>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{f.fileName}</p>
                   <p className="text-xs text-slate-400">{f.mimeType || '—'}</p>
                 </div>
-                <a href={`/api/admin/${slug}/student-files/files/${f.id}/download`} target="_blank" rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  Descargar
-                </a>
               </div>
             ))}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="button" onClick={() => { if (files.length > 0) handlePreview(files[0].id, 0) }}
+                className="rounded-lg bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-300">
+                Ver documentos
+              </button>
+              <button type="button" onClick={downloadCurrentFile}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300">
+                Descargar documento
+              </button>
+              {downloadError && <p className="w-full text-xs text-red-500">{downloadError}</p>}
+            </div>
 
             {doc.requestNote && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-800">

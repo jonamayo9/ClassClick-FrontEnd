@@ -260,6 +260,14 @@ export interface AdminDocumentItem {
   fileId: string | null
   fileName: string | null
   fileMimeType: string | null
+  sourceFileCount: number
+  maxFiles: number
+}
+
+export interface AssignmentViewResult {
+  url?: string | null
+  isCanonical: boolean
+  files?: { id: string; fileName: string; mimeType: string }[]
 }
 
 export function useAllDocuments(filters: {

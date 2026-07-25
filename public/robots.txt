@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /home
+Disallow: /student
+Disallow: /app
+Disallow: /api
+
+Sitemap: https://classclick.com.ar/sitemap.xml

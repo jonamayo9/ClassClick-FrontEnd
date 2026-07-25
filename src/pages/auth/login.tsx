@@ -4,6 +4,7 @@ import { useAuth } from '@/stores/auth'
 import { useTheme } from '@/stores/theme'
 import { subscribeToPush } from '@/lib/push'
 import { config } from '@/lib/config'
+import { Seo } from '@/components/seo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { ThemeMode } from '@/types/auth'
@@ -38,6 +39,10 @@ function navigateByRole(navigate: ReturnType<typeof useNavigate>) {
 }
 
 export function LoginPage() {
+  useEffect(() => {
+    document.querySelector('meta[name="robots"]')?.setAttribute('content', 'noindex, nofollow')
+  }, [])
+
   const { login, loginWithGoogle } = useAuth()
   const { mode, setMode } = useTheme()
   const navigate = useNavigate()

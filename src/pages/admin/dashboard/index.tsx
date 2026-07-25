@@ -3,6 +3,7 @@ import { useAuth } from '@/stores/auth'
 import { apiService } from '@/lib/api'
 import { useDashboardKpis, useStudentDistribution, useChargeDistribution, useDocumentDistribution,
   useAttendanceDistribution, useIncomeEvolution, useStudentEvolution, useDashboardAlerts, useUpcomingItems } from '@/hooks/useDashboard'
+import { DateRangePicker } from '@/components/ui/date-picker'
 import { KpiCard } from './components/KpiCard'
 import { DonutChart } from './components/DonutChart'
 import { LineChartWidget } from './components/LineChart'
@@ -11,41 +12,81 @@ import { UpcomingTable } from './components/UpcomingTable'
 import { EstadoGeneralCard } from './components/EstadoGeneralCard'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
 
+function formatPeriodTitle(from: string, to: string): string {
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }
+  const f = new Date(from + 'T12:00:00')
+  const t = new Date(to + 'T12:00:00')
+  const days = Math.round((t.getTime() - f.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  const isRangeToToday = to === new Date().toISOString().slice(0, 10)
+  if (days <= 31) {
+    return `${f.getDate()} ${f.toLocaleString('es-AR', { month: 'short' })}` +
+      (days > 1 ? ` al ${t.getDate()} ${t.toLocaleString('es-AR', { month: 'short' })}` : '') +
+      (f.getFullYear() !== t.getFullYear() || from.slice(0, 4) !== to.slice(0, 4) ? ` ${t.getFullYear()}` : '')
+  }
+  if (isRangeToToday && days <= 365) {
+    const m = Math.round(days / 30)
+    return `últimos ${m} ${m === 1 ? 'mes' : 'meses'}`
+  }
+  return `${f.toLocaleDateString('es-AR', opts)} al ${t.toLocaleDateString('es-AR', opts)}`
+}
+
 export function AdminDashboard() {
   const { activeCompanySlug, dashboardAlertsShown, dismissAlerts } = useAuth()
   const slug = activeCompanySlug ?? ''
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null)
   const now = useMemo(() => new Date(), [])
-  const [filterYear, setFilterYear] = useState(now.getFullYear())
-  const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1)
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(1)
+    return d.toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dateRangeError, setDateRangeError] = useState('')
+  const [hasCustomPeriod, setHasCustomPeriod] = useState(false)
 
-  const kpis = useDashboardKpis(slug)
-  const studentsDist = useStudentDistribution(slug)
-  const chargesDist = useChargeDistribution(slug)
-  const docsDist = useDocumentDistribution(slug)
-  const attendanceDist = useAttendanceDistribution(slug)
-  const incomeEvo = useIncomeEvolution(slug)
-  const studentsEvo = useStudentEvolution(slug)
-  const alerts = useDashboardAlerts(slug)
-  const upcoming = useUpcomingItems(slug)
+  // Evolution: only pass period when user explicitly applied a custom range → dynamic granularity
+  const evoFrom = hasCustomPeriod ? dateFrom : undefined
+  const evoTo = hasCustomPeriod ? dateTo : undefined
+
+  const kpis = useDashboardKpis(slug, dateFrom, dateTo)
+  const studentsDist = useStudentDistribution(slug, dateFrom, dateTo)
+  const chargesDist = useChargeDistribution(slug, dateFrom, dateTo)
+  const docsDist = useDocumentDistribution(slug, dateFrom, dateTo)
+  const attendanceDist = useAttendanceDistribution(slug, dateFrom, dateTo)
+  const incomeEvo = useIncomeEvolution(slug, evoFrom, evoTo)
+  const studentsEvo = useStudentEvolution(slug, evoFrom, evoTo)
+  const alerts = useDashboardAlerts(slug, dateFrom, dateTo)
+  const upcoming = useUpcomingItems(slug, dateFrom, dateTo)
 
   const loading = kpis.isLoading
 
-  const buildFilterParams = useCallback(() => {
-    const params = new URLSearchParams()
-    params.set('Year', String(filterYear))
-    params.set('Month', String(filterMonth))
-    return params.toString()
-  }, [filterYear, filterMonth])
+  function handleDateChange(from: string, to: string) {
+    setDateFrom(from)
+    setDateTo(to)
+    setHasCustomPeriod(true)
+    if (from && to && from > to) {
+      setDateRangeError('La fecha "desde" no puede ser posterior a "hasta".')
+    } else {
+      setDateRangeError('')
+    }
+  }
+
+  function clearPeriod() {
+    const d = new Date(); d.setDate(1)
+    setDateFrom(d.toISOString().slice(0, 10))
+    setDateTo(new Date().toISOString().slice(0, 10))
+    setHasCustomPeriod(false)
+    setDateRangeError('')
+  }
 
   const handleExport = useCallback(async (format: 'excel' | 'pdf') => {
     if (!slug) return
     setExporting(format)
     try {
-      const qs = buildFilterParams()
-      const endpoint = qs
-        ? `/api/admin/${slug}/reports/collections/${format}?${qs}`
-        : `/api/admin/${slug}/reports/collections/${format}`
+      const params = new URLSearchParams()
+      if (dateFrom) params.set('DateFromUtc', dateFrom)
+      if (dateTo) params.set('DateToUtc', dateTo)
+      const qs = params.toString()
+      const endpoint = `/api/admin/${slug}/reports/collections/${format}?${qs}`
       const blob = await apiService.getBlob(endpoint)
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -59,7 +100,7 @@ export function AdminDashboard() {
       // silent
     }
     setExporting(null)
-  }, [slug])
+  }, [slug, dateFrom, dateTo])
 
   if (loading) return <DashboardSkeleton />
 
@@ -167,28 +208,20 @@ export function AdminDashboard() {
       </div>
 
       {/* Filters + Export */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <select value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('es-AR', { month: 'long' })}</option>
-            ))}
-          </select>
-          <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+      <div className="space-y-3 sm:flex sm:items-end sm:justify-between sm:gap-3 sm:space-y-0">
+        <div className="min-w-0 sm:max-w-xs">
+          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Período</label>
+          <DateRangePicker from={dateFrom} to={dateTo}
+            onChange={({ from: f, to: t }) => handleDateChange(f, t)} />
+          {dateRangeError && <p className="mt-0.5 text-xs text-red-500">{dateRangeError}</p>}
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => handleExport('excel')} disabled={exporting !== null}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => handleExport('excel')} disabled={exporting !== null}
+            className="min-h-[2.5rem] rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             {exporting === 'excel' ? 'Exportando...' : 'Exportar Excel'}
           </button>
-          <button onClick={() => handleExport('pdf')} disabled={exporting !== null}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <button type="button" onClick={() => handleExport('pdf')} disabled={exporting !== null}
+            className="min-h-[2.5rem] rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             {exporting === 'pdf' ? 'Exportando...' : 'Exportar PDF'}
           </button>
         </div>
@@ -198,14 +231,14 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <DonutChart data={studentsDist.data ?? []} title="Alumnos" centerLabel="alumnos" centerValue={k?.activeStudents} loading={studentsDist.isLoading} />
         <DonutChart data={chargesDist.data ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading} />
-        <DonutChart data={docsDist.data ?? []} title="Documentación" centerLabel="documentos" loading={docsDist.isLoading} />
+        <DonutChart data={docsDist.data ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading} />
         <DonutChart data={attendanceDist.data ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading} />
       </div>
 
       {/* Fila 3: Líneas de evolución */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <LineChartWidget data={incomeEvo.data ?? []} title="Ingresos últimos 12 meses" color="#10b981" format="currency" loading={incomeEvo.isLoading} />
-        <LineChartWidget data={studentsEvo.data ?? []} title="Altas de alumnos últimos 12 meses" color="#6366f1" format="number" loading={studentsEvo.isLoading} />
+        <LineChartWidget data={incomeEvo.data ?? []} title={hasCustomPeriod ? `Ingresos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Ingresos últimos 12 meses'} color="#10b981" format="currency" loading={incomeEvo.isLoading} />
+        <LineChartWidget data={studentsEvo.data ?? []} title={hasCustomPeriod ? `Altas de alumnos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Altas de alumnos últimos 12 meses'} color="#6366f1" format="number" loading={studentsEvo.isLoading} />
       </div>
 
       {/* Fila 5: Próximos vencimientos */}
