@@ -24,13 +24,17 @@ export default function AdminQrScanPage() {
 
   const handleScan = useCallback(async (token: string) => {
     if (!classId) return
+    const preview = token.length > 25 ? token.slice(0, 15) + '...' + token.slice(-10) : token
+    console.log('QR scan:', preview, 'class:', classId)
     setScannerError(null)
     resetError()
     try {
       const result = await scan(token, classId)
+      console.log('QR result:', result.status, result.message || '')
       setScanResult(result)
       setPaused(true)
-    } catch {
+    } catch (err) {
+      console.warn('QR scan failed:', err)
       setPaused(false)
     }
   }, [classId, scan, resetError])

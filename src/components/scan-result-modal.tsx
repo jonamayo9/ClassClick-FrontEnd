@@ -46,9 +46,10 @@ function getModalContent(result: ScanAttendanceResponse) {
     default:
       return {
         icon: '⚠️',
-        title: result.status === 'invalid'
+        title: result.message || (result.status === 'invalid'
           ? 'Código QR inválido.'
-          : 'No pudimos registrar la asistencia. Intentá nuevamente.',
+          : 'No pudimos registrar la asistencia. Intentá nuevamente.'),
+        subtitle: result.status !== 'invalid' && result.message ? undefined : undefined,
         isError: true,
         isWarning: false,
       }

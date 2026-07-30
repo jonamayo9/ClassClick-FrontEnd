@@ -7,6 +7,7 @@ export interface ScanAttendanceStudent {
 
 export interface ScanAttendanceResponse {
   status: string
+  message?: string
   attendanceId?: string
   alreadyRegistered?: boolean
   student?: ScanAttendanceStudent
