@@ -41,7 +41,9 @@ import PaymentProofsPage from '@/pages/admin/clothing/payment-proofs/page'
 import CancellationsPage from '@/pages/admin/clothing/cancellations/page'
 import SettingsPage from '@/pages/admin/clothing/settings/page'
 import AttendancePage from '@/pages/admin/attendance/page'
+import AdminQrScanPage from '@/pages/admin/attendance/qr-scan'
 import TeacherAttendancePage from '@/pages/teacher/attendance/page'
+import TeacherQrScanPage from '@/pages/teacher/attendance/qr-scan'
 import TeacherHomePage from '@/pages/teacher/home'
 import TeacherCoursesPage from '@/pages/teacher/courses'
 import TeacherCourseDetailPage from '@/pages/teacher/course-detail'
@@ -185,6 +187,7 @@ export default function App() {
             <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
             <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
             <Route path="attendance" element={<AttendancePage />} />
+            <Route path="attendance/qr-scan/:classId" element={<AdminQrScanPage />} />
             <Route path="company" element={<CompanyPage />} />
             <Route path="public-page" element={<PublicPageAdmin />} />
             <Route path="profile" element={<ProfilePage />} />
@@ -217,6 +220,7 @@ export default function App() {
             <Route path="courses" element={<TeacherCoursesPage />} />
             <Route path="courses/:id" element={<TeacherCourseDetailPage />} />
             <Route path="attendance" element={<TeacherAttendancePage />} />
+            <Route path="attendance/qr-scan/:classId" element={<TeacherQrScanPage />} />
             <Route path="profile" element={<TeacherProfilePage />} />
           </Route>
 

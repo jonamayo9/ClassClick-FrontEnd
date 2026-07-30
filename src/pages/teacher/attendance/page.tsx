@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,9 +7,11 @@ import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DayNavigator } from '@/components/ui/day-navigator'
+import { QrScanView } from '@/components/qr-scan-view'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
+import { hasModule } from '@/hooks/useModule'
 
 function useSlug() { return useAuth((s) => s.activeCompanySlug ?? '') }
 
@@ -40,21 +43,24 @@ interface AttendanceRecord { studentId: string; present: boolean }
 
 function TeacherAttendanceInner() {
   const toast = useToast()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const slug = useSlug()
   const userName = useAuth((s) => s.user?.name ?? 'Docente')
-
-  const { data: courses = [], isLoading: loadingCourses } = useQuery({
-    queryKey: ['teacher-courses', slug],
-    queryFn: () => apiService.get<Course[]>(`/api/teacher/courses`),
-    enabled: !!slug,
-  })
+  const qrEnabled = hasModule('qr_attendance')
+  const [mode, setMode] = useState<'qr' | 'manual'>(qrEnabled ? 'qr' : 'manual')
 
   const [courseId, setCourseId] = useState('')
   const [classId, setClassId] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [records, setRecords] = useState<Record<string, boolean>>({})
   const prevRef = useRef('')
+
+  const { data: courses = [], isLoading: loadingCourses } = useQuery({
+    queryKey: ['teacher-courses', slug],
+    queryFn: () => apiService.get<Course[]>(`/api/teacher/courses`),
+    enabled: !!slug,
+  })
 
   const { data: classes = [], isLoading: loadingClasses } = useQuery({
     queryKey: ['teacher-classes', slug, courseId],
@@ -123,101 +129,169 @@ function TeacherAttendanceInner() {
           <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-4xl">Asistencias</h1>
           <p className="mt-1 text-sm text-emerald-200">Bienvenido, {userName}</p>
         </div>
-        <div className="relative mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-          <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Presentes</p>
-            <p className="mt-0.5 text-xl font-bold">{presentCount}</p>
+        {mode === 'manual' && (
+          <div className="relative mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Presentes</p>
+              <p className="mt-0.5 text-xl font-bold">{presentCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Ausentes</p>
+              <p className="mt-0.5 text-xl font-bold">{students.length - presentCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Total</p>
+              <p className="mt-0.5 text-xl font-bold">{students.length}</p>
+            </div>
           </div>
-          <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Ausentes</p>
-            <p className="mt-0.5 text-xl font-bold">{students.length - presentCount}</p>
-          </div>
-          <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Total</p>
-            <p className="mt-0.5 text-xl font-bold">{students.length}</p>
-          </div>
-        </div>
+        )}
       </section>
 
-      <Card className="p-5 space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[200px] flex-1">
-            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Curso</label>
-            <Select value={courseId} onChange={(e) => handleCourseChange(e.target.value)} disabled={loadingCourses}>
-              <option value="">Seleccionar curso</option>
-              {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </div>
-          {courseId && (
+      {/* Mode selector */}
+      {qrEnabled && (
+        <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+          <button type="button" onClick={() => setMode('qr')}
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${
+              mode === 'qr'
+                ? 'bg-white shadow-sm dark:bg-slate-700'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}>
+            📷 Escanear QR
+          </button>
+          <button type="button" onClick={() => setMode('manual')}
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${
+              mode === 'manual'
+                ? 'bg-white shadow-sm dark:bg-slate-700'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}>
+            ✍ Asistencia manual
+          </button>
+        </div>
+      )}
+
+      {mode === 'qr' && qrEnabled && (
+        <Card className="p-5 space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[200px] flex-1">
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Clase (horario)</label>
-              <Select value={classId} onChange={(e) => setClassId(e.target.value)} disabled={loadingClasses}>
-                <option value="">Seleccionar clase</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {DAY_LABELS[c.dayOfWeek] ?? c.dayOfWeek} {c.startTime}{c.endTime ? ` - ${c.endTime}` : ''}
-                  </option>
-                ))}
+              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Curso</label>
+              <Select value={courseId} onChange={(e) => handleCourseChange(e.target.value)} disabled={loadingCourses}>
+                <option value="">Seleccionar curso</option>
+                {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
             </div>
-          )}
-          {classId && (
-            <div className="min-w-[180px]">
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha</label>
-              <DayNavigator date={date} onChange={setDate} dayOfWeek={selectedClass?.dayOfWeek} />
-            </div>
-          )}
-        </div>
-
-        {selectedClass && (
-          <div className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300">
-            {DAY_LABELS[selectedClass.dayOfWeek] ?? selectedClass.dayOfWeek} {selectedClass.startTime}{selectedClass.endTime ? ` - ${selectedClass.endTime}` : ''}
+            {courseId && (
+              <div className="min-w-[200px] flex-1">
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Clase (horario)</label>
+                <Select value={classId} onChange={(e) => setClassId(e.target.value)} disabled={loadingClasses}>
+                  <option value="">Seleccionar clase</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {DAY_LABELS[c.dayOfWeek] ?? c.dayOfWeek} {c.startTime}{c.endTime ? ` - ${c.endTime}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            {classId && (
+              <div className="min-w-[180px]">
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha</label>
+                <DayNavigator date={date} onChange={setDate} dayOfWeek={selectedClass?.dayOfWeek} />
+              </div>
+            )}
           </div>
-        )}
 
-        {!classId ? (
-          <EmptyState icon="📋" title="Seleccioná tu curso y clase" description="Elegí el curso, la clase y la fecha para tomar asistencia." />
-        ) : loadingStudents ? (
-          <div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-emerald-600" /></div>
-        ) : students.length === 0 ? (
-          <EmptyState icon="👤" title="Sin alumnos" description="Este curso no tiene alumnos." />
-        ) : (
-          <>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/50">
-                  <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                    <th className="px-4 py-3">Alumno</th>
-                    <th className="px-4 py-3 text-center">Presente</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {students.map((s, idx) => {
-                    const bg = idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'
-                    const present = records[s.id] ?? false
-                    return (
-                      <tr key={s.id} className={bg}>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{s.fullName}</td>
-                        <td className="px-4 py-3 text-center">
-                          <button type="button" onClick={() => togglePresent(s.id)}
-                            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border-2 transition ${present
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
-                              : 'border-slate-200 text-slate-300 hover:border-slate-400 dark:border-slate-600 dark:text-slate-600'}`}>
-                            {present ? <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : null}
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+          <QrScanView
+            courseId={courseId}
+            classId={classId}
+            courseName={selectedClass?.courseName ?? ''}
+            className={selectedClass ? `${DAY_LABELS[selectedClass.dayOfWeek] ?? ''} ${selectedClass.startTime}${selectedClass.endTime ? ` - ${selectedClass.endTime}` : ''}` : ''}
+            hasClass={!!classId}
+            basePath="/teacher/attendance/qr-scan"
+          />
+        </Card>
+      )}
+
+      {mode === 'manual' && (
+        <Card className="p-5 space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[200px] flex-1">
+              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Curso</label>
+              <Select value={courseId} onChange={(e) => handleCourseChange(e.target.value)} disabled={loadingCourses}>
+                <option value="">Seleccionar curso</option>
+                {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
             </div>
-            <div className="flex justify-end pt-1">
-              <Button onClick={handleSave} loading={saveMutation.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">Guardar asistencia</Button>
+            {courseId && (
+              <div className="min-w-[200px] flex-1">
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Clase (horario)</label>
+                <Select value={classId} onChange={(e) => setClassId(e.target.value)} disabled={loadingClasses}>
+                  <option value="">Seleccionar clase</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {DAY_LABELS[c.dayOfWeek] ?? c.dayOfWeek} {c.startTime}{c.endTime ? ` - ${c.endTime}` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            {classId && (
+              <div className="min-w-[180px]">
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha</label>
+                <DayNavigator date={date} onChange={setDate} dayOfWeek={selectedClass?.dayOfWeek} />
+              </div>
+            )}
+          </div>
+
+          {selectedClass && (
+            <div className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300">
+              {DAY_LABELS[selectedClass.dayOfWeek] ?? selectedClass.dayOfWeek} {selectedClass.startTime}{selectedClass.endTime ? ` - ${selectedClass.endTime}` : ''}
             </div>
-          </>
-        )}
-      </Card>
+          )}
+
+          {!classId ? (
+            <EmptyState icon="📋" title="Seleccioná tu curso y clase" description="Elegí el curso, la clase y la fecha para tomar asistencia." />
+          ) : loadingStudents ? (
+            <div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-emerald-600" /></div>
+          ) : students.length === 0 ? (
+            <EmptyState icon="👤" title="Sin alumnos" description="Este curso no tiene alumnos." />
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50">
+                    <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      <th className="px-4 py-3">Alumno</th>
+                      <th className="px-4 py-3 text-center">Presente</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {students.map((s, idx) => {
+                      const bg = idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'
+                      const present = records[s.id] ?? false
+                      return (
+                        <tr key={s.id} className={bg}>
+                          <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{s.fullName}</td>
+                          <td className="px-4 py-3 text-center">
+                            <button type="button" onClick={() => togglePresent(s.id)}
+                              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border-2 transition ${present
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                : 'border-slate-200 text-slate-300 hover:border-slate-400 dark:border-slate-600 dark:text-slate-600'}`}>
+                              {present ? <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : null}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSave} loading={saveMutation.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">Guardar asistencia</Button>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
     </div>
   )
 }

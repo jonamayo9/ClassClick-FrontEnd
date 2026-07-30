@@ -1,12 +1,69 @@
 import { useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/stores/auth'
 import { imgUrl } from '@/lib/media'
 import { useStudentProfile, useProfilePhotoUrl } from './student.hooks'
+import { useQrToken } from '@/hooks/useQrToken'
+import { hasModule } from '@/hooks/useModule'
 
 function AvatarPhoto({ src, initials }: { src: string | null; initials: string }) {
   const [failed, setFailed] = useState(false)
   if (!src || failed) return <span className="text-2xl font-bold text-slate-400">{initials}</span>
   return <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+}
+
+function formatCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function QrSection() {
+  const { token, secondsRemaining, isLoading, isRefreshing, error, refresh } = useQrToken()
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-4">
+        <div className="flex h-[180px] w-[180px] items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+          <span className="text-xs text-slate-400">Generando código seguro...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !token) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-4">
+        <div className="flex h-[180px] w-[180px] flex-col items-center justify-center gap-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+          <span className="text-xs text-slate-400 text-center px-4">{error}</span>
+          <button onClick={refresh}
+            className="rounded-lg bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-violet-700">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!token) return null
+
+  return (
+    <div className="flex flex-col items-center gap-2 pb-3">
+      <div className="rounded-2xl bg-white p-3 shadow-sm">
+        <QRCodeSVG value={token} size={180} level="M" />
+      </div>
+      {isRefreshing ? (
+        <span className="text-[10px] text-violet-600">Actualizando código...</span>
+      ) : (
+        <span className="text-[10px] text-slate-400">
+          Se actualiza en {formatCountdown(secondsRemaining)}
+        </span>
+      )}
+      {error && token && (
+        <span className="text-[10px] text-amber-600 text-center px-4">{error}</span>
+      )}
+    </div>
+  )
 }
 
 export function StudentCarnetModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -16,6 +73,7 @@ export function StudentCarnetModal({ open, onClose }: { open: boolean; onClose: 
   const companies = useAuth((s) => s.companies)
   const slug = useAuth((s) => s.activeCompanySlug)
   const company = companies.find((c) => (c.slug ?? c.companySlug) === slug)
+  const qrEnabled = hasModule('qr_attendance')
 
   const name = profile?.fullName || `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`.trim() || user?.name || 'Alumno'
   const initials = name.split(' ').map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2) || 'AL'
@@ -74,6 +132,17 @@ export function StudentCarnetModal({ open, onClose }: { open: boolean; onClose: 
             <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">Alumno</p>
           </div>
         </div>
+
+        {/* QR code section */}
+        {qrEnabled ? (
+          <QrSection />
+        ) : (
+          <div className="px-5 pb-3">
+            <p className="text-center text-[10px] text-slate-400">
+              La asistencia por QR no está habilitada para esta institución.
+            </p>
+          </div>
+        )}
 
         <p className="pb-5 text-center text-[10px] text-slate-400">Presentar este carnet cuando la institución lo solicite</p>
       </div>

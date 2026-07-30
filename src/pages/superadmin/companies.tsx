@@ -33,6 +33,7 @@ function CompaniesInner() {
   const [modules, setModules] = useState<Record<string, boolean>>({
     payments: true, documents: true, news: true, sponsors: false,
     matches: false, clothing: false, tournaments: false, notifications: true,
+    qr_attendance: false,
   })
   const [clothing, setClothing] = useState({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
   const [paymentMethods, setPaymentMethods] = useState<Record<string, { enabled: boolean; autoCollection: boolean }>>({
@@ -153,7 +154,7 @@ function CompaniesInner() {
   function closeForm() { setShowForm(false); setEditId(null); setSlugTouched(false); setLogoFile(null); setLogoPreview(null) }
   function resetForm() {
     setForm({ name: '', slug: '', description: '', email: '', phone: '', whatsapp: '', addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '', isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false, companySlugLanding: '' })
-    setModules({ payments: true, documents: true, news: true, sponsors: false, matches: false, clothing: false, tournaments: false, notifications: true })
+    setModules({ payments: true, documents: true, news: true, sponsors: false, matches: false, clothing: false, tournaments: false, notifications: true, qr_attendance: false })
     setClothing({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
     setPaymentMethods({
       Transfer: { enabled: false, autoCollection: false },
@@ -170,14 +171,14 @@ function CompaniesInner() {
     setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive, emailNotificationsEnabled: c.emailNotificationsEnabled ?? false, companySlugLanding: c.companySlugLanding ?? '' })
     setShowForm(true)
     // Load existing payment methods
-    apiService.get<{ paymentMethod: string | number; enabledBySuperAdmin: boolean }[]>(`/api/superadmin/companies/${c.id}/payment-methods`).then((pms) => {
+    apiService.get<{ paymentMethod: string | number; enabledBySuperAdmin: boolean; autoCollectionEnabledBySuperAdmin?: boolean }[]>(`/api/superadmin/companies/${c.id}/payment-methods`).then((pms) => {
       const nameMap: Record<string, string> = { 'Transfer': 'Transfer', 'DebitCard': 'DebitCard', 'CreditCard': 'CreditCard', 'MercadoPago': 'MercadoPago', 'Cash': 'Cash' }
       const intMap: Record<number, string> = { 1: 'Transfer', 2: 'DebitCard', 3: 'CreditCard', 4: 'MercadoPago', 5: 'Cash' }
       setPaymentMethods((prev) => {
         const updated = { ...prev }
         for (const pm of pms) {
           const key = typeof pm.paymentMethod === 'string' ? nameMap[pm.paymentMethod] : intMap[pm.paymentMethod]
-          if (key) updated[key] = { ...updated[key], enabled: pm.enabledBySuperAdmin }
+          if (key) updated[key] = { enabled: pm.enabledBySuperAdmin, autoCollection: pm.autoCollectionEnabledBySuperAdmin ?? false }
         }
         return updated
       })
