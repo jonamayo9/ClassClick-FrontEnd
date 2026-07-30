@@ -58,6 +58,7 @@ function AttendancePageInner() {
   const saveMutation = useSaveAttendance()
 
   const [records, setRecords] = useState<Record<string, boolean>>({})
+  const [sources, setSources] = useState<Record<string, string>>({})
   const prevKeyRef = useRef('')
 
   useEffect(() => {
@@ -65,12 +66,19 @@ function AttendancePageInner() {
     if (key !== prevKeyRef.current) {
       prevKeyRef.current = key
       const map: Record<string, boolean> = {}
-      attendanceRecords.forEach((r) => { map[r.studentId] = r.present })
+      const srcMap: Record<string, string> = {}
+      attendanceRecords.forEach((r) => { map[r.studentId] = r.present; srcMap[r.studentId] = r.source ?? 'Manual' })
       setRecords(map)
+      setSources(srcMap)
     }
   }, [selectedClass, date, attendanceRecords])
 
+  function isQrLocked(studentId: string): boolean {
+    return sources[studentId] === 'QrScan' && records[studentId] === true
+  }
+
   function togglePresent(studentId: string) {
+    if (isQrLocked(studentId)) return
     setRecords((prev) => ({ ...prev, [studentId]: !(prev[studentId] ?? false) }))
   }
 
@@ -89,8 +97,16 @@ function AttendancePageInner() {
     try {
       await saveMutation.mutateAsync({ classId: selectedClass, date, students })
       toast('Asistencia guardada.')
-    } catch {
-      toast('Error al guardar.', 'error')
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { message?: string } | string; status?: number } }
+      if (axiosError?.response?.status === 409) {
+        const msg = typeof axiosError.response.data === 'string'
+          ? axiosError.response.data
+          : axiosError.response.data?.message
+        toast(msg || 'Error al guardar.', 'error')
+      } else {
+        toast('Error al guardar.', 'error')
+      }
     }
   }
 
@@ -266,14 +282,25 @@ function AttendancePageInner() {
                             const present = records[r.studentId] ?? false
                             return (
                               <tr key={r.studentId} className={bg}>
-                                <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{r.studentName}</td>
+                                <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                                  <div className="flex items-center gap-2">
+                                    <span>{r.studentName}</span>
+                                    {isQrLocked(r.studentId) && (
+                                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                        QR
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="px-4 py-3 text-slate-500">{r.dni ?? '-'}</td>
                                 <td className="px-4 py-3 text-center">
-                                  <button type="button" onClick={() => togglePresent(r.studentId)}
+                                  <button type="button" onClick={() => togglePresent(r.studentId)} disabled={isQrLocked(r.studentId)}
                                     className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border-2 transition ${
-                                      present
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
-                                        : 'border-slate-200 text-slate-300 hover:border-slate-400 dark:border-slate-600 dark:text-slate-600'
+                                      isQrLocked(r.studentId)
+                                        ? 'cursor-not-allowed border-blue-300 bg-blue-50 text-blue-500 opacity-75 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                                        : present
+                                          ? 'border-emerald-500 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                          : 'border-slate-200 text-slate-300 hover:border-slate-400 dark:border-slate-600 dark:text-slate-600'
                                     }`}>
                                     {present ? (
                                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

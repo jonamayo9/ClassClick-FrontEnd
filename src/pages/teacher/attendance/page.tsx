@@ -39,7 +39,7 @@ const DAY_LABELS: Record<string, string> = {
 interface Course { id: string; name: string }
 interface ClassItem { id: string; courseId: string; courseName: string; dayOfWeek: string; startTime: string; endTime?: string }
 interface Student { id: string; fullName: string; dni?: string }
-interface AttendanceRecord { studentId: string; present: boolean }
+interface AttendanceRecord { studentId: string; present: boolean; source?: string }
 
 function TeacherAttendanceInner() {
   const toast = useToast()
@@ -54,6 +54,7 @@ function TeacherAttendanceInner() {
   const [classId, setClassId] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [records, setRecords] = useState<Record<string, boolean>>({})
+  const [sources, setSources] = useState<Record<string, string>>({})
   const prevRef = useRef('')
 
   const { data: courses = [], isLoading: loadingCourses } = useQuery({
@@ -85,23 +86,40 @@ function TeacherAttendanceInner() {
     },
   })
 
-  const syncKey = classId ? `${classId}-${date}-${existingAttendance.map(r => r.studentId + r.present).join(',')}` : ''
+  const syncKey = classId ? `${classId}-${date}-${existingAttendance.map(r => r.studentId + r.present + (r.source ?? '')).join(',')}` : ''
 
   if (syncKey && syncKey !== prevRef.current) {
     prevRef.current = syncKey
     const map: Record<string, boolean> = {}
-    existingAttendance.forEach((r: AttendanceRecord) => { map[r.studentId] = r.present })
+    const srcMap: Record<string, string> = {}
+    existingAttendance.forEach((r: AttendanceRecord) => { map[r.studentId] = r.present; srcMap[r.studentId] = r.source ?? 'Manual' })
     setRecords(map)
+    setSources(srcMap)
+  }
+
+  function isQrLocked(studentId: string): boolean {
+    return sources[studentId] === 'QrScan' && records[studentId] === true
   }
 
   const saveMutation = useMutation({
     mutationFn: (body: { classId: string; date: string; students: { studentId: string; present: boolean }[] }) =>
       apiService.post(`/api/teacher/attendance`, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['teacher-attendance'] }); toast('Asistencia guardada.') },
-    onError: () => toast('Error al guardar.', 'error'),
+    onError: (err: unknown) => {
+      const axiosError = err as { response?: { data?: { message?: string } | string; status?: number } }
+      if (axiosError?.response?.status === 409) {
+        const msg = typeof axiosError.response.data === 'string'
+          ? axiosError.response.data
+          : axiosError.response.data?.message
+        toast(msg || 'Error al guardar.', 'error')
+      } else {
+        toast('Error al guardar.', 'error')
+      }
+    },
   })
 
   function togglePresent(studentId: string) {
+    if (isQrLocked(studentId)) return
     setRecords((prev) => ({ ...prev, [studentId]: !(prev[studentId] ?? false) }))
   }
 
@@ -270,12 +288,25 @@ function TeacherAttendanceInner() {
                       const present = records[s.id] ?? false
                       return (
                         <tr key={s.id} className={bg}>
-                          <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{s.fullName}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                            <div className="flex items-center gap-2">
+                              <span>{s.fullName}</span>
+                              {isQrLocked(s.id) && (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                  QR
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-center">
-                            <button type="button" onClick={() => togglePresent(s.id)}
-                              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border-2 transition ${present
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
-                                : 'border-slate-200 text-slate-300 hover:border-slate-400 dark:border-slate-600 dark:text-slate-600'}`}>
+                            <button type="button" onClick={() => togglePresent(s.id)} disabled={isQrLocked(s.id)}
+                              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border-2 transition ${
+                                isQrLocked(s.id)
+                                  ? 'cursor-not-allowed border-blue-300 bg-blue-50 text-blue-500 opacity-75 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                                  : present
+                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                    : 'border-slate-200 text-slate-300 hover:border-slate-400 dark:border-slate-600 dark:text-slate-600'
+                              }`}>
                               {present ? <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : null}
                             </button>
                           </td>

@@ -41,6 +41,7 @@ export interface AttendanceRecord {
   studentName?: string
   dni?: string
   present: boolean
+  source?: string
 }
 
 export function useClasses() {
