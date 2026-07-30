@@ -1,35 +1,38 @@
-const CACHE = 'classclick-v2'
-const ASSETS = ['/', '/offline']
+const APP_VERSION = '__APP_VERSION__'
+const CACHE_PREFIX = 'classclick-'
+const CACHE_NAME = CACHE_PREFIX + APP_VERSION
+const IMAGE_CACHE_NAME = CACHE_PREFIX + 'images-' + APP_VERSION
 const IS_LOCALHOST = ['localhost', '127.0.0.1', '::1'].includes(self.location.hostname)
 
-self.addEventListener('install', (event) => {
-  if (IS_LOCALHOST) {
-    self.skipWaiting()
-    return
-  }
+function isOwnCache(name) {
+  return name.startsWith(CACHE_PREFIX)
+}
 
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS))
+function deleteOwnCaches() {
+  return caches.keys().then((keys) =>
+    Promise.all(
+      keys
+        .filter((k) => isOwnCache(k) && k !== CACHE_NAME && k !== IMAGE_CACHE_NAME)
+        .map((k) => caches.delete(k))
+    )
   )
+}
+
+self.addEventListener('install', (event) => {
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  if (IS_LOCALHOST) {
-    event.waitUntil(
-      caches.keys()
-        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
-        .then(() => self.registration.unregister())
-    )
-    return
-  }
-
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+    deleteOwnCaches().then(() => {
+      self.clients.claim()
+      return self.clients.matchAll().then((clients) =>
+        clients.forEach((client) =>
+          client.postMessage({ type: 'VERSION', version: APP_VERSION })
+        )
+      )
+    })
   )
-  self.clients.claim()
 })
 
 self.addEventListener('fetch', (event) => {
@@ -38,17 +41,14 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
+  if (!self.location.protocol.startsWith('http')) return
+  if (request.method !== 'GET') return
   if (url.origin !== self.location.origin) return
-
   if (url.pathname.startsWith('/api')) return
 
-  if (
-    request.destination === 'script' ||
-    request.destination === 'style' ||
-    request.destination === 'font'
-  ) {
+  if (request.destination === 'script' || request.destination === 'style' || request.destination === 'font') {
     event.respondWith(
-      caches.open(CACHE).then(async (cache) => {
+      caches.open(CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(request)
         if (cached) return cached
         const res = await fetch(request)
@@ -61,7 +61,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.destination === 'image') {
     event.respondWith(
-      caches.open('images').then(async (cache) => {
+      caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(request)
         if (cached) return cached
         const res = await fetch(request)
@@ -74,7 +74,17 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() =>
+      fetch(request).then((res) => {
+        if (
+          res.ok &&
+          res.type !== 'opaque' &&
+          res.headers.get('Content-Type')?.startsWith('text/html')
+        ) {
+          const copy = res.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', copy))
+        }
+        return res
+      }).catch(() =>
         caches.match('/').then((r) => r ?? new Response('Offline', { status: 503 }))
       )
     )
@@ -82,6 +92,16 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(fetch(request))
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'PURGE') {
+    deleteOwnCaches().then(() => {
+      if (event.source && 'postMessage' in event.source) {
+        event.source.postMessage({ type: 'PURGED' })
+      }
+    })
+  }
 })
 
 self.addEventListener('push', (event) => {

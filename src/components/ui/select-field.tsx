@@ -31,7 +31,7 @@ export function SelectField({
   'aria-label': ariaLabel,
 }: SelectFieldProps) {
   return (
-    <SelectPrimitive.Root value={value || undefined} onValueChange={onValueChange} disabled={disabled}>
+    <SelectPrimitive.Root value={value} onValueChange={onValueChange} disabled={disabled}>
       <SelectPrimitive.Trigger
         aria-label={ariaLabel}
         className={cn(

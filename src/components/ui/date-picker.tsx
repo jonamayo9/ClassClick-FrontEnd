@@ -425,19 +425,25 @@ export function TimePicker({ value, onChange, minuteStep = 5, className, placeho
   const [hour, minute] = value ? value.split(':') : ['', '']
   const [draftHour, setDraftHour] = useState(hour)
   const [draftMinute, setDraftMinute] = useState(minute)
-  const hours = Array.from({ length: 24 }, (_, index) => ({ value: String(index).padStart(2, '0'), label: `${String(index).padStart(2, '0')} h` }))
-  const minutes = Array.from({ length: Math.ceil(60 / minuteStep) }, (_, index) => ({ value: String(index * minuteStep).padStart(2, '0'), label: `${String(index * minuteStep).padStart(2, '0')} min` }))
+  const hours = Array.from({ length: 24 }, (_, index) => ({ value: String(index).padStart(2, '0'), label: String(index).padStart(2, '0') }))
+  const minutes = Array.from({ length: Math.ceil(60 / minuteStep) }, (_, index) => ({ value: String(index * minuteStep).padStart(2, '0'), label: String(index * minuteStep).padStart(2, '0') }))
   const trigger = (
     <button type="button" className={cn('flex min-h-11 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800', className)}>
       <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-      <span className={value ? 'text-slate-900 dark:text-white' : 'text-slate-400'}>{value ? `${value} hs` : placeholder}</span>
+      <span className={value ? 'text-slate-900 dark:text-white' : 'text-slate-400'}>{value || placeholder}</span>
     </button>
   )
   return (
     <PickerSurface open={open} onOpenChange={(next) => { setOpen(next); if (next) { setDraftHour(hour); setDraftMinute(minute) } }} trigger={trigger} title="Elegir horario">
-      <div className="grid grid-cols-2 gap-3">
-        <SelectField value={draftHour} onValueChange={setDraftHour} options={hours} placeholder="Hora" />
-        <SelectField value={draftMinute} onValueChange={setDraftMinute} options={minutes} placeholder="Minutos" />
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className="mb-1.5 block text-xs font-semibold text-slate-500">Hora</label>
+          <SelectField value={draftHour} onValueChange={setDraftHour} options={hours} placeholder="--" contentClassName="min-w-[5rem]" />
+        </div>
+        <div className="flex-1">
+          <label className="mb-1.5 block text-xs font-semibold text-slate-500">Minutos</label>
+          <SelectField value={draftMinute} onValueChange={setDraftMinute} options={minutes} placeholder="--" contentClassName="min-w-[5rem]" />
+        </div>
       </div>
       <div className="mt-4 flex justify-between gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => { onChange(''); setOpen(false) }}>Limpiar</Button>

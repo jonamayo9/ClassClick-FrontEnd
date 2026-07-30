@@ -266,6 +266,12 @@ function PublicPageInner() {
   }
 
   async function handlePublish() {
+    try {
+      await useAuth.getState().fetchCompanies()
+    } catch {
+      toast('No se pudieron verificar los permisos. Intentá nuevamente.', 'error')
+      return
+    }
     if (!hasModule('public_page')) {
       setShowCapabilityModal(true)
       return
