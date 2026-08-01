@@ -153,3 +153,43 @@ export function useProofView(paymentId: string | null) {
     retry: false,
   })
 }
+
+export interface MercadoPagoCheckoutResponse {
+  paymentAttemptId: string
+  preferenceId: string
+  initPoint?: string
+  expiresAtUtc?: string
+}
+
+export interface MercadoPagoPaymentStatus {
+  status: string
+  isPaid: boolean
+  paymentAttemptId?: string
+  paymentReference?: string
+  approvedAtUtc?: string
+  expiresAtUtc?: string
+  message: string
+}
+
+export function useStartMercadoPagoCheckout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (chargeId: string) =>
+      apiService.post<MercadoPagoCheckoutResponse>(
+        `/api/student/${slug()}/charges/${chargeId}/mercadopago/checkout`,
+        undefined,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['student-billing'] }),
+  })
+}
+
+export function useMercadoPagoPaymentStatus(attemptId: string | null) {
+  return useQuery({
+    queryKey: ['student-mp-status', slug(), attemptId],
+    queryFn: () => apiService.get<MercadoPagoPaymentStatus>(
+      `/api/student/${slug()}/mercadopago/status?attempt=${attemptId}`,
+    ),
+    enabled: !!attemptId && !!slug(),
+    retry: false,
+  })
+}

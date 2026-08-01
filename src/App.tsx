@@ -54,6 +54,7 @@ import { StudentHome } from '@/pages/student/home'
 import StudentCoursesPage from '@/pages/student/courses/page'
 import CourseDetailPage from '@/pages/student/courses/detail'
 import StudentPaymentsPage from '@/pages/student/payments/page'
+import MercadoPagoResultPage from '@/pages/student/payments/result'
 import StudentProfilePage from '@/pages/student/profile/page'
 import StudentSiblingsPage from '@/pages/student/siblings/page'
 import StudentDocumentsPage from '@/pages/student/documents/page'
@@ -198,6 +199,7 @@ export default function App() {
             <Route path="courses" element={<StudentCoursesPage />} />
             <Route path="courses/:id" element={<CourseDetailPage />} />
             <Route path="payments" element={<GuardedRoute moduleCode="payments"><StudentPaymentsPage /></GuardedRoute>} />
+            <Route path="payments/mercadopago/result" element={<MercadoPagoResultPage />} />
             <Route path="profile" element={<StudentProfilePage />} />
             <Route path="siblings" element={<GuardedRoute moduleCode="payments"><StudentSiblingsPage /></GuardedRoute>} />
             <Route path="documents" element={<GuardedRoute moduleCode="documents"><StudentDocumentsPage /></GuardedRoute>} />

@@ -81,6 +81,9 @@ export interface PaymentMethod {
   holderName?: string
   notes?: string
   instructions?: string
+  mercadopagoOnlinePaymentsEnabled?: boolean
+  mercadopagoOnlinePaymentsEnabledBySuperAdmin?: boolean
+  mercadopagoIsConnected?: boolean
 }
 
 export interface ProofView {

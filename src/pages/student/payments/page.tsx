@@ -20,6 +20,7 @@ import {
   usePaymentMethods,
   useProofView,
   useRequestFinancing,
+  useStartMercadoPagoCheckout,
   useSubmitProof,
   useTransferInfo,
 } from './hooks'
@@ -80,6 +81,7 @@ function PaymentPageInner() {
   const { data: financingRequests = [] } = useFinancingRequests()
   const submitProof = useSubmitProof()
   const requestFinancing = useRequestFinancing()
+  const startMercadoPagoCheckout = useStartMercadoPagoCheckout()
 
   const [step, setStep] = useState<'idle' | 'method' | 'transfer'>('idle')
   const [payId, setPayId] = useState<string | null>(null)
@@ -89,7 +91,15 @@ function PaymentPageInner() {
   const [detail, setDetail] = useState<StudentBilling | null>(null)
   const [viewId, setViewId] = useState<string | null>(null)
   const [financeCharge, setFinanceCharge] = useState<StudentBilling | null>(null)
+  const [startingMpChargeId, setStartingMpChargeId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const mpMethod = paymentMethods.find((paymentMethod) => isMercadoPago(paymentMethod))
+  const mpOnlineAvailable = Boolean(
+    mpMethod?.mercadopagoOnlinePaymentsEnabled &&
+    mpMethod.mercadopagoOnlinePaymentsEnabledBySuperAdmin &&
+    mpMethod.mercadopagoIsConnected,
+  )
 
   const { data: proofView, isLoading: loadProof } = useProofView(viewId)
   const item = billing.find((charge) => charge.chargeId === payId)
@@ -174,6 +184,42 @@ function PaymentPageInner() {
     setMethod(null)
   }
 
+  async function handleMercadoPago(charge: StudentBilling) {
+    if (startingMpChargeId) return
+    setStartingMpChargeId(charge.chargeId)
+    try {
+      const result = await startMercadoPagoCheckout.mutateAsync(charge.chargeId)
+      if (result?.initPoint) {
+        toast('Te estamos redirigiendo a Mercado Pago.')
+        window.location.assign(result.initPoint)
+        return
+      }
+      toast('No fue posible iniciar el pago. Intentá nuevamente.', 'error')
+      setStartingMpChargeId(null)
+    } catch (error: any) {
+      const response = error?.response?.data
+      const message = typeof response === 'string'
+        ? response
+        : response?.message || response?.error || 'No fue posible iniciar el pago. Intentá nuevamente.'
+      toast(message, 'error')
+      setStartingMpChargeId(null)
+    }
+  }
+
+  async function handlePaymentMethodContinue(charge?: StudentBilling) {
+    if (!method) return
+    if (isMercadoPago(method)) {
+      if (!mpOnlineAvailable) {
+        toast('Mercado Pago no está disponible para esta institución.', 'error')
+        setMethod(null)
+        return
+      }
+      if (charge) await handleMercadoPago(charge)
+      return
+    }
+    setStep('transfer')
+  }
+
   const pendingCount = billing.filter((charge) => {
     const paymentStatus = normalizePaymentStatus(charge.paymentStatus)
     const chargeStatus = normalizeChargeStatus(charge.chargeStatus)
@@ -244,7 +290,10 @@ function PaymentPageInner() {
                 (request) => request.chargeId === charge.chargeId,
               )}
               earlierDebt={earlierDebtByChargeId.get(charge.chargeId)}
+              mpAvailable={mpOnlineAvailable}
+              mpStarting={startingMpChargeId === charge.chargeId}
               onPay={() => startPayment(charge)}
+              onMercadoPago={() => handleMercadoPago(charge)}
               onFinance={() => setFinanceCharge(charge)}
               onDetail={() => setDetail(charge)}
               onProof={() => charge.paymentId && setViewId(charge.paymentId)}
@@ -259,9 +308,10 @@ function PaymentPageInner() {
         methods={paymentMethods}
         method={method}
         preview={preview}
+        submitting={startingMpChargeId !== null}
         onClose={resetPay}
         onSelect={setMethod}
-        onContinue={() => setStep('transfer')}
+        onContinue={() => handlePaymentMethodContinue(item)}
       />
 
       <TransferModal
@@ -330,7 +380,10 @@ function StudentChargeCard({
   financingEnabled,
   financingRequest,
   earlierDebt,
+  mpAvailable,
+  mpStarting,
   onPay,
+  onMercadoPago,
   onFinance,
   onDetail,
   onProof,
@@ -339,7 +392,10 @@ function StudentChargeCard({
   financingEnabled: boolean
   financingRequest?: FinancingRequest
   earlierDebt?: StudentBilling
+  mpAvailable: boolean
+  mpStarting: boolean
   onPay: () => void
+  onMercadoPago: () => void
   onFinance: () => void
   onDetail: () => void
   onProof: () => void
@@ -438,6 +494,16 @@ function StudentChargeCard({
           {payable && (
             <Button size="sm" disabled={locked || paymentBlockedByDebt} onClick={onPay} className="bg-blue-600 text-white hover:bg-blue-500">
               {locked ? 'En revisión' : paymentBlockedByDebt ? 'Pago bloqueado' : rejected ? 'Reintentar pago' : 'Pagar'}
+            </Button>
+          )}
+          {payable && mpAvailable && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={locked || paymentBlockedByDebt || mpStarting}
+              onClick={onMercadoPago}
+            >
+              {mpStarting ? 'Redirigiendo a Mercado Pago...' : 'Pagar con Mercado Pago'}
             </Button>
           )}
           {canFinance && (
@@ -708,6 +774,7 @@ function PaymentMethodModal({
   methods,
   method,
   preview,
+  submitting,
   onClose,
   onSelect,
   onContinue,
@@ -717,6 +784,7 @@ function PaymentMethodModal({
   methods: PaymentMethod[]
   method: PaymentMethod | null
   preview: { base: number; surcharge: number; total: number } | null
+  submitting: boolean
   onClose: () => void
   onSelect: (method: PaymentMethod) => void
   onContinue: () => void
@@ -767,8 +835,13 @@ function PaymentMethodModal({
                 <Row label="Total a pagar" value={money(preview.total)} className="text-lg font-black text-slate-950 dark:text-white" />
               </div>
             </div>
-            <Button onClick={onContinue} className="mt-4 w-full bg-blue-600 text-white hover:bg-blue-500">
-              Continuar
+            <Button
+              onClick={onContinue}
+              disabled={submitting}
+              loading={submitting}
+              className="mt-4 w-full bg-blue-600 text-white hover:bg-blue-500"
+            >
+              {submitting && method && isMercadoPago(method) ? 'Redirigiendo a Mercado Pago...' : 'Continuar'}
             </Button>
           </div>
         )}
@@ -1024,6 +1097,11 @@ function calculateSurcharge(base: number, method: PaymentMethod) {
   if (type === 'percentage') return Math.round((base * value / 100) * 100) / 100
   if (type === 'fixedamount' || type === 'fixed') return value
   return 0
+}
+
+function isMercadoPago(method: PaymentMethod): boolean {
+  const raw = String(method.paymentMethod ?? '').toLowerCase()
+  return raw === 'mercadopago' || Number(method.paymentMethod) === 4
 }
 
 export default function StudentPaymentsPage() {
