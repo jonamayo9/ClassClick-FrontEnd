@@ -1086,6 +1086,10 @@ function PaymentsSection({ pMethods, pmLoading, mpStatus, mpStatusLoading, onOpe
    MODALS
    ═══════════════════════════════════════ */
 
+function isMercadoPagoMethod(m: PaymentMethodDetail): boolean {
+  return String(m.paymentMethod ?? '').toLowerCase() === 'mercadopago' || Number(m.paymentMethod) === 4
+}
+
 /* ─── Payment Methods Modal ─── */
 function PaymentMethodsModal({ pMethods, saveMutation, onClose, toast }: {
   pMethods: PaymentMethodDetail[]
@@ -1115,6 +1119,7 @@ function PaymentMethodsModal({ pMethods, saveMutation, onClose, toast }: {
         cbu: m.cbu || null,
         holderName: m.holderName || null,
         instructions: m.instructions || null,
+        mercadoPagoOnlinePaymentsEnabled: m.mercadoPagoOnlinePaymentsEnabled,
       }))
       await saveMutation.mutateAsync(body as unknown as Record<string, unknown>[])
       toast('Medios de pago actualizados.')
@@ -1179,6 +1184,23 @@ function PaymentMethodsModal({ pMethods, saveMutation, onClose, toast }: {
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
               </div>
             </div>
+
+            {isMercadoPagoMethod(m) && (
+              <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  <input type="checkbox" checked={m.mercadoPagoOnlinePaymentsEnabled}
+                    disabled={!m.mercadoPagoOnlinePaymentsEnabledBySuperAdmin}
+                    onChange={(e) => updateField(m.id, 'mercadoPagoOnlinePaymentsEnabled', e.target.checked)}
+                    className="rounded border-slate-300 text-slate-800" />
+                  Permitir pagos online con Mercado Pago
+                </label>
+                {!m.mercadoPagoOnlinePaymentsEnabledBySuperAdmin && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">
+                    El SuperAdmin aún no habilitó los pagos online con Mercado Pago.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

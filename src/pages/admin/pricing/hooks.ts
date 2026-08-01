@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 
@@ -101,6 +101,8 @@ export interface PaymentMethodDetail {
   cbu: string | null
   holderName: string | null
   instructions: string | null
+  mercadoPagoOnlinePaymentsEnabled: boolean
+  mercadoPagoOnlinePaymentsEnabledBySuperAdmin: boolean
 }
 
 export interface MercadoPagoStatus {
@@ -143,7 +145,7 @@ export const LATE_FEE_RECURRENCE = { ONE_TIME: 1, DAILY: 2, WEEKLY: 3 } as const
 
 export function recurrenceLabel(value: unknown) {
   const text = String(value ?? '').toLowerCase()
-  if (text === 'onetime' || Number(value) === LATE_FEE_RECURRENCE.ONE_TIME) return 'Única'
+  if (text === 'onetime' || Number(value) === LATE_FEE_RECURRENCE.ONE_TIME) return 'Ãšnica'
   if (text === 'daily' || Number(value) === LATE_FEE_RECURRENCE.DAILY) return 'Diaria'
   if (text === 'weekly' || Number(value) === LATE_FEE_RECURRENCE.WEEKLY) return 'Semanal'
   return '-'
@@ -163,7 +165,7 @@ export function formatDateShort(value: string | null | undefined) {
   } catch { return '-' }
 }
 
-/* ─── Hooks ─── */
+/* â”€â”€â”€ Hooks â”€â”€â”€ */
 
 export function useCourses() {
   return useQuery({
@@ -409,3 +411,4 @@ export function useDisconnectMercadoPago() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pricing-mp-status'] }),
   })
 }
+
