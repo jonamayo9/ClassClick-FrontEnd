@@ -36,12 +36,12 @@ function CompaniesInner() {
     qr_attendance: false,
   })
   const [clothing, setClothing] = useState({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
-  const [paymentMethods, setPaymentMethods] = useState<Record<string, { enabled: boolean; autoCollection: boolean }>>({
-    Transfer: { enabled: false, autoCollection: false },
-    DebitCard: { enabled: false, autoCollection: false },
-    CreditCard: { enabled: false, autoCollection: false },
-    MercadoPago: { enabled: false, autoCollection: false },
-    Cash: { enabled: false, autoCollection: false },
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, { enabled: boolean; autoCollection: boolean; onlinePayments: boolean }>>({
+    Transfer: { enabled: false, autoCollection: false, onlinePayments: false },
+    DebitCard: { enabled: false, autoCollection: false, onlinePayments: false },
+    CreditCard: { enabled: false, autoCollection: false, onlinePayments: false },
+    MercadoPago: { enabled: false, autoCollection: false, onlinePayments: false },
+    Cash: { enabled: false, autoCollection: false, onlinePayments: false },
   })
   const [detailTarget, setDetailTarget] = useState<Company | null>(null)
   const [toggleTarget, setToggleTarget] = useState<Company | null>(null)
@@ -103,6 +103,7 @@ function CompaniesInner() {
         paymentMethod: pmValues[key] ?? 0,
         enabledBySuperAdmin: val.enabled,
         autoCollectionEnabledBySuperAdmin: val.autoCollection,
+        mercadoPagoOnlinePaymentsEnabledBySuperAdmin: val.onlinePayments,
       }))
       await apiService.put(`/api/superadmin/companies/${companyId}/payment-methods`, pmList)
       // Upload logo if selected
@@ -128,6 +129,7 @@ function CompaniesInner() {
           paymentMethod: pmValues[key] ?? 0,
           enabledBySuperAdmin: val.enabled,
           autoCollectionEnabledBySuperAdmin: val.autoCollection,
+          mercadoPagoOnlinePaymentsEnabledBySuperAdmin: val.onlinePayments,
         }))
         await apiService.put(`/api/superadmin/companies/${editId}/payment-methods`, pmList)
         if (logoFile) {
@@ -157,11 +159,11 @@ function CompaniesInner() {
     setModules({ payments: true, documents: true, news: true, sponsors: false, matches: false, clothing: false, tournaments: false, notifications: true, qr_attendance: false })
     setClothing({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
     setPaymentMethods({
-      Transfer: { enabled: false, autoCollection: false },
-      DebitCard: { enabled: false, autoCollection: false },
-      CreditCard: { enabled: false, autoCollection: false },
-      MercadoPago: { enabled: false, autoCollection: false },
-      Cash: { enabled: false, autoCollection: false },
+      Transfer: { enabled: false, autoCollection: false, onlinePayments: false },
+      DebitCard: { enabled: false, autoCollection: false, onlinePayments: false },
+      CreditCard: { enabled: false, autoCollection: false, onlinePayments: false },
+      MercadoPago: { enabled: false, autoCollection: false, onlinePayments: false },
+      Cash: { enabled: false, autoCollection: false, onlinePayments: false },
     })
     setSlugTouched(false); setLogoFile(null); setLogoPreview(null)
   }
@@ -171,14 +173,18 @@ function CompaniesInner() {
     setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive, emailNotificationsEnabled: c.emailNotificationsEnabled ?? false, companySlugLanding: c.companySlugLanding ?? '' })
     setShowForm(true)
     // Load existing payment methods
-    apiService.get<{ paymentMethod: string | number; enabledBySuperAdmin: boolean; autoCollectionEnabledBySuperAdmin?: boolean }[]>(`/api/superadmin/companies/${c.id}/payment-methods`).then((pms) => {
+    apiService.get<{ paymentMethod: string | number; enabledBySuperAdmin: boolean; autoCollectionEnabledBySuperAdmin?: boolean; mercadoPagoOnlinePaymentsEnabledBySuperAdmin?: boolean }[]>(`/api/superadmin/companies/${c.id}/payment-methods`).then((pms) => {
       const nameMap: Record<string, string> = { 'Transfer': 'Transfer', 'DebitCard': 'DebitCard', 'CreditCard': 'CreditCard', 'MercadoPago': 'MercadoPago', 'Cash': 'Cash' }
       const intMap: Record<number, string> = { 1: 'Transfer', 2: 'DebitCard', 3: 'CreditCard', 4: 'MercadoPago', 5: 'Cash' }
       setPaymentMethods((prev) => {
         const updated = { ...prev }
         for (const pm of pms) {
           const key = typeof pm.paymentMethod === 'string' ? nameMap[pm.paymentMethod] : intMap[pm.paymentMethod]
-          if (key) updated[key] = { enabled: pm.enabledBySuperAdmin, autoCollection: pm.autoCollectionEnabledBySuperAdmin ?? false }
+          if (key) updated[key] = {
+            enabled: pm.enabledBySuperAdmin,
+            autoCollection: pm.autoCollectionEnabledBySuperAdmin ?? false,
+            onlinePayments: pm.mercadoPagoOnlinePaymentsEnabledBySuperAdmin ?? false,
+          }
         }
         return updated
       })
@@ -373,11 +379,18 @@ function CompaniesInner() {
                         <p className="text-sm font-medium">{labels[key] || key}</p>
                         <p className="text-xs text-slate-400">{key}</p>
                         {key === 'MercadoPago' && val.enabled && (
-                          <label className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                            <input type="checkbox" checked={val.autoCollection} onChange={(e) => setPaymentMethods({ ...paymentMethods, [key]: { ...val, autoCollection: e.target.checked } })}
-                              className="rounded border-slate-300 text-slate-800" />
-                            Permitir cobro automático
-                          </label>
+                          <div className="mt-2 flex flex-col gap-1.5">
+                            <label className="flex items-center gap-2 text-xs text-slate-500">
+                              <input type="checkbox" checked={val.autoCollection} onChange={(e) => setPaymentMethods({ ...paymentMethods, [key]: { ...val, autoCollection: e.target.checked } })}
+                                className="rounded border-slate-300 text-slate-800" />
+                              Permitir sincronización automática
+                            </label>
+                            <label className="flex items-center gap-2 text-xs text-slate-500">
+                              <input type="checkbox" checked={val.onlinePayments} onChange={(e) => setPaymentMethods({ ...paymentMethods, [key]: { ...val, onlinePayments: e.target.checked } })}
+                                className="rounded border-slate-300 text-slate-800" />
+                              Permitir pagos online con Mercado Pago
+                            </label>
+                          </div>
                         )}
                       </div>
                       <input type="checkbox" checked={val.enabled} onChange={(e) => setPaymentMethods({ ...paymentMethods, [key]: { ...val, enabled: e.target.checked } })}
