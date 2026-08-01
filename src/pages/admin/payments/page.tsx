@@ -832,7 +832,7 @@ function EditChargeModal({ chargeId, onClose }: { chargeId: string; onClose: () 
       await mutation.mutateAsync({
         chargeId,
         basePrice: basePrice ? Number(basePrice) : undefined,
-        dueDateUtc: dueDate || undefined,
+        dueDateUtc: dueDate ? `${dueDate}T23:59:59.000Z` : undefined,
         lateChargeAmount: lateCharge ? Number(lateCharge) : undefined,
         siblingDiscountAmount: siblingDiscount ? Number(siblingDiscount) : undefined,
         notes: notes || undefined,
