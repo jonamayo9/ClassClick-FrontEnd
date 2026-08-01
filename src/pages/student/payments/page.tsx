@@ -96,9 +96,9 @@ function PaymentPageInner() {
 
   const mpMethod = paymentMethods.find((paymentMethod) => isMercadoPago(paymentMethod))
   const mpOnlineAvailable = Boolean(
-    mpMethod?.mercadopagoOnlinePaymentsEnabled &&
-    mpMethod.mercadopagoOnlinePaymentsEnabledBySuperAdmin &&
-    mpMethod.mercadopagoIsConnected,
+    mpMethod?.mercadoPagoOnlinePaymentsEnabled &&
+    mpMethod.mercadoPagoOnlinePaymentsEnabledBySuperAdmin &&
+    mpMethod.mercadoPagoIsConnected,
   )
 
   const { data: proofView, isLoading: loadProof } = useProofView(viewId)

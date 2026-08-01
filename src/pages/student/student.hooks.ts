@@ -81,11 +81,10 @@ export interface PaymentMethod {
   holderName?: string
   notes?: string
   instructions?: string
-  mercadopagoOnlinePaymentsEnabled?: boolean
-  mercadopagoOnlinePaymentsEnabledBySuperAdmin?: boolean
-  mercadopagoIsConnected?: boolean
+  mercadoPagoOnlinePaymentsEnabled?: boolean
+  mercadoPagoOnlinePaymentsEnabledBySuperAdmin?: boolean
+  mercadoPagoIsConnected?: boolean
 }
-
 export interface ProofView {
   url: string
   fileName: string
