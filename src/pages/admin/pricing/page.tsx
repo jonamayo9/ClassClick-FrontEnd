@@ -950,11 +950,20 @@ function PaymentsSection({ pMethods, pmLoading, mpStatus, mpStatusLoading, onOpe
 }) {
   const activeMethods = pMethods.filter((m) => m.isEnabledByAdmin && m.enabledBySuperAdmin)
 
-  async function handleConnect() {
+  const [showOtherAccountHelp, setShowOtherAccountHelp] = useState(false)
+
+  async function openMercadoPagoOAuth() {
     try {
       const result = await mpConnectMutation.mutateAsync()
       if (result.url) window.open(result.url, '_blank')
-    } catch { toast('Error al conectar Mercado Pago.', 'error') }
+    } catch {
+      toast('Error al conectar Mercado Pago.', 'error')
+    }
+  }
+
+  function handleConnect() {
+    setShowOtherAccountHelp(false)
+    openMercadoPagoOAuth()
   }
 
   async function handleDisconnect() {
@@ -1024,12 +1033,12 @@ function PaymentsSection({ pMethods, pmLoading, mpStatus, mpStatusLoading, onOpe
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Estado</p>
                 <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                  {mpStatus?.isConnected ? 'Cuenta conectada correctamente' : 'Pendiente de conexión'}
+                  {mpStatus?.isConnected ? 'Cuenta conectada correctamente' : 'No conectado'}
                 </p>
-                {mpStatus?.mercadoPagoUserId && (
+                {mpStatus?.isConnected && mpStatus.mercadoPagoUserId && (
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Usuario MP: {mpStatus.mercadoPagoUserId}</p>
                 )}
-                {mpStatus?.connectedAtUtc && (
+                {mpStatus?.isConnected && mpStatus.connectedAtUtc && (
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Conectado: {formatDate(mpStatus.connectedAtUtc)}</p>
                 )}
                 {mpStatus?.lastError && (
@@ -1042,13 +1051,20 @@ function PaymentsSection({ pMethods, pmLoading, mpStatus, mpStatusLoading, onOpe
                   <Button variant="outline" size="sm" className="border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                     loading={mpDisconnectMutation.isPending} onClick={handleDisconnect}>Desconectar</Button>
                 ) : (
-                  <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700"
-                    loading={mpConnectMutation.isPending} onClick={handleConnect}>Conectar Mercado Pago</Button>
+                  <>
+                    <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700"
+                      loading={mpConnectMutation.isPending} onClick={handleConnect}>Conectar Mercado Pago</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowOtherAccountHelp((v) => !v)}>
+                      Quiero conectar otra cuenta
+                    </Button>
+                  </>
                 )}
               </div>
 
-              {mpStatus?.status && (
-                <p className="text-xs text-slate-400">Estado técnico: {mpStatus.status}</p>
+              {showOtherAccountHelp && !mpStatus?.isConnected && (
+                <div className="rounded-2xl bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                  Para vincular una cuenta diferente, cerrá sesión en Mercado Pago y luego continuá con la conexión.
+                </div>
               )}
             </>
           )}
