@@ -15,6 +15,8 @@ export interface Payment {
   basePrice: number
   paymentMethod: string | number
   paymentMethodNameSnapshot: string
+  paymentOrigin: number | null
+  paymentOriginName: string
   paymentMethodSurchargeAmount: number
   paymentStatus: PaymentStatus
   paidAtUtc: string | null
@@ -59,6 +61,8 @@ export interface Charge {
   isManual: boolean
   paymentMethod: string | number
   paymentMethodNameSnapshot: string
+  paymentOrigin: number | null
+  paymentOriginName: string
   paymentMethodSurchargeAmount: number
   baseAmountBeforePaymentMethod: number
   classesPerWeek: number

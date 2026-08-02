@@ -6,6 +6,7 @@ import type { ThemeMode } from '@/types/auth'
 import { imgUrl } from '@/lib/media'
 import { NotificationsBell } from '@/components/notifications-bell'
 import { StudentCarnetModal } from '@/pages/student/student-carnet'
+import { CompanyBillingBanner } from '@/components/billing/company-billing-banner'
 import { hasModule } from '@/hooks/useModule'
 
 interface NavItem { label: string; path: string; icon: string; module?: string }
@@ -42,6 +43,7 @@ const adminGroups: NavGroup[] = [
   { name: 'Configuración', key: 'settings', items: [
     { label: 'Página pública', path: '/admin/public-page', icon: '🌐' },
     { label: 'Mi empresa', path: '/admin/company', icon: '🏢' },
+    { label: 'Plan y facturación', path: '/admin/billing', icon: '🧾' },
     { label: 'Mi perfil', path: '/admin/profile', icon: '👤' },
   ]},
 ]
@@ -51,7 +53,9 @@ const superadminNav: NavItem[] = [
   { label: 'Empresas', path: '/superadmin/companies', icon: '🏢' },
   { label: 'Admins', path: '/superadmin/admins', icon: '👤' },
   { label: 'Tipos doc.', path: '/superadmin/document-types', icon: '📄' },
-  { label: 'Facturación', path: '/superadmin/billing', icon: '💰' },
+  { label: 'Consumo y usuarios', path: '/superadmin/billing', icon: '💰' },
+  { label: 'Cobros de empresas', path: '/superadmin/billing/invoices', icon: '🧾' },
+  { label: 'Config. ClassClick', path: '/superadmin/billing/settings', icon: '⚙️' },
 ]
 
 const teacherNav: NavItem[] = [
@@ -297,6 +301,7 @@ export function AppLayout() {
 
         {/* Main */}
         <main className="flex-1 overflow-x-auto px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8">
+          {isAdmin && <CompanyBillingBanner />}
           <Outlet />
         </main>
       </div>

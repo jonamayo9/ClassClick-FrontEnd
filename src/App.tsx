@@ -62,11 +62,14 @@ import StudentClothingCatalog from '@/pages/student/clothing/page'
 import StudentClothingOrders from '@/pages/student/clothing/orders/page'
 import StudentClothingOrderDetail from '@/pages/student/clothing/order-detail'
 import PublicPageAdmin from '@/pages/admin/public-page/page'
+import AdminBillingPage from '@/pages/admin/billing/page'
 import PublicLandingPage from '@/pages/public/landing'
 import { SuperAdminDashboard } from '@/pages/superadmin/dashboard'
 import SuperAdminCompaniesPage from '@/pages/superadmin/companies'
 import SuperAdminAdminsPage from '@/pages/superadmin/admins'
 import SuperAdminBillingPage from '@/pages/superadmin/billing'
+import SuperAdminBillingInvoicesPage from '@/pages/superadmin/billing-invoices'
+import SuperAdminBillingSettingsPage from '@/pages/superadmin/billing-settings'
 import SuperAdminDocumentTypesPage from '@/pages/superadmin/document-types'
 const queryClient = new QueryClient()
 
@@ -191,6 +194,7 @@ export default function App() {
             <Route path="attendance/qr-scan/:classId" element={<AdminQrScanPage />} />
             <Route path="company" element={<CompanyPage />} />
             <Route path="public-page" element={<PublicPageAdmin />} />
+            <Route path="billing" element={<AdminBillingPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
@@ -214,6 +218,8 @@ export default function App() {
             <Route path="companies" element={<SuperAdminCompaniesPage />} />
             <Route path="admins" element={<SuperAdminAdminsPage />} />
             <Route path="billing" element={<SuperAdminBillingPage />} />
+            <Route path="billing/invoices" element={<SuperAdminBillingInvoicesPage />} />
+            <Route path="billing/settings" element={<SuperAdminBillingSettingsPage />} />
             <Route path="document-types" element={<SuperAdminDocumentTypesPage />} />
           </Route>
 

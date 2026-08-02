@@ -11,6 +11,7 @@ import {
   isChargePaid, isChargeOverdue, isChargeCancelled, normalizeStatus,
 } from './hooks'
 import { formatDisplayName } from '@/lib/text'
+import { paymentOriginLabel } from '@/lib/payment-labels'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -339,8 +340,8 @@ function ChargeRow({ charge, index, onPay, onEdit, onViewProof, onViewDetail }: 
             {!cancelled && <Button variant="ghost" size="sm" onClick={onEdit}>Editar</Button>}
             <Button variant="ghost" size="sm" onClick={onViewDetail}>Detalle</Button>
           </span>
-          {paid && isMp && (
-            <span className="text-[10px] text-blue-500 italic">Sincronizado automáticamente</span>
+          {paid && isMp && charge.paymentOrigin != null && (
+            <span className="text-[10px] text-blue-500 italic">{paymentOriginLabel(charge.paymentOrigin)}</span>
           )}
         </div>
       </td>
@@ -385,8 +386,8 @@ function ChargeCard({ charge, onPay, onEdit, onViewProof, onViewDetail }: {
         </div>
       )}
 
-      {paid && isMp && (
-        <div className="text-[10px] text-blue-500 italic">Sincronizado automáticamente</div>
+      {paid && isMp && charge.paymentOrigin != null && (
+        <div className="text-[10px] text-blue-500 italic">{paymentOriginLabel(charge.paymentOrigin)}</div>
       )}
 
       <ChargeBadges charge={charge} />
@@ -959,17 +960,12 @@ function PaymentDetailModal({ payment, onClose }: { payment: Payment; onClose: (
           <LabelValue label="Curso" value={payment.courseName} />
           <LabelValue label="Período" value={`${payment.month}/${payment.year}`} />
           <LabelValue label="Método" value={methodLabel} />
+          <LabelValue label="Origen" value={paymentOriginLabel(payment.paymentOrigin)} />
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Estado</div>
             <span className={`inline-block mt-0.5 rounded-full px-3 py-1 text-xs font-bold ${badge.classes}`}>{badge.label}</span>
           </div>
           {payment.paidAtUtc && <LabelValue label="Pagado" value={formatDateTime(payment.paidAtUtc)} />}
-          {(String(payment.paymentMethod) === "4" || String(payment.paymentMethod).toLowerCase() === "mercadopago") && (
-            <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Pago sincronizado</div>
-              <div className="mt-1 text-xs text-blue-800">Sincronizado automáticamente desde Mercado Pago</div>
-            </div>
-          )}
         </div>
         <div className="space-y-3">
           <div>

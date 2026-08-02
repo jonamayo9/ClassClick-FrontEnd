@@ -10,6 +10,7 @@ import { PageHero } from '@/components/ui/page-hero'
 import { Select } from '@/components/ui/select'
 import { imgUrl } from '@/lib/media'
 import { formatDisplayName } from '@/lib/text'
+import { paymentOriginLabel } from '@/lib/payment-labels'
 import { useAuth } from '@/stores/auth'
 import { formatDate } from '../student.hooks'
 import type { PaymentMethod, StudentBilling } from '../student.hooks'
@@ -456,10 +457,17 @@ function StudentChargeCard({
             <p className={`text-xl font-black sm:text-2xl ${overdue ? 'text-red-600 dark:text-red-300' : 'text-slate-950 dark:text-white'}`}>
               {money(amount)}
             </p>
-            {paid && charge.paymentMethodNameSnapshot && (
-              <p className="mt-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-300">
-                {charge.paymentMethodNameSnapshot}
-              </p>
+            {paid && (
+              <div className="mt-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-300">
+                {charge.paymentMethodNameSnapshot ? (
+                  <>
+                    <p>{charge.paymentMethodNameSnapshot}</p>
+                    <p>{paymentOriginLabel(charge.paymentOrigin)}</p>
+                  </>
+                ) : (
+                  <p>{paymentOriginLabel(charge.paymentOrigin)}</p>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -612,6 +620,7 @@ function ChargeDetailModal({ charge, onClose }: { charge: StudentBilling; onClos
               {charge.paymentMethodNameSnapshot && (
                 <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-300">Medio: {charge.paymentMethodNameSnapshot}</p>
               )}
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">Origen: {paymentOriginLabel(charge.paymentOrigin)}</p>
             </div>
           )}
         </div>

@@ -8,9 +8,11 @@ import { Select } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Modal } from '@/components/ui/modal'
 import { apiService } from '@/lib/api'
+import { BillingPeriodDetail } from '@/components/billing/billing-period-detail'
+import { normalizeExtraChargeMode, type ExtraChargeModeKey } from './billing.types'
 
 interface Company { id: string; name: string; slug: string; isActive: boolean }
-interface BillingSettings { companyId: string; basePrice: number; includedUsers: number; extraChargeMode: number; extraUserPrice: number; extraFixedAmount: number; billingDay: number; notifyDaysBefore: number }
+interface BillingSettings { companyId: string; basePrice: number; includedUsers: number; extraChargeMode: ExtraChargeModeKey; extraUserPrice: number; extraFixedAmount: number; billingDay: number; dueDay: number; notifyDaysBefore: number }
 interface BillingOverview { companyId: string; year: number; month: number; currentActiveStudents: number; maxStudentsInMonth: number; basePrice: number; includedUsers: number; extraUsers: number; extraUserPrice: number; extraFixedAmount: number; extraAmount: number; totalAmount: number; extraChargeMode: string; users: { userId: string; fullName: string; email?: string; createdAtUtc?: string; deletedAtUtc?: string }[] }
 
 const FMT = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -28,7 +30,7 @@ function BillingInner() {
   const [reportYear, setReportYear] = useState(() => new Date().getFullYear())
   const [reportMonth, setReportMonth] = useState(() => new Date().getMonth() + 1)
   const [showSettings, setShowSettings] = useState(false)
-  const [form, setForm] = useState<BillingSettings>({ companyId: '', basePrice: 0, includedUsers: 0, extraChargeMode: 1, extraUserPrice: 0, extraFixedAmount: 0, billingDay: 1, notifyDaysBefore: 5 })
+  const [form, setForm] = useState<BillingSettings>({ companyId: '', basePrice: 0, includedUsers: 0, extraChargeMode: 'PerUser', extraUserPrice: 0, extraFixedAmount: 0, billingDay: 1, dueDay: 10, notifyDaysBefore: 5 })
 
   const { data: overview, isLoading: ovLoading } = useQuery({
     queryKey: ['billing-overview', selectedCompanyId, reportYear, reportMonth],
@@ -49,8 +51,10 @@ function BillingInner() {
   })
 
   function openSettings(c: Company) {
-    const s = settings || { companyId: c.id, basePrice: 0, includedUsers: 0, extraChargeMode: 1, extraUserPrice: 0, extraFixedAmount: 0, billingDay: 1, notifyDaysBefore: 5 }
-    setForm(s); setSelectedCompanyId(c.id); setShowSettings(true)
+    const s = settings || { companyId: c.id, basePrice: 0, includedUsers: 0, extraChargeMode: 'PerUser' as ExtraChargeModeKey, extraUserPrice: 0, extraFixedAmount: 0, billingDay: 1, dueDay: 10, notifyDaysBefore: 5 }
+    setForm({ ...s, extraChargeMode: normalizeExtraChargeMode(s.extraChargeMode) })
+    setSelectedCompanyId(c.id)
+    setShowSettings(true)
   }
 
   if (isLoading) return <div className="flex items-center justify-center py-24"><Spinner className="h-8 w-8 text-slate-600" /></div>
@@ -87,7 +91,6 @@ function BillingInner() {
       {selectedCompanyId && overview && (
         <Card className="p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-bold">Detalle del período</h2>
             <div className="flex items-center gap-2">
               <Select value={reportMonth} onChange={(e) => setReportMonth(Number(e.target.value))}
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white">
@@ -101,38 +104,27 @@ function BillingInner() {
                   <option key={i} value={new Date().getFullYear() - 2 + i}>{new Date().getFullYear() - 2 + i}</option>
                 ))}
               </Select>
-              <button onClick={async () => {
-                try {
-                  const blob = await apiService.getBlob(`/api/superadmin/billing/${selectedCompanyId}/monthly-report/pdf?year=${reportYear}&month=${reportMonth}`)
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a'); a.href = url; a.download = `reporte-${reportMonth}-${reportYear}.pdf`; a.click()
-                  URL.revokeObjectURL(url)
-                } catch { toast('Error al descargar PDF.', 'error') }
-              }}
-                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                PDF
-              </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Alumnos activos</p>
-              <p className="text-xl font-black">{overview.currentActiveStudents}</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Usuarios extra</p>
-              <p className="text-xl font-black">{overview.extraUsers}</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Base</p>
-              <p className="text-xl font-black">{FMT.format(overview.basePrice)}</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total</p>
-              <p className="text-xl font-black text-emerald-600">{FMT.format(overview.totalAmount)}</p>
-            </div>
-          </div>
+          <BillingPeriodDetail
+            period={`${String(reportMonth).padStart(2, '0')}/${reportYear}`}
+            billableUsers={overview.maxStudentsInMonth}
+            extraUsers={overview.extraUsers}
+            basePrice={overview.basePrice}
+            extraChargeMode={overview.extraChargeMode}
+            extraUserPrice={overview.extraUserPrice}
+            extraFixedAmount={overview.extraFixedAmount}
+            extraAmount={overview.extraAmount}
+            totalAmount={overview.totalAmount}
+            onDownloadPdf={async () => {
+              try {
+                const blob = await apiService.getBlob(`/api/superadmin/billing/${selectedCompanyId}/monthly-report/pdf?year=${reportYear}&month=${reportMonth}`)
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a'); a.href = url; a.download = `reporte-${reportMonth}-${reportYear}.pdf`; a.click()
+                URL.revokeObjectURL(url)
+              } catch { toast('Error al descargar PDF.', 'error') }
+            }}
+          />
           {overview.users.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
               <table className="w-full text-sm">
@@ -168,16 +160,17 @@ function BillingInner() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Modo extra</label>
-                <Select value={form.extraChargeMode} onChange={(e) => setForm({ ...form, extraChargeMode: Number(e.target.value) })}>
-                  <option value={1}>Por usuario</option>
-                  <option value={2}>Fijo</option>
+                <Select value={form.extraChargeMode} onChange={(e) => setForm({ ...form, extraChargeMode: normalizeExtraChargeMode(e.target.value) })}>
+                  <option value="PerUser">Por usuario</option>
+                  <option value="Fixed">Monto fijo</option>
                 </Select>
               </div>
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Precio por extra</label><Input type="number" step="0.01" value={form.extraUserPrice} onChange={(e) => setForm({ ...form, extraUserPrice: Number(e.target.value) })} /></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Monto fijo extra</label><Input type="number" step="0.01" value={form.extraFixedAmount} onChange={(e) => setForm({ ...form, extraFixedAmount: Number(e.target.value) })} /></div>
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Día facturación</label><Input type="number" min={1} max={31} value={form.billingDay} onChange={(e) => setForm({ ...form, billingDay: Number(e.target.value) })} /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Día de vencimiento</label><Input type="number" min={1} max={31} value={form.dueDay} onChange={(e) => setForm({ ...form, dueDay: Number(e.target.value) })} /></div>
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Notificar antes</label><Input type="number" min={0} value={form.notifyDaysBefore} onChange={(e) => setForm({ ...form, notifyDaysBefore: Number(e.target.value) })} /></div>
             </div>
             <div className="flex justify-end gap-3 pt-2">

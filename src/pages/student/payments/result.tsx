@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, Clock, Loader2, RotateCw, ShieldAlert, XCi
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
-import { useMercadoPagoPaymentStatus } from './hooks'
+import { useMercadoPagoPaymentStatus, useValidateMercadoPagoStatus } from './hooks'
 
 const POLL_INTERVAL_MS = 3000
 const POLL_MAX_MS = 30000
@@ -80,9 +80,12 @@ export default function MercadoPagoResultPage() {
   const attempt = searchParams.get('attempt')
 
   const { data, isError, isFetching, refetch } = useMercadoPagoPaymentStatus(attempt)
+  const validateMutation = useValidateMercadoPagoStatus(attempt)
 
   const [polling, setPolling] = useState(true)
   const [deadline] = useState(() => Date.now() + POLL_MAX_MS)
+  const [validating, setValidating] = useState(false)
+  const [externalMessage, setExternalMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!polling || !attempt) return
@@ -102,7 +105,25 @@ export default function MercadoPagoResultPage() {
     return () => clearInterval(timer)
   }, [polling, attempt, data, deadline, refetch])
 
-  const message = data?.message || 'Estamos confirmando tu pago.'
+  async function handleValidate() {
+    if (validating || !attempt) return
+    setValidating(true)
+    setExternalMessage(null)
+    try {
+      await validateMutation.mutateAsync()
+      await refetch()
+    } catch (error: any) {
+      const response = error?.response?.data
+      const message = typeof response === 'string'
+        ? response
+        : response?.message || 'No pudimos verificar el pago.'
+      setExternalMessage(message)
+    } finally {
+      setValidating(false)
+    }
+  }
+
+  const message = externalMessage ?? (data?.message || 'Estamos confirmando tu pago.')
   const category = data ? categoryOf(data.status, data.isPaid) : 'confirming'
   const final = data ? isPollingFinal(data.status, data.isPaid) : false
   const showUpdate = !final || category === 'error' || isError
@@ -155,8 +176,14 @@ export default function MercadoPagoResultPage() {
               Volver a mis cuotas
             </Button>
             {showUpdate && (
-              <Button variant="outline" className="w-full" onClick={() => { setPolling(true); refetch() }}>
-                Actualizar estado
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={validating}
+                loading={validating}
+                onClick={handleValidate}
+              >
+                {validating ? 'Consultando el estado del pago en Mercado Pago...' : 'Validar estado'}
               </Button>
             )}
           </div>

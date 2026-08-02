@@ -51,6 +51,8 @@ export interface StudentBilling {
   lateChargeAmount?: number
   paymentMethodSurchargeAmount?: number
   paymentMethodNameSnapshot?: string
+  paymentOrigin?: number
+  paymentOriginName?: string
   paymentId?: string
   transferProofImageUrl?: string
   reviewNote?: string

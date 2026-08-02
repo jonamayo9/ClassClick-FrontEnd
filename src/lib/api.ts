@@ -4,7 +4,6 @@ import { config } from './config'
 
 const api = axios.create({
   baseURL: config.apiBaseUrl,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 let refreshPromise: Promise<string> | null = null
@@ -129,9 +128,7 @@ export const apiService = {
   patch: <T = unknown>(url: string, body?: unknown) => api.patch<T>(url, body).then((r) => r.data),
   del: <T = unknown>(url: string) => api.delete<T>(url).then((r) => r.data),
   postForm: <T = unknown>(url: string, formData: FormData) =>
-    api.post<T>(url, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then((r) => r.data),
+    api.post<T>(url, formData).then((r) => r.data),
   getBlob: (url: string) => api.get(url, { responseType: 'blob' }).then((r) => r.data),
 }
 
