@@ -525,7 +525,12 @@ function PaymentRow({ payment, index, onViewDetail }: { payment: Payment; index:
       <td className="px-4 py-2.5 text-center">
         <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badge.classes}`}>{badge.label}</span>
       </td>
-      <td className="px-4 py-2.5 text-slate-500 text-xs">{methodLabel}</td>
+      <td className="px-4 py-2.5 text-slate-500 text-xs">
+        {methodLabel}
+        {payment.paymentOrigin != null && (
+          <span className="mt-0.5 block text-[10px] text-slate-400 italic">{paymentOriginLabel(payment.paymentOrigin)}</span>
+        )}
+      </td>
       <td className="px-4 py-2.5 text-slate-500 text-xs">{formatDate(payment.paidAtUtc)}</td>
       <td className="px-4 py-2.5 text-right">
         <Button variant="ghost" size="sm" onClick={onViewDetail}>Detalle</Button>
@@ -550,6 +555,9 @@ function PaymentCard({ payment, onViewDetail }: { payment: Payment; onViewDetail
         <div className="text-lg font-bold text-slate-900 dark:text-white">{money(payment.finalAmount)}</div>
         <div className="text-xs text-slate-400">{methodLabel}</div>
       </div>
+      {payment.paymentOrigin != null && (
+        <div className="mt-0.5 text-[10px] text-slate-400 italic">{paymentOriginLabel(payment.paymentOrigin)}</div>
+      )}
       <div className="mt-2.5 flex justify-between items-center">
         <span className="text-xs text-slate-400">{formatDate(payment.paidAtUtc)}</span>
         <Button variant="ghost" size="sm" onClick={onViewDetail}>Detalle</Button>
@@ -1104,6 +1112,12 @@ function ChargeDetailModal({ charge, onClose }: { charge: Charge; onClose: () =>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Estado</div>
             <span className={`inline-block mt-0.5 rounded-full px-3 py-1 text-xs font-bold ${badge.classes}`}>{badge.label}</span>
           </div>
+          {isChargePaid(charge.status) && charge.paymentOrigin != null && (
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Origen del pago</div>
+              <div className="text-sm font-medium mt-0.5">{paymentOriginLabel(charge.paymentOrigin)}</div>
+            </div>
+          )}
         </div>
 
         {charge.notes && (

@@ -23,6 +23,8 @@ function formatDate(v: string) {
 export function NotificationsBell() {
   const navigate = useNavigate()
   const activeRole = useAuth((state) => state.activeRole)
+  const companies = useAuth((state) => state.companies)
+  const switchCompany = useAuth((state) => state.switchCompany)
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(0)
@@ -137,6 +139,11 @@ export function NotificationsBell() {
                     <button onClick={async () => {
                       if (!n.isRead) { try { await apiService.post(`/api/notifications/${n.id}/read`); setUnread((p) => Math.max(0, p - 1)) } catch { /* */ } }
                       setOpen(false)
+                      const targetSlug = String(n.data?.companySlug ?? n.data?.CompanySlug ?? '')
+                      if (targetSlug) {
+                        const target = companies?.find((c) => (c.slug ?? c.companySlug) === targetSlug)
+                        if (target) switchCompany(target)
+                      }
                       navigate(resolveNotificationRoute({
                         type: n.type,
                         data: n.data,
