@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
@@ -28,7 +29,19 @@ import { FinancingRequestsTab } from './financing'
 function PaymentsPageInner() {
   const ctx = usePaymentsPage()
   const toast = useToast()
+  const [searchParams] = useSearchParams()
   const [showHelp, setShowHelp] = useState(false)
+
+  // URL compartible: /admin/payments?status=pending_review abre directamente la
+  // sección de pagos con el filtro "En revisión" (pendientes de aprobación).
+  useEffect(() => {
+    if (searchParams.get('status') === 'pending_review') {
+      ctx.setTab('payments')
+      ctx.setPayStatus('2')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [selectedCharge, setSelectedCharge] = useState<Charge | null>(null)
   const [showGenerateModal, setShowGenerateModal] = useState(false)

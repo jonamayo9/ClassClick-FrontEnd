@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
+import { getApiError } from '@/lib/api'
 import {
   useCourses, useCompanySettings, usePaymentSettings, useCoursePricings,
   useLatePaymentConfigs, useSiblingDiscounts, useScholarships,
@@ -14,13 +15,14 @@ import {
   useCreateLateFee, useUpdateLateFee, useDeleteLateFee,
   useCreateSiblingDiscount, useDeleteSiblingDiscount,
   useCreateScholarship, useSavePaymentSettings,
+  useBulkPricePreview, useBulkPriceUpdate,
   money, formatDate, formatDateShort, recurrenceLabel,
   LATE_FEE_RECURRENCE,
 } from './hooks'
 import type {
   Course, CoursePricing, LatePaymentConfig, SiblingDiscount, Scholarship,
   PaymentMethodDetail, PaymentSettings, ScholarshipAssignment, Student,
-  MercadoPagoStatus,
+  MercadoPagoStatus, BulkPricePreview,
 } from './hooks'
 
 const DISCOUNT_TYPE = { PERCENTAGE: 1, FIXED_AMOUNT: 2 } as const
@@ -442,6 +444,8 @@ function PricingSection({ courses, pricings, prLoading, saveMutation, deleteMuta
   const [classesPerWeek, setClassesPerWeek] = useState('')
   const [price, setPrice] = useState('')
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState<CoursePricing | null>(null)
+  const [showBulk, setShowBulk] = useState(false)
 
   function resetForm() { setCourseId(''); setClassesPerWeek(''); setPrice(''); setError('') }
 
@@ -503,7 +507,14 @@ function PricingSection({ courses, pricings, prLoading, saveMutation, deleteMuta
       </Card>
 
       <Card className="min-w-0 flex-1 p-5">
-        <h2 className="text-base font-bold text-slate-900 dark:text-white">Precios configurados</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Precios configurados</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Los cambios de precio sólo afectan las cuotas que se generen después de confirmar.</p>
+          </div>
+          <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700 whitespace-nowrap"
+            onClick={() => setShowBulk(true)}>Actualizar precios</Button>
+        </div>
         <div className="mt-4">
           {prLoading ? (
             <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div>
@@ -527,8 +538,12 @@ function PricingSection({ courses, pricings, prLoading, saveMutation, deleteMuta
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{p.classesPerWeek} clase(s)/sem</td>
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{money(p.price)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="outline" size="sm" className="text-[11px] px-2.5 py-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                          onClick={() => handleDelete(p.id, p.courseName)}>Eliminar</Button>
+                        <div className="flex justify-end gap-1.5">
+                          <Button variant="outline" size="sm" className="text-[11px] px-2.5 py-1.5"
+                            onClick={() => setEditing(p)}>Editar</Button>
+                          <Button variant="outline" size="sm" className="text-[11px] px-2.5 py-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                            onClick={() => handleDelete(p.id, p.courseName)}>Eliminar</Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -538,6 +553,302 @@ function PricingSection({ courses, pricings, prLoading, saveMutation, deleteMuta
           )}
         </div>
       </Card>
+
+      {editing && (
+        <EditPriceModal pricing={editing} saveMutation={saveMutation} toast={toast}
+          onClose={() => setEditing(null)} />
+      )}
+
+      {showBulk && (
+        <BulkUpdateModal courses={courses} toast={toast} onClose={() => setShowBulk(false)} />
+      )}
+    </div>
+  )
+}
+
+/* ─── Edición individual de precio ─── */
+function EditPriceModal({ pricing, saveMutation, toast, onClose }: {
+  pricing: CoursePricing
+  saveMutation: ReturnType<typeof useCreatePricing>
+  toast: (msg: string, type?: 'success' | 'error') => void
+  onClose: () => void
+}) {
+  const [newPrice, setNewPrice] = useState(String(pricing.price))
+  const [error, setError] = useState('')
+
+  async function handleSave() {
+    setError('')
+    const priceNum = Number(newPrice)
+    if (!newPrice || Number.isNaN(priceNum) || priceNum <= 0) {
+      setError('El precio debe ser mayor que cero.')
+      return
+    }
+    try {
+      await saveMutation.mutateAsync({
+        courseId: pricing.courseId,
+        classesPerWeek: pricing.classesPerWeek,
+        price: priceNum,
+      })
+      toast('Precio actualizado correctamente.')
+      onClose()
+    } catch (err) {
+      setError(getApiError(err) || 'Error al actualizar el precio.')
+      toast('Error al actualizar el precio.', 'error')
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} title={`Editar precio - ${pricing.courseName}`}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Frecuencia semanal</p>
+            <p className="mt-0.5 font-semibold text-slate-900 dark:text-white">{pricing.classesPerWeek} clase(s)/semana</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Precio actual</p>
+            <p className="mt-0.5 font-semibold text-slate-900 dark:text-white">{money(pricing.price)}</p>
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nuevo precio</label>
+          <Input type="number" min={0.01} step="0.01" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} />
+        </div>
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+          El cambio se aplicará únicamente a las cuotas que se generen después de confirmar. Todas las cuotas ya creadas conservarán su importe original, incluso si corresponden a meses futuros.
+        </p>
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>
+        )}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
+          <Button size="sm" loading={saveMutation.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleSave}>Confirmar</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/* ─── Actualización masiva de precios ─── */
+function BulkUpdateModal({ courses, toast, onClose }: {
+  courses: Course[]
+  toast: (msg: string, type?: 'success' | 'error') => void
+  onClose: () => void
+}) {
+  const activeCourses = courses.filter((c) => c.isActive)
+  const [selectedIds, setSelectedIds] = useState<string[]>(activeCourses.map((c) => c.id))
+  const [adjustmentType, setAdjustmentType] = useState('PercentageIncrease')
+  const [adjustmentValue, setAdjustmentValue] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const [preview, setPreview] = useState<BulkPricePreview | null>(null)
+  const [result, setResult] = useState<{ batchId: string; affectedCount: number; alreadyApplied: boolean } | null>(null)
+  const [idempotencyKey] = useState(() => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())))
+
+  const previewMutation = useBulkPricePreview()
+  const updateMutation = useBulkPriceUpdate()
+
+  function toggleAll() {
+    setSelectedIds(selectedIds.length === activeCourses.length ? [] : activeCourses.map((c) => c.id))
+  }
+
+  function toggle(id: string) {
+    setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
+  }
+
+  async function handlePreview() {
+    setError(''); setResult(null); setPreview(null)
+    const value = Number(adjustmentValue)
+    if (!adjustmentValue || Number.isNaN(value) || value <= 0) {
+      setError('El valor del aumento debe ser mayor que cero.')
+      return
+    }
+    if (selectedIds.length === 0) {
+      setError('Seleccioná al menos un curso.')
+      return
+    }
+    try {
+      const data = await previewMutation.mutateAsync({
+        courseIds: selectedIds,
+        adjustmentType,
+        adjustmentValue: value,
+      })
+      setPreview(data)
+    } catch (err) {
+      setError(getApiError(err) || 'No se pudo generar la vista previa.')
+    }
+  }
+
+  async function handleConfirm() {
+    if (!preview || preview.items.length === 0) return
+    setError(''); setResult(null)
+    const expectedPrices: Record<string, number> = {}
+    preview.items.forEach((i) => { expectedPrices[i.coursePricingId] = i.currentPrice })
+    try {
+      const data = await updateMutation.mutateAsync({
+        courseIds: selectedIds,
+        adjustmentType,
+        adjustmentValue: Number(adjustmentValue),
+        idempotencyKey,
+        expectedPrices,
+        reason: reason.trim() || null,
+      })
+      setResult({ batchId: data.batchId, affectedCount: data.affectedCount, alreadyApplied: data.alreadyApplied })
+      toast(data.alreadyApplied ? 'La operación ya había sido aplicada. No se volvió a ejecutar.' : 'Precios actualizados correctamente.')
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 409) {
+        setError('Uno o más precios fueron modificados desde que se generó la vista previa. Actualizá la vista previa antes de confirmar.')
+        setPreview(null)
+      } else {
+        setError(getApiError(err) || 'Error al actualizar los precios.')
+      }
+      toast('Error al actualizar los precios.', 'error')
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} title="Actualizar precios" wide>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cursos ({selectedIds.length} seleccionados)</p>
+          <Button variant="outline" size="sm" onClick={toggleAll}>
+            {selectedIds.length === activeCourses.length ? 'Quitar todos' : 'Seleccionar todos los cursos activos'}
+          </Button>
+        </div>
+
+        <div className="grid max-h-44 grid-cols-1 gap-1.5 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700 sm:grid-cols-2">
+          {activeCourses.length === 0 && (
+            <p className="col-span-full px-2 py-3 text-sm text-slate-400">No hay cursos activos.</p>
+          )}
+          {activeCourses.map((c) => (
+            <label key={c.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+              <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggle(c.id)}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+              <span className="truncate text-slate-700 dark:text-slate-300">{c.name}</span>
+            </label>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo de aumento</label>
+            <Select value={adjustmentType} onChange={(e) => setAdjustmentType(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+              <option value="PercentageIncrease">Porcentaje (%)</option>
+              <option value="FixedAmountIncrease">Monto fijo ($)</option>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
+              {adjustmentType === 'PercentageIncrease' ? 'Porcentaje de aumento' : 'Monto fijo de aumento'}
+            </label>
+            <Input type="number" min={0.01} step="0.01" value={adjustmentValue}
+              onChange={(e) => setAdjustmentValue(e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Motivo (opcional)</label>
+            <Input type="text" placeholder="Ej.: actualización semestral de aranceles" value={reason}
+              onChange={(e) => setReason(e.target.value)} />
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div>
+        )}
+
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
+          <Button size="sm" loading={previewMutation.isPending} className="bg-slate-700 text-white hover:bg-slate-800"
+            onClick={handlePreview}>Generar vista previa</Button>
+        </div>
+
+        {preview && preview.items.length === 0 && (
+          <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            Ningún curso seleccionado tiene precios configurados.
+          </p>
+        )}
+
+        {preview && preview.items.length > 0 && !result && (
+          <div className="space-y-3">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/50">
+                  <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    <th className="px-3 py-2">Curso</th>
+                    <th className="px-3 py-2">Clases/sem</th>
+                    <th className="px-3 py-2 text-right">Actual</th>
+                    <th className="px-3 py-2 text-right">Nuevo</th>
+                    <th className="px-3 py-2 text-right">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {preview.items.map((i) => (
+                    <tr key={i.coursePricingId} className="bg-white dark:bg-slate-900">
+                      <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">{i.courseName}</td>
+                      <td className="px-3 py-2 text-slate-500">{i.classesPerWeek}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">{money(i.currentPrice)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-700 dark:text-emerald-300">{money(i.newPrice)}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">+{money(i.difference)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 dark:bg-slate-800/50">
+                  <tr className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2" colSpan={2}>Totales ({preview.affectedCount} configuraciones)</td>
+                    <td className="px-3 py-2 text-right">{money(preview.totalCurrent)}</td>
+                    <td className="px-3 py-2 text-right text-emerald-700 dark:text-emerald-300">{money(preview.totalNew)}</td>
+                    <td className="px-3 py-2 text-right">+{money(preview.totalDifference)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+              Este cambio actualizará únicamente los precios vigentes de los cursos seleccionados. No se modificarán cuotas ya generadas, aunque correspondan a períodos futuros.
+            </p>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" size="sm" onClick={() => { setPreview(null); setError('') }}>Volver</Button>
+              <Button size="sm" loading={updateMutation.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleConfirm}>
+                Confirmar actualización
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <div className="space-y-2">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+              {result.alreadyApplied
+                ? 'Esta operación ya había sido aplicada; no se volvió a ejecutar.'
+                : `Se actualizaron ${result.affectedCount} precios correctamente.`}
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={onClose}>Cerrar</Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/* ─── Modal base local ─── */
+function Modal({ children, onClose, title, wide }: {
+  children: React.ReactNode; onClose: () => void; title?: string; wide?: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center sm:justify-center sm:p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className={`relative z-10 w-full animate-slide-up rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl dark:bg-slate-900 ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}>
+        {title && (
+          <div className="mb-4 border-b border-slate-200 pb-3 dark:border-slate-700">
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg dark:text-white">{title}</h2>
+          </div>
+        )}
+        {children}
+      </div>
     </div>
   )
 }

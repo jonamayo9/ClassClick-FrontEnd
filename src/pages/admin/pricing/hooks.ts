@@ -235,6 +235,72 @@ export function useDeletePricing() {
   })
 }
 
+export interface BulkPricePreviewItem {
+  coursePricingId: string
+  courseId: string
+  courseName: string
+  classesPerWeek: number
+  currentPrice: number
+  newPrice: number
+  difference: number
+}
+
+export interface BulkPricePreview {
+  previewId: string
+  adjustmentType: string
+  adjustmentValue: number
+  items: BulkPricePreviewItem[]
+  affectedCount: number
+  totalCurrent: number
+  totalNew: number
+  totalDifference: number
+}
+
+export interface BulkPriceUpdateItem {
+  coursePricingId: string
+  courseId: string
+  courseName: string
+  classesPerWeek: number
+  previousPrice: number
+  newPrice: number
+  difference: number
+}
+
+export interface BulkPriceUpdateResult {
+  batchId: string
+  alreadyApplied: boolean
+  affectedCount: number
+  items: BulkPriceUpdateItem[]
+}
+
+export interface BulkPriceConflict {
+  message: string
+  conflicts: { coursePricingId: string; courseName: string; classesPerWeek: number; expectedPrice: number; currentPrice: number }[]
+}
+
+export function useBulkPricePreview() {
+  return useMutation({
+    mutationFn: (body: { courseIds: string[]; adjustmentType: string; adjustmentValue: number }) =>
+      apiService.post<BulkPricePreview>(`/api/admin/${slug()}/payments/course-pricing/bulk-update/preview`, body),
+  })
+}
+
+export function useBulkPriceUpdate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: {
+      courseIds: string[]
+      adjustmentType: string
+      adjustmentValue: number
+      idempotencyKey: string
+      expectedPrices: Record<string, number>
+      reason?: string | null
+    }) =>
+      apiService.post<BulkPriceUpdateResult>(`/api/admin/${slug()}/payments/course-pricing/bulk-update`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pricing-course-pricings'] }),
+  })
+}
+
 export function useLatePaymentConfigs() {
   return useQuery({
     queryKey: ['pricing-late-configs', slug()],
