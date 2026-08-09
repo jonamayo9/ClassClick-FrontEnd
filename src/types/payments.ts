@@ -49,6 +49,7 @@ export interface Charge {
   basePrice: number
   finalAmount: number
   finalAmountPaid: number
+  paymentAmount: number
   siblingDiscountAmount: number
   siblingDiscountPercent: number
   scholarshipDiscountAmount: number

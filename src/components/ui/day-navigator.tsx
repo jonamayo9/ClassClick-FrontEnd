@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -13,7 +13,11 @@ interface DayNavigatorProps {
   date: string
   onChange: (date: string) => void
   dayOfWeek?: number | string
+  /** Días de la semana válidos (JS: 0=Dom..6=Sáb). Si se provee, la navegación solo aterriza en esos días. */
+  validDays?: number[]
   className?: string
+  /** Permitir fechas futuras (por defecto se bloquean > hoy). */
+  allowFuture?: boolean
 }
 
 function parseDate(dateStr: string): Date {
@@ -31,34 +35,78 @@ function addDays(d: Date, n: number): Date {
   return r
 }
 
-export function DayNavigator({ date, onChange, dayOfWeek, className = '' }: DayNavigatorProps) {
+export function DayNavigator({
+  date,
+  onChange,
+  dayOfWeek,
+  validDays,
+  className = '',
+  allowFuture = false,
+}: DayNavigatorProps) {
   const [open, setOpen] = useState(false)
   const current = parseDate(date)
-  const today = new Date()
-  const targetDay = typeof dayOfWeek === 'string' ? DAY_JS[dayOfWeek] : dayOfWeek
+  const today = useMemo(() => new Date(), [])
+
+  const validSet = useMemo(() => {
+    if (validDays && validDays.length > 0) return new Set(validDays)
+    const single = typeof dayOfWeek === 'string' ? DAY_JS[dayOfWeek] : dayOfWeek
+    return single !== undefined ? new Set([single]) : new Set<number>()
+  }, [validDays, dayOfWeek])
 
   const canGoPrev = true
-  const canGoNext = targetDay !== undefined ? addDays(current, 1) <= today : current < today
+
+  const canGoNext = useMemo(() => {
+    if (allowFuture) return true
+    let d = addDays(current, 1)
+    if (validSet.size === 0) return d <= today
+    for (let i = 0; i < 7; i++) {
+      if (d > today) return false
+      if (validSet.has(d.getDay())) return true
+      d = addDays(d, 1)
+    }
+    return false
+  }, [current, today, validSet, allowFuture])
 
   const goPrev = useCallback(() => {
-    if (targetDay === undefined) { onChange(formatDate(addDays(current, -1))); return }
     let d = addDays(current, -1)
-    while (d.getDay() !== targetDay) d = addDays(d, -1)
+    if (validSet.size > 0) {
+      for (let i = 0; i < 7; i++) {
+        if (validSet.has(d.getDay())) {
+          onChange(formatDate(d))
+          return
+        }
+        d = addDays(d, -1)
+      }
+      return
+    }
     onChange(formatDate(d))
-  }, [current, targetDay, onChange])
+  }, [current, validSet, onChange])
 
   const goNext = useCallback(() => {
-    if (targetDay === undefined) { onChange(formatDate(addDays(current, 1))); return }
     let d = addDays(current, 1)
-    while (d <= today && d.getDay() !== targetDay) d = addDays(d, 1)
-    if (d <= today) onChange(formatDate(d))
-  }, [current, targetDay, today, onChange])
+    if (validSet.size > 0) {
+      for (let i = 0; i < 7; i++) {
+        if (!allowFuture && d > today) return
+        if (validSet.has(d.getDay())) {
+          onChange(formatDate(d))
+          return
+        }
+        d = addDays(d, 1)
+      }
+      return
+    }
+    if (!allowFuture && d > today) return
+    onChange(formatDate(d))
+  }, [current, validSet, today, onChange, allowFuture])
 
-  const isDayDisabled = useCallback((d: Date) => {
-    if (d > today) return true
-    if (targetDay !== undefined && d.getDay() !== targetDay) return true
-    return false
-  }, [targetDay, today])
+  const isDayDisabled = useCallback(
+    (d: Date) => {
+      if (!allowFuture && d > today) return true
+      if (validSet.size > 0 && !validSet.has(d.getDay())) return true
+      return false
+    },
+    [today, validSet, allowFuture]
+  )
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>

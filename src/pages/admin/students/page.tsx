@@ -25,7 +25,16 @@ interface Student {
 }
 
 interface CourseOption { id: string; name: string }
-interface PaginatedResult<T> { items: T[]; totalCount: number; totalPages: number; page: number; pageSize: number }
+interface PaginatedResult<T> {
+  items: T[]
+  totalCount: number
+  totalPages: number
+  page: number
+  pageSize: number
+  activeStudents?: number
+  registeredStudents?: number
+  pendingStudents?: number
+}
 
 function useSlug() { return useAuth((s) => s.activeCompanySlug ?? '') }
 
@@ -96,6 +105,7 @@ function StudentsPageInner() {
       return apiService.get<PaginatedResult<Student>>(`/api/admin/${slug}/students?${params}`)
     },
     enabled: !!slug,
+    placeholderData: (prev) => prev,
   })
   const { data: courses } = useQuery({
     queryKey: ['admin-courses', slug],
@@ -103,6 +113,9 @@ function StudentsPageInner() {
     enabled: !!slug,
   })
   const students = data?.items ?? []; const totalCount = data?.totalCount ?? 0; const totalPages = data?.totalPages ?? 1
+  const activeStudents = data?.activeStudents ?? 0
+  const registeredStudents = data?.registeredStudents ?? 0
+  const pendingStudents = data?.pendingStudents ?? 0
 
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', memberNumber: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -202,9 +215,9 @@ function StudentsPageInner() {
         <p className="mt-1 text-sm text-blue-200">Creación, edición y gestión de alumnos</p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Total" value={String(totalCount)} />
-          <Stat label="Activos" value={String(students.filter((s) => s.isActive).length)} />
-          <Stat label="Registrados" value={String(students.filter((s) => s.isRegistrationCompleted).length)} />
-          <Stat label="Pendientes" value={String(students.filter((s) => !s.isRegistrationCompleted).length)} />
+          <Stat label="Activos" value={String(activeStudents)} />
+          <Stat label="Registrados" value={String(registeredStudents)} />
+          <Stat label="Pendientes" value={String(pendingStudents)} />
         </div>
       </div>
 

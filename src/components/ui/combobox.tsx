@@ -15,6 +15,8 @@ interface SearchableComboboxProps {
   disabled?: boolean
   className?: string
   onSearchChange?: (value: string) => void
+  /** Ocultar el buscador interno (filtrado puramente local cuando no se usa). */
+  showSearch?: boolean
 }
 
 export function SearchableCombobox({
@@ -28,6 +30,7 @@ export function SearchableCombobox({
   disabled,
   className,
   onSearchChange,
+  showSearch = true,
 }: SearchableComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -65,20 +68,22 @@ export function SearchableCombobox({
           collisionPadding={12}
           className="z-[100] w-[var(--radix-popover-trigger-width)] rounded-xl border border-slate-200 bg-white p-2 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-white"
         >
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-800">
-            <Search className="h-4 w-4 text-slate-400" />
-            <input
-              autoFocus
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value)
-                onSearchChange?.(event.target.value)
-              }}
-              placeholder={searchPlaceholder}
-              className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
-            />
-            {search && <button type="button" onClick={() => { setSearch(''); onSearchChange?.('') }} aria-label="Limpiar búsqueda"><X className="h-4 w-4 text-slate-400" /></button>}
-          </div>
+          {showSearch && (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-800">
+              <Search className="h-4 w-4 text-slate-400" />
+              <input
+                autoFocus
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  onSearchChange?.(event.target.value)
+                }}
+                placeholder={searchPlaceholder}
+                className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+              />
+              {search && <button type="button" onClick={() => { setSearch(''); onSearchChange?.('') }} aria-label="Limpiar búsqueda"><X className="h-4 w-4 text-slate-400" /></button>}
+            </div>
+          )}
           <div className="mt-1 max-h-64 overflow-y-auto">
             {loading ? (
               <div className="px-3 py-6 text-center text-sm text-slate-400">Cargando opciones...</div>

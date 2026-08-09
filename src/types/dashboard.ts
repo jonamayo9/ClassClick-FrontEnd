@@ -46,11 +46,38 @@ export interface AlertItem {
 }
 
 export interface UpcomingItem {
+  id: string
   concept: string
   studentName: string
   dueDate: string
   status: string
   navigateTo?: string
+  chargeTypeId?: string | null
+  chargeTypeName?: string
+  period?: string
+  amount?: number
+}
+
+export interface UpcomingPage {
+  items: UpcomingItem[]
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+}
+
+export interface ChargeTypeBreakdown {
+  chargeTypeId: string | null
+  name: string
+  total: number
+  paid: number
+  pending: number
+  overdue: number
+}
+
+export interface ChargeDistribution {
+  segments: DonutSegment[]
+  byType: ChargeTypeBreakdown[]
 }
 
 export interface CoverageByType {

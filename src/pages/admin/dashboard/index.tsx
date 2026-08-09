@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useAuth } from '@/stores/auth'
 import { apiService } from '@/lib/api'
 import { useDashboardKpis, useStudentDistribution, useChargeDistribution, useDocumentDistribution,
-  useAttendanceDistribution, useIncomeEvolution, useStudentEvolution, useDashboardAlerts, useUpcomingItems } from '@/hooks/useDashboard'
+  useAttendanceDistribution, useIncomeEvolution, useStudentEvolution, useDashboardAlerts, useUpcomingItems,
+  useChargeTypeOptions } from '@/hooks/useDashboard'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { KpiCard } from './components/KpiCard'
 import { DonutChart } from './components/DonutChart'
@@ -42,20 +43,27 @@ export function AdminDashboard() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
   const [dateRangeError, setDateRangeError] = useState('')
   const [hasCustomPeriod, setHasCustomPeriod] = useState(false)
+  const [chargeTypeId, setChargeTypeId] = useState('')
+  const [upcomingPage, setUpcomingPage] = useState(1)
+
+  // Al cambiar período o tipo de cuota, volver a la página 1 de próximos vencimientos.
+  useEffect(() => { setUpcomingPage(1) }, [dateFrom, dateTo, chargeTypeId])
 
   // Evolution: only pass period when user explicitly applied a custom range → dynamic granularity
   const evoFrom = hasCustomPeriod ? dateFrom : undefined
   const evoTo = hasCustomPeriod ? dateTo : undefined
 
-  const kpis = useDashboardKpis(slug, dateFrom, dateTo)
+  const kpis = useDashboardKpis(slug, dateFrom, dateTo, chargeTypeId || undefined)
   const studentsDist = useStudentDistribution(slug, dateFrom, dateTo)
-  const chargesDist = useChargeDistribution(slug, dateFrom, dateTo)
+  const chargesDist = useChargeDistribution(slug, dateFrom, dateTo, chargeTypeId || undefined)
   const docsDist = useDocumentDistribution(slug, dateFrom, dateTo)
   const attendanceDist = useAttendanceDistribution(slug, dateFrom, dateTo)
-  const incomeEvo = useIncomeEvolution(slug, evoFrom, evoTo)
+  const incomeEvo = useIncomeEvolution(slug, evoFrom, evoTo, chargeTypeId || undefined)
   const studentsEvo = useStudentEvolution(slug, evoFrom, evoTo)
   const alerts = useDashboardAlerts(slug, dateFrom, dateTo)
-  const upcoming = useUpcomingItems(slug, dateFrom, dateTo)
+  const upcoming = useUpcomingItems(slug, dateFrom, dateTo, chargeTypeId || undefined, upcomingPage)
+  const upcomingData = upcoming.data ?? { items: [], page: 1, pageSize: 15, totalCount: 0, totalPages: 1 }
+  const { data: chargeTypes = [] } = useChargeTypeOptions(slug)
 
   const loading = kpis.isLoading
 
@@ -85,6 +93,7 @@ export function AdminDashboard() {
       const params = new URLSearchParams()
       if (dateFrom) params.set('DateFromUtc', dateFrom)
       if (dateTo) params.set('DateToUtc', dateTo)
+      if (chargeTypeId) params.set('ChargeTypeId', chargeTypeId)
       const qs = params.toString()
       const endpoint = `/api/admin/${slug}/reports/collections/${format}?${qs}`
       const blob = await apiService.getBlob(endpoint)
@@ -100,7 +109,7 @@ export function AdminDashboard() {
       // silent
     }
     setExporting(null)
-  }, [slug, dateFrom, dateTo])
+  }, [slug, dateFrom, dateTo, chargeTypeId])
 
   if (loading) return <DashboardSkeleton />
 
@@ -209,11 +218,26 @@ export function AdminDashboard() {
 
       {/* Filters + Export */}
       <div className="space-y-3 sm:flex sm:items-end sm:justify-between sm:gap-3 sm:space-y-0">
-        <div className="min-w-0 sm:max-w-xs">
-          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Período</label>
-          <DateRangePicker from={dateFrom} to={dateTo}
-            onChange={({ from: f, to: t }) => handleDateChange(f, t)} />
-          {dateRangeError && <p className="mt-0.5 text-xs text-red-500">{dateRangeError}</p>}
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <div className="min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Período</label>
+            <DateRangePicker from={dateFrom} to={dateTo}
+              onChange={({ from: f, to: t }) => handleDateChange(f, t)} />
+            {dateRangeError && <p className="mt-0.5 text-xs text-red-500">{dateRangeError}</p>}
+          </div>
+          <div className="min-w-[10rem]">
+            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo de cuota</label>
+            <select
+              value={chargeTypeId}
+              onChange={(e) => setChargeTypeId(e.target.value)}
+              className="min-h-[2.5rem] w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              <option value="">Todos</option>
+              {chargeTypes.map((ct: any) => (
+                <option key={ct.id} value={ct.id}>{ct.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => handleExport('excel')} disabled={exporting !== null}
@@ -230,7 +254,8 @@ export function AdminDashboard() {
       {/* Fila 2: Donuts */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <DonutChart data={studentsDist.data ?? []} title="Alumnos" centerLabel="alumnos" centerValue={k?.activeStudents} loading={studentsDist.isLoading} />
-        <DonutChart data={chargesDist.data ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading} />
+        <DonutChart data={chargesDist.data?.segments ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading}
+          breakdown={chargesDist.data?.byType ?? []} />
         <DonutChart data={docsDist.data ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading} />
         <DonutChart data={attendanceDist.data ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading} />
       </div>
@@ -242,7 +267,13 @@ export function AdminDashboard() {
       </div>
 
       {/* Fila 5: Próximos vencimientos */}
-      <UpcomingTable items={upcoming.data ?? []} loading={upcoming.isLoading} />
+      <UpcomingTable
+        items={upcomingData.items}
+        loading={upcoming.isLoading}
+        page={upcomingData.page}
+        totalPages={upcomingData.totalPages}
+        onPageChange={setUpcomingPage}
+      />
     </div>
   )
 }

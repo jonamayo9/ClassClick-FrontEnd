@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { useCallback, useMemo, useState } from 'react'
@@ -7,6 +7,14 @@ import type { Charge, Payment, PaymentMethod, CourseOption, ProofSubmission, Pro
 const ARS = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
 export function money(value: number) { return ARS.format(value) }
+
+// Invalida todas las queries financieras de la pantalla tras una mutación exitosa.
+// Los queryKeys son prefijos: el refetch conserva los filtros (mes/año/estado/tipo/búsqueda/página).
+function invalidatePaymentsData(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ['charges'] })
+  queryClient.invalidateQueries({ queryKey: ['payments'] })
+  queryClient.invalidateQueries({ queryKey: ['payments-summary'] })
+}
 
 function unwrapList<T>(result: T[] | { items?: T[]; data?: T[] }): T[] {
   if (Array.isArray(result)) return result
@@ -75,6 +83,18 @@ export function useCharges(year: number, month: number, status: string, search: 
 }
 
 /* ── Payments ── */
+export function usePaymentsSummary(year: number, month: number, chargeTypeId?: string) {
+  const params = new URLSearchParams()
+  if (year) params.set('year', String(year))
+  if (month) params.set('month', String(month))
+  if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+  return useQuery({
+    queryKey: ['payments-summary', slug(), year, month, chargeTypeId],
+    queryFn: () => apiService.get<{ totalAmount: number; inReview: number; approved: number; rejected: number }>(`/api/admin/${slug()}/payments/summary?${params}`),
+    enabled: !!slug(),
+  })
+}
+
 export function usePayments(filters: { search: string; courseId: string; period: string; method: string; status: string; chargeType: string; page: number }) {
   return useQuery({
     queryKey: ['payments', slug(), filters],
@@ -114,7 +134,7 @@ export function useApprovePayment() {
   return useMutation({
     mutationFn: ({ paymentId, reviewNote }: { paymentId: string; reviewNote: string }) =>
       apiService.post(`/api/admin/${slug()}/payments/${paymentId}/approve`, { reviewNote }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['payments'] }); qc.invalidateQueries({ queryKey: ['charges'] }) },
+    onSuccess: () => invalidatePaymentsData(qc),
   })
 }
 
@@ -123,7 +143,7 @@ export function useRejectSubmission() {
   return useMutation({
     mutationFn: ({ submissionId, reviewNote }: { submissionId: string; reviewNote: string }) =>
       apiService.post(`/api/admin/${slug()}/payments/proof-submissions/${submissionId}/reject`, { reviewNote }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['payments'] }),
+    onSuccess: () => invalidatePaymentsData(qc),
   })
 }
 
@@ -181,7 +201,7 @@ export function useManualPay() {
   return useMutation({
     mutationFn: ({ chargeId, ...body }: { chargeId: string; paymentMethod: string | number; paymentReference?: string; notes?: string }) =>
       apiService.post(`/api/admin/${slug()}/monthly-charges/${chargeId}/pay-manual`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['charges'] }); qc.invalidateQueries({ queryKey: ['payments'] }) },
+    onSuccess: () => invalidatePaymentsData(qc),
   })
 }
 
@@ -298,6 +318,7 @@ export function usePaymentsPage() {
     method: payMethod, status: payStatus, chargeType: payChargeType, page: payPage,
   })
   const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId)
+  const { data: paySummaryData } = usePaymentsSummary(chargeYear, chargeMonth, chargeTypeId || undefined)
 
   const chargeItems = chargesData?.items
   const charges = useMemo(() => chargeItems ?? [], [chargeItems])
@@ -322,20 +343,15 @@ export function usePaymentsPage() {
     )
   }, [charges])
 
-  const paySummary = useMemo(() => {
-    if (!payments.length) return { total: 0, inreview: 0, approved: 0, rejected: 0 }
-    return payments.reduce(
-      (acc, p) => {
-        acc.total += p.finalAmount
-        const s = normalizeStatus(p.paymentStatus)
-        if (s === 'inreview') acc.inreview++
-        if (s === 'approved') acc.approved++
-        if (s === 'rejected') acc.rejected++
-        return acc
-      },
-      { total: 0, inreview: 0, approved: 0, rejected: 0 }
-    )
-  }, [payments])
+  const paySummary = useMemo(
+    () => ({
+      total: paySummaryData?.totalAmount ?? 0,
+      inreview: paySummaryData?.inReview ?? 0,
+      approved: paySummaryData?.approved ?? 0,
+      rejected: paySummaryData?.rejected ?? 0,
+    }),
+    [paySummaryData],
+  )
 
   const resetChargesFilters = () => { setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargePage(1) }
   const resetPaymentsFilters = () => {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
-import type { DonutSegment } from '@/types/dashboard'
+import type { DonutSegment, ChargeTypeBreakdown } from '@/types/dashboard'
 
 interface DonutChartProps {
   data: DonutSegment[]
@@ -9,6 +9,7 @@ interface DonutChartProps {
   centerLabel: string
   centerValue?: string | number
   loading?: boolean
+  breakdown?: ChargeTypeBreakdown[]
 }
 
 const DONUT_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#14b8a6']
@@ -29,7 +30,7 @@ function CustomTooltip({ active, payload }: any) {
   )
 }
 
-export function DonutChart({ data, title, centerLabel, centerValue, loading }: DonutChartProps) {
+export function DonutChart({ data, title, centerLabel, centerValue, loading, breakdown }: DonutChartProps) {
   const navigate = useNavigate()
   const [hovered, setHovered] = useState<string | null>(null)
 
@@ -100,6 +101,16 @@ export function DonutChart({ data, title, centerLabel, centerValue, loading }: D
           </div>
         ))}
       </div>
+      {breakdown && breakdown.length > 0 && (
+        <div className="mt-2 space-y-1 border-t border-slate-100 pt-2 dark:border-slate-700">
+          {breakdown.map((b) => (
+            <div key={b.name} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs">
+              <span className="text-slate-500 dark:text-slate-400">{b.name}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{b.total}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

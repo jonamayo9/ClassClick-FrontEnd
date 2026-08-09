@@ -26,6 +26,12 @@ import type { Charge, Payment } from '@/types/payments'
 import { HelpCircle } from 'lucide-react'
 import { FinancingRequestsTab } from './financing'
 
+// Monto efectivamente cobrado de una cuota pagada.
+// Fuente real del Payment: FinalAmountPaid cuando es > 0; fallback Payment.Amount
+// (flujos que dejan FinalAmountPaid en 0, p.ej. Mercado Pago); último recurso el valor de la cuota.
+const effectivePaid = (c: Charge) =>
+  c.finalAmountPaid > 0 ? c.finalAmountPaid : (c.paymentAmount > 0 ? c.paymentAmount : c.finalAmount)
+
 function PaymentsPageInner() {
   const ctx = usePaymentsPage()
   const toast = useToast()
@@ -389,13 +395,19 @@ function ChargeCard({ charge, onPay, onEdit, onViewProof, onViewDetail }: {
       </div>
 
       <div className="mt-2 flex items-baseline justify-between">
-        <div className="text-lg font-bold text-slate-900 dark:text-white">{money(charge.finalAmount)}</div>
+        <div className="text-lg font-bold text-slate-900 dark:text-white">{paid ? money(effectivePaid(charge)) : money(charge.finalAmount)}</div>
         <div className="text-xs text-slate-400">Vto: {formatDate(charge.dueDateUtc)}</div>
       </div>
 
       {paid && (
         <div className="mt-1 text-[10px] font-medium text-emerald-600">
           Pagado con {payMethodLabel}
+        </div>
+      )}
+
+      {paid && (charge.paymentMethodSurchargeAmount ?? 0) > 0 && (
+        <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+          Cuota {money(charge.finalAmount)} · Recargo +{money(charge.paymentMethodSurchargeAmount ?? 0)}
         </div>
       )}
 
@@ -1097,15 +1109,24 @@ function ChargeDetailModal({ charge, onClose }: { charge: Charge; onClose: () =>
               {charge.lateChargeAmount > 0 && (
                 <BreakdownRow label="Recargo mora" value={charge.lateChargeAmount} color="text-red-600" />
               )}
-              {charge.paymentMethodSurchargeAmount > 0 && (
-                <BreakdownRow label="Recargo método de pago" value={charge.paymentMethodSurchargeAmount} color="text-amber-600" />
-              )}
             </div>
           )}
 
           <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 text-base font-bold dark:border-slate-600">
-            <span>Total</span><span>{money(charge.finalAmount)}</span>
+            <span>Total de la cuota</span><span>{money(charge.finalAmount)}</span>
           </div>
+
+          {isChargePaid(charge.status) && (charge.paymentMethodSurchargeAmount ?? 0) > 0 && (
+            <div className="mt-1 flex justify-between text-sm font-medium text-amber-600 dark:text-amber-400">
+              <span>Recargo por método de pago</span><span>+{money(charge.paymentMethodSurchargeAmount ?? 0)}</span>
+            </div>
+          )}
+
+          {isChargePaid(charge.status) && (
+            <div className="mt-1 flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-emerald-600 dark:border-slate-600">
+              <span>Total pagado</span><span>{money(effectivePaid(charge))}</span>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1125,6 +1146,12 @@ function ChargeDetailModal({ charge, onClose }: { charge: Charge; onClose: () =>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Estado</div>
             <span className={`inline-block mt-0.5 rounded-full px-3 py-1 text-xs font-bold ${badge.classes}`}>{badge.label}</span>
           </div>
+          {isChargePaid(charge.status) && (
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Método de pago</div>
+              <div className="text-sm font-medium mt-0.5">{charge.paymentMethodNameSnapshot || getChargePaymentMethodText(charge.paymentMethod)}</div>
+            </div>
+          )}
           {isChargePaid(charge.status) && charge.paymentOrigin != null && (
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Origen del pago</div>

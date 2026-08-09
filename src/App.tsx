@@ -191,6 +191,7 @@ export default function App() {
             <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
             <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
             <Route path="attendance" element={<AttendancePage />} />
+            <Route path="attendance/qr-scan" element={<AdminQrScanPage />} />
             <Route path="attendance/qr-scan/:classId" element={<AdminQrScanPage />} />
             <Route path="company" element={<CompanyPage />} />
             <Route path="public-page" element={<PublicPageAdmin />} />
@@ -228,6 +229,7 @@ export default function App() {
             <Route path="courses" element={<TeacherCoursesPage />} />
             <Route path="courses/:id" element={<TeacherCourseDetailPage />} />
             <Route path="attendance" element={<TeacherAttendancePage />} />
+            <Route path="attendance/qr-scan" element={<TeacherQrScanPage />} />
             <Route path="attendance/qr-scan/:classId" element={<TeacherQrScanPage />} />
             <Route path="profile" element={<TeacherProfilePage />} />
           </Route>

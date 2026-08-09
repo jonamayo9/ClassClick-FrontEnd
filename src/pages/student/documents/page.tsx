@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { lazy, Suspense, useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { Card } from '@/components/ui/card'
@@ -11,6 +11,9 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { formatDate, formatDateOnly } from '../student.hooks'
+
+// Viewer PDF propio (PDF.js): lazy-loaded para no inflar el bundle inicial.
+const PdfViewer = lazy(() => import('@/components/pdf-viewer'))
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024
 
@@ -99,6 +102,10 @@ interface NormalizedDoc {
   uploadLabel: string
   hasExpiration: boolean
   maxValidityDays: number | null
+  sourceFileCount: number
+  uploadedCount: number
+  remaining: number
+  maxSelectable: number
   raw: Record<string, unknown>
 }
 
@@ -146,11 +153,16 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
 
   // Upload rules
   const label = statusLabel.toLowerCase()
-  const uploadedCount = effectiveFiles.length
+  const sourceFileCount = Math.max(Number(pick(raw, ['sourceFileCount', 'SourceFileCount'])) || 0, 0)
+  const uploadedCount = sourceFileCount > 0 ? sourceFileCount : effectiveFiles.length
+  const remaining = Math.max(0, maxFiles - uploadedCount)
   const canUpload = !!assignmentId && (
-    (label === 'pendiente' && uploadedCount < maxFiles) ||
+    (label === 'pendiente' && remaining > 0) ||
     (label === 'rechazado')
   )
+
+  // En rechazo la nueva presentación reemplaza a la anterior: el lote puede tener hasta maxFiles.
+  const maxSelectable = label === 'rechazado' ? maxFiles : remaining
 
   let uploadLabel = 'Subir documento'
   if (label === 'rechazado') {
@@ -177,6 +189,10 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
     allowMultipleFiles,
     canUpload,
     uploadLabel,
+    sourceFileCount,
+    uploadedCount,
+    remaining,
+    maxSelectable,
     raw,
   }
 }
@@ -197,14 +213,20 @@ function DocumentsPageInner() {
   const docs = asArray(rawList).map((d) => normalizeDocument(d as Record<string, unknown>))
 
   const [selected, setSelected] = useState<NormalizedDoc | null>(null)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadExpiration, setUploadExpiration] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
   /* View file state */
   const [viewFileLoading, setViewFileLoading] = useState(false)
-  const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
+  const [viewFileData, setViewFileData] = useState<{
+    downloadUrl: string
+    canonicalUrl: string
+    fileName: string
+    isImage: boolean
+    isPdf: boolean
+  } | null>(null)
 
   const pendingCount = docs.filter((d) => {
     const s = d.statusLabel.toLowerCase()
@@ -214,12 +236,12 @@ function DocumentsPageInner() {
   function formatDateSafe(v: string) { return v ? formatDateOnly(v) : '-' }
 
   async function handleUpload() {
-    if (!selected || !uploadFile) return
+    if (!selected || uploadFiles.length === 0) return
     setUploading(true)
     setUploadError('')
     try {
       const fd = new FormData()
-      fd.append('file', uploadFile)
+      uploadFiles.forEach((f) => fd.append('files', f))
       if (selected.hasExpiration && uploadExpiration) {
         fd.append('expirationDate', uploadExpiration)
       }
@@ -229,7 +251,7 @@ function DocumentsPageInner() {
       )
       qc.invalidateQueries({ queryKey: ['my-documents'] })
       toast('Documento subido correctamente.')
-      setUploadFile(null)
+      setUploadFiles([])
       setSelected(null)
     } catch (err: any) {
       const serverMsg = err?.response?.data ?? err?.message ?? 'Error al subir el documento.'
@@ -241,29 +263,47 @@ function DocumentsPageInner() {
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > MAX_FILE_SIZE) {
-      toast('El archivo supera los 25 MB permitidos.', 'error')
-      e.target.value = ''
+    const chosen = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!selected || chosen.length === 0) return
+
+    const remainingSlots = selected.maxSelectable - uploadFiles.length
+    if (remainingSlots <= 0) {
+      toast('Ya se alcanzó la cantidad máxima de archivos para este documento.', 'error')
       return
     }
-    setUploadFile(file)
+
+    const valid = chosen.filter((f) => f.size <= MAX_FILE_SIZE)
+    if (valid.length < chosen.length) {
+      toast('Algunos archivos superan los 25 MB permitidos y fueron omitidos.', 'error')
+    }
+
+    const toAdd = valid.slice(0, remainingSlots)
+    if (toAdd.length < valid.length) {
+      toast(`Solo podés agregar ${remainingSlots} archivo(s) más.`, 'error')
+    }
+
+    setUploadFiles((prev) => [...prev, ...toAdd])
   }
 
-  async function handleViewFile(fileId: string, fileName: string, mimeType: string) {
+  async function handleViewFile(fileId: string, assignmentId: string, fileName: string, mimeType: string) {
     setViewFileLoading(true)
     setViewFileData(null)
     try {
-      const res = await apiService.get<{ url: string }>(
+      const res = await apiService.get<{ url: string; fileName?: string; isPdf?: boolean }>(
         `/api/student/${slug()}/student-files/files/${fileId}/view`,
       )
       if (res?.url) {
+        // El backend devuelve la metadata efectiva del recurso servido (canónico PDF o archivo individual).
+        const effectiveIsPdf = typeof res.isPdf === 'boolean'
+          ? res.isPdf
+          : mimeType?.toLowerCase() === 'application/pdf'
         setViewFileData({
-          url: res.url,
-          fileName,
-          isImage: mimeType?.toLowerCase().startsWith('image/') ?? false,
-          isPdf: mimeType?.toLowerCase() === 'application/pdf',
+          downloadUrl: res.url,
+          canonicalUrl: `/api/student/${slug()}/student-files/assignments/${assignmentId}/canonical`,
+          fileName: res.fileName || fileName,
+          isImage: !effectiveIsPdf && (mimeType?.toLowerCase().startsWith('image/') ?? false),
+          isPdf: effectiveIsPdf,
         })
       }
     } catch {
@@ -330,7 +370,7 @@ function DocumentsPageInner() {
                   <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{d.title || 'Documento'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {d.isRequired ? 'Obligatorio' : 'Opcional'} · {d.statusLabel}
-                    {d.maxFiles > 1 && <span className="ml-1">({d.files.length}/{d.maxFiles})</span>}
+                    {d.maxFiles > 1 && <span className="ml-1">({d.uploadedCount}/{d.maxFiles})</span>}
                   </p>
                 </div>
                 <Badge variant={getStatusVariant(d.status)} className="shrink-0">{d.statusLabel}</Badge>
@@ -357,7 +397,7 @@ function DocumentsPageInner() {
               <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
                 {d.files.length > 0 && d.files[0].id && (
                   <Button variant="outline" size="sm"
-                    onClick={() => handleViewFile(d.files[0].id, d.files[0].fileName, d.files[0].mimeType)}>
+                    onClick={() => handleViewFile(d.files[0].id, d.assignmentId, d.files[0].fileName, d.files[0].mimeType)}>
                     Ver archivo
                   </Button>
                 )}
@@ -375,7 +415,7 @@ function DocumentsPageInner() {
 
       {/* Detail Modal */}
       {selected && (
-        <Modal open={!!selected} onClose={() => { setSelected(null); setUploadFile(null); setUploadExpiration(''); setUploadError('') }}
+        <Modal open={!!selected} onClose={() => { setSelected(null); setUploadFiles([]); setUploadExpiration(''); setUploadError('') }}
           title={selected.title || 'Documento'} className="sm:max-w-lg">
           <div className="px-5 py-4 sm:px-6 space-y-4 max-h-[85vh] overflow-y-auto">
 
@@ -383,7 +423,7 @@ function DocumentsPageInner() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {selected.isRequired ? 'Obligatorio' : 'Opcional'}
-                {selected.maxFiles > 1 && <span className="ml-1">({selected.files.length}/{selected.maxFiles})</span>}
+                {selected.maxFiles > 1 && <span className="ml-1">({selected.uploadedCount}/{selected.maxFiles})</span>}
               </span>
               <Badge variant={getStatusVariant(selected.status)}>{selected.statusLabel}</Badge>
             </div>
@@ -424,7 +464,7 @@ function DocumentsPageInner() {
             {selected.files.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Archivos cargados ({selected.files.length}/{selected.maxFiles})
+                  Archivos cargados ({selected.uploadedCount}/{selected.maxFiles})
                 </p>
                 {selected.files.map((f) => (
                   <div key={f.id} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50 flex items-center justify-between gap-3">
@@ -434,7 +474,7 @@ function DocumentsPageInner() {
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <Button variant="outline" size="sm"
-                        onClick={() => handleViewFile(f.id, f.fileName, f.mimeType)}>
+                        onClick={() => handleViewFile(f.id, selected.assignmentId, f.fileName, f.mimeType)}>
                         Ver
                       </Button>
                       <a
@@ -490,21 +530,50 @@ function DocumentsPageInner() {
                 )}
                 {/* Custom file input */}
                 <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  multiple={selected.maxFiles > 1}
                   onChange={handleFileChange} className="hidden" />
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="shrink-0">
-                    Seleccionar archivo
+                    Seleccionar archivo{selected.maxFiles > 1 ? 's' : ''}
                   </Button>
                   <div className="flex-1 flex items-center text-sm text-slate-500 dark:text-slate-400 min-w-0">
-                    {uploadFile ? (
-                      <span className="truncate">{uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)</span>
+                    {uploadFiles.length > 0 ? (
+                      <span className="truncate">{uploadFiles.length} archivo(s) seleccionado(s)</span>
                     ) : (
                       <span>Ningún archivo seleccionado</span>
                     )}
                   </div>
                 </div>
+
+                {uploadFiles.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Archivos seleccionados</p>
+                    <div className="space-y-1">
+                      {uploadFiles.map((f, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-1.5 text-xs text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                          <span className="min-w-0 truncate">{f.name} ({(f.size / 1024 / 1024).toFixed(1)} MB)</span>
+                          <button type="button" onClick={() => setUploadFiles((prev) => prev.filter((_, j) => j !== i))}
+                            className="shrink-0 rounded px-1.5 py-0.5 font-bold text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selected.remaining > 0 && (
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    {selected.statusLabel.toLowerCase() === 'rechazado'
+                      ? `La nueva presentación reemplaza los archivos anteriores (hasta ${selected.maxFiles} archivo(s)).`
+                      : `Podés agregar hasta ${selected.maxSelectable} archivo(s) más.`}
+                  </p>
+                )}
+
                 <div className="flex gap-2 mt-3">
-                  <Button onClick={handleUpload} disabled={!uploadFile || uploading || (selected.hasExpiration && !selected.expirationDateUtc && !uploadExpiration)} loading={uploading}
+                  <Button onClick={handleUpload}
+                    disabled={uploadFiles.length === 0 || uploading || (selected.hasExpiration && !selected.expirationDateUtc && !uploadExpiration)}
+                    loading={uploading}
                     className="flex-1 bg-violet-600 text-white hover:bg-violet-700">
                     {uploading ? 'Subiendo...' : 'Subir documento'}
                   </Button>
@@ -515,7 +584,7 @@ function DocumentsPageInner() {
 
             {/* Close */}
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => { setSelected(null); setUploadFile(null); setUploadExpiration(''); setUploadError('') }}>Cerrar</Button>
+              <Button variant="outline" onClick={() => { setSelected(null); setUploadFiles([]); setUploadExpiration(''); setUploadError('') }}>Cerrar</Button>
             </div>
           </div>
         </Modal>
@@ -523,35 +592,36 @@ function DocumentsPageInner() {
 
       {/* View File Modal */}
       {viewFileData && (
-        <Modal open={!!viewFileData} onClose={() => setViewFileData(null)} title={viewFileData.fileName} className="sm:max-w-4xl">
+        <Modal
+          open={!!viewFileData}
+          onClose={() => setViewFileData(null)}
+          title={viewFileData.fileName}
+          className={viewFileData.isPdf ? 'sm:max-w-4xl h-[85dvh] sm:h-[70vh]' : 'sm:max-w-4xl'}
+        >
           {viewFileLoading ? (
             <div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-violet-600" /></div>
-          ) : viewFileData.url ? (
-            <>
-              <div className="flex justify-end border-b border-slate-200 px-5 py-3 dark:border-slate-700">
-                <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                  Descargar
+          ) : viewFileData.isPdf ? (
+            <Suspense fallback={<div className="flex items-center justify-center py-16"><Spinner className="h-6 w-6 text-violet-600" /></div>}>
+              <PdfViewer url={viewFileData.canonicalUrl} downloadUrl={viewFileData.downloadUrl} fileName={viewFileData.fileName} />
+            </Suspense>
+          ) : viewFileData.isImage ? (
+            <div className="bg-slate-100 p-4 dark:bg-slate-800">
+              <img src={viewFileData.downloadUrl} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-16">
+              <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
+              <div className="flex gap-2">
+                <a href={viewFileData.downloadUrl} download={viewFileData.fileName} target="_blank" rel="noreferrer"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                  Descargar archivo
+                </a>
+                <a href={viewFileData.downloadUrl} target="_blank" rel="noreferrer"
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+                  Abrir
                 </a>
               </div>
-              <div className="bg-slate-100 p-4 dark:bg-slate-800">
-                {viewFileData.isImage ? (
-                  <img src={viewFileData.url} alt={viewFileData.fileName} className="mx-auto max-h-[72vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
-                ) : viewFileData.isPdf ? (
-                  <iframe src={viewFileData.url} title={viewFileData.fileName} className="h-[72vh] w-full rounded-lg border-0" />
-                ) : (
-                  <div className="flex flex-col items-center gap-4 py-16">
-                    <p className="text-sm text-slate-500">No se puede previsualizar este archivo.</p>
-                    <a href={viewFileData.url} download={viewFileData.fileName} target="_blank" rel="noreferrer"
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                      Descargar archivo
-                    </a>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="py-12 text-center text-sm text-slate-400">No se pudo cargar el archivo.</div>
+            </div>
           )}
         </Modal>
       )}

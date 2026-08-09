@@ -82,3 +82,13 @@ export function useSaveAttendance() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['class-attendance'] }),
   })
 }
+
+// Hooks del flujo workflow (Etapa 3) reexportados desde el módulo compartido.
+export {
+  useWorkflowBase,
+  useCourseOptions,
+  usePendingAttendance,
+  useAttendanceHistory,
+  useSaveWorkflowAttendance,
+  useDebouncedValue,
+} from '@/components/attendance/hooks'
