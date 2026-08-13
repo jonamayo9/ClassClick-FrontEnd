@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import {
   usePaymentsPage, money, formatDate, formatDateTime,
@@ -12,7 +12,7 @@ import {
   isChargePaid, isChargeOverdue, isChargeCancelled, normalizeStatus,
 } from './hooks'
 import { formatDisplayName } from '@/lib/text'
-import { paymentOriginLabel } from '@/lib/payment-labels'
+import { paymentOriginLabel, paymentMethodLabel } from '@/lib/payment-labels'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ import { Modal as SharedModal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import type { Charge, Payment } from '@/types/payments'
-import { HelpCircle } from 'lucide-react'
+import { HelpCircle, Download, ChevronDown, FileText, FileSpreadsheet } from 'lucide-react'
 import { FinancingRequestsTab } from './financing'
 
 // Monto efectivamente cobrado de una cuota pagada.
@@ -55,6 +55,8 @@ function PaymentsPageInner() {
   const [showPayModal, setShowPayModal] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState<string | null>(null)
   const [showProofModal, setShowProofModal] = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   const { data: chargeTypeOptions = [] } = useQuery({
     queryKey: ['charge-types-filter', useAuth.getState().activeCompanySlug],
@@ -76,6 +78,12 @@ function PaymentsPageInner() {
     setShowNotifyConfirm(true)
   }
 
+  async function handleExportCharges(format: 'pdf' | 'xlsx') {
+    setExportOpen(false)
+    const msg = await ctx.exportCharges(format)
+    if (msg) toast(msg, 'error')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -90,6 +98,43 @@ function PaymentsPageInner() {
             >
               Notificar cuotas pendientes
             </Button>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOpen((v) => !v)}
+                loading={ctx.exporting}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Exportar
+                <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              {exportOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setExportOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                    <button
+                      type="button"
+                      onClick={() => handleExportCharges('pdf')}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExportCharges('xlsx')}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Excel (XLSX)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <Button variant="primary" size="sm" onClick={() => setShowGenerateModal(true)}>Generar cuotas</Button>
           </div>
         )}
@@ -138,12 +183,13 @@ function PaymentsPageInner() {
       {ctx.tab === 'charges' ? (
         <ChargesTab ctx={ctx} chargeTypes={chargeTypeOptions} onPay={setShowPayModal} onEdit={setShowEditModal} onViewProof={setShowProofModal} onViewDetail={setSelectedCharge} />
       ) : ctx.tab === 'payments' ? (
-        <PaymentsTab ctx={ctx} onViewDetail={setSelectedPayment} />
+        <PaymentsTab ctx={ctx} onViewDetail={setSelectedPayment} onExport={() => setShowExportModal(true)} />
       ) : (
         <FinancingRequestsTab />
       )}
 
       {showGenerateModal && <GenerateChargesModal onClose={() => setShowGenerateModal(false)} />}
+      {showExportModal && <ExportPaymentsModal ctx={ctx} chargeTypes={chargeTypeOptions} onClose={() => setShowExportModal(false)} />}
       <ConfirmModal open={showNotifyConfirm} onClose={() => setShowNotifyConfirm(false)}
         title="Notificar pendientes"
         message="Se notificará a todos los alumnos con al menos una cuota pendiente o vencida. ¿Continuar?"
@@ -218,16 +264,19 @@ function ChargesTab({ ctx, chargeTypes, onPay, onEdit, onViewProof, onViewDetail
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         <div className="w-full sm:w-36">
-          <SelectField value={String(ctx.chargeMonth)} onValueChange={(value) => { ctx.setChargeMonth(Number(value)); ctx.setChargePage(1) }}
-            options={months.map((item) => ({ value: String(item.value), label: item.label }))} aria-label="Mes" />
+          <SelectField value={ctx.chargeMonth === '' ? '' : String(ctx.chargeMonth)} onValueChange={(value) => { ctx.setChargeMonth(value === '' ? '' : Number(value)); ctx.setChargePage(1) }}
+            placeholder="Todos los meses"
+            options={[{ value: '', label: 'Todos los meses' }, ...months.map((item) => ({ value: String(item.value), label: item.label }))]} aria-label="Mes" />
         </div>
         <div className="w-full sm:w-28">
-          <SelectField value={String(ctx.chargeYear)} onValueChange={(value) => { ctx.setChargeYear(Number(value)); ctx.setChargePage(1) }}
-            options={years.map((year) => ({ value: String(year), label: String(year) }))} aria-label="Año" />
+          <SelectField value={ctx.chargeYear === '' ? '' : String(ctx.chargeYear)} onValueChange={(value) => { ctx.setChargeYear(value === '' ? '' : Number(value)); ctx.setChargePage(1) }}
+            placeholder="Todos los años"
+            options={[{ value: '', label: 'Todos los años' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} aria-label="Año" />
         </div>
         <div className="w-full sm:w-44">
           <SelectField value={ctx.chargeStatus} onValueChange={(value) => { ctx.setChargeStatus(value); ctx.setChargePage(1) }}
             placeholder="Todos los estados" options={[
+              { value: '', label: 'Todos los estados' },
               { value: 'pending', label: 'Pendiente' },
               { value: 'paid', label: 'Pagada' },
               { value: 'overdue', label: 'Vencida' },
@@ -235,12 +284,21 @@ function ChargesTab({ ctx, chargeTypes, onPay, onEdit, onViewProof, onViewDetail
         </div>
         <div className="w-full sm:w-44">
           <SelectField value={ctx.chargeTypeId} onValueChange={(value) => { ctx.setChargeTypeId(value); ctx.setChargePage(1) }}
-            placeholder="Todos los tipos" options={chargeTypes.map((item: any) => ({ value: item.id, label: item.name }))}
-            aria-label="Tipo de cuota" />
+            placeholder="Todos los tipos" options={[
+              { value: '', label: 'Todos los tipos' },
+              ...chargeTypes.map((item: any) => ({ value: item.id, label: item.name })),
+            ]} aria-label="Tipo de cuota" />
+        </div>
+        <div className="w-full sm:w-48">
+          <SelectField value={ctx.chargeCourseId} onValueChange={(value) => { ctx.setChargeCourseId(value); ctx.setChargePage(1) }}
+            placeholder="Todos los cursos" options={[
+              { value: '', label: 'Todos los cursos' },
+              ...(ctx.courses ?? []).map((course: any) => ({ value: course.id, label: course.name })),
+            ]} aria-label="Curso" />
         </div>
         <Input placeholder="Buscar alumno..." value={ctx.chargeSearch}
           onChange={(e) => { ctx.setChargeSearch(e.target.value); ctx.setChargePage(1) }}
-          className="max-w-[180px]" />
+          className="w-full sm:max-w-[180px]" />
         <Button variant="ghost" size="sm" onClick={ctx.resetChargesFilters}>Limpiar</Button>
       </div>
 
@@ -251,7 +309,7 @@ function ChargesTab({ ctx, chargeTypes, onPay, onEdit, onViewProof, onViewDetail
       ) : !ctx.charges.length ? (
         <Card className="py-12 text-center">
           <p className="text-4xl mb-2">💰</p>
-          <p className="text-slate-500 font-medium">No hay cuotas para este período</p>
+          <p className="text-slate-500 font-medium">No hay cuotas para estos filtros</p>
           <p className="text-xs text-slate-400 mt-1">Generá cuotas usando el botón superior</p>
         </Card>
       ) : (
@@ -466,8 +524,8 @@ function ChargeBadges({ charge }: { charge: Charge }) {
 }
 
 /* ── Payments Tab ── */
-function PaymentsTab({ ctx, onViewDetail }: {
-  ctx: ReturnType<typeof usePaymentsPage>; onViewDetail: (payment: Payment) => void
+function PaymentsTab({ ctx, onViewDetail, onExport }: {
+  ctx: ReturnType<typeof usePaymentsPage>; onViewDetail: (payment: Payment) => void; onExport: () => void
 }) {
   return (
     <div className="space-y-4">
@@ -489,6 +547,10 @@ function PaymentsTab({ ctx, onViewDetail }: {
               { value: '4', label: 'Rechazado' },
             ]} aria-label="Estado del pago" />
         </div>
+        <Button variant="outline" size="sm" onClick={onExport}>
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Exportar
+        </Button>
         <Button variant="ghost" size="sm" onClick={ctx.resetPaymentsFilters}>Limpiar</Button>
       </div>
 
@@ -1187,6 +1249,179 @@ function BreakdownRow({ label, value, color }: { label: string; value: number; c
       <span>{label}</span>
       <span>{value >= 0 ? money(value) : `-${money(Math.abs(value))}`}</span>
     </div>
+  )
+}
+
+const exportMonthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+function parsePeriod(value: string): { month: number; year: number } | null {
+  const m = value.trim().match(/^(\d{1,2})\/(\d{4})$/)
+  if (!m) return null
+  const month = Number(m[1])
+  const year = Number(m[2])
+  if (month < 1 || month > 12) return null
+  return { month, year }
+}
+
+function ExportPaymentsModal({ ctx, chargeTypes, onClose }: {
+  ctx: ReturnType<typeof usePaymentsPage>
+  chargeTypes: any[]
+  onClose: () => void
+}) {
+  const toast = useToast()
+  const now = new Date()
+  const prefilledPeriod = parsePeriod(ctx.payPeriod)
+
+  const [usePeriod, setUsePeriod] = useState(!!prefilledPeriod)
+  const [year, setYear] = useState(prefilledPeriod?.year ?? now.getFullYear())
+  const [month, setMonth] = useState(prefilledPeriod?.month ?? now.getMonth() + 1)
+  const [courseId, setCourseId] = useState(ctx.payCourseId)
+  const [chargeTypeId, setChargeTypeId] = useState('')
+  const [method, setMethod] = useState('')
+  const [status, setStatus] = useState('')
+  const [search, setSearch] = useState(ctx.paySearch)
+  const [exporting, setExporting] = useState<'pdf' | 'xlsx' | null>(null)
+
+  // Métodos habilitados para alumnos: los que la empresa activó en Configuración
+  // de Pagos (isEnabledByAdmin) y además están habilitados a nivel plataforma
+  // (enabledBySuperAdmin). Misma regla que usa la pantalla de pricing/configuración.
+  const enabledMethods = useMemo(
+    () => (ctx.paymentMethods ?? []).filter((pm) => pm.enabledBySuperAdmin && pm.isEnabledByAdmin),
+    [ctx.paymentMethods],
+  )
+
+  async function handleExport(format: 'pdf' | 'xlsx') {
+    if (exporting) return
+    setExporting(format)
+    try {
+      const params = new URLSearchParams()
+      if (usePeriod) {
+        params.set('year', String(year))
+        params.set('month', String(month))
+      }
+      if (courseId) params.set('courseId', courseId)
+      if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+      if (method) params.set('paymentMethod', method)
+      if (status) params.set('paymentStatus', status)
+      if (search.trim()) params.set('search', search.trim())
+      params.set('format', format)
+
+      const blob = await apiService.getBlob(`/api/admin/${ctx.activeSlug}/payments/export?${params}`)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = usePeriod
+        ? `Pagos_${exportMonthNames[month - 1]}_${year}.${format}`
+        : `Pagos_${now.toISOString().slice(0, 10).replace(/-/g, '')}-${now.toTimeString().slice(0, 5).replace(':', '')}.${format}`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast('Pagos exportados.')
+      onClose()
+    } catch (err) {
+      toast(getApiError(err), 'error')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} title="Exportar pagos">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-500">Elegí el formato y los filtros. Se exporta todo el universo filtrado, sin paginación.</p>
+
+        <div>
+          <label className="mb-1 flex items-center justify-between text-sm font-bold">
+            <span>Período</span>
+            <button
+              type="button"
+              onClick={() => setUsePeriod((v) => !v)}
+              className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+            >
+              {usePeriod ? 'Todos los períodos' : 'Período específico'}
+            </button>
+          </label>
+          {usePeriod ? (
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <SelectField value={String(month)} onValueChange={(v) => setMonth(Number(v))} aria-label="Mes"
+                  options={exportMonthNames.map((name, i) => ({ value: String(i + 1), label: name }))} />
+              </div>
+              <div className="flex-1">
+                <SelectField value={String(year)} onValueChange={(v) => setYear(Number(v))} aria-label="Año"
+                  options={Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => ({ value: String(y), label: String(y) }))} />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Todos los períodos</p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-bold">Curso</label>
+          <SearchableCombobox
+            value={courseId}
+            onValueChange={setCourseId}
+            options={[
+              { value: '', label: 'Todos los cursos' },
+              ...(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name })),
+            ]}
+            placeholder="Todos los cursos"
+            searchPlaceholder="Buscar curso..."
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-bold">Tipo de cuota</label>
+          <SelectField value={chargeTypeId} onValueChange={setChargeTypeId} placeholder="Todos los tipos"
+            options={[
+              { value: '', label: 'Todos los tipos' },
+              ...chargeTypes.map((ct: any) => ({ value: ct.id, label: ct.name })),
+            ]} />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-bold">Método de pago</label>
+          <SelectField value={method} onValueChange={setMethod} placeholder="Todos los métodos"
+            options={[
+              { value: '', label: 'Todos los métodos' },
+              ...enabledMethods.map((pm) => ({
+                value: String(pm.paymentMethod),
+                label: pm.displayName || paymentMethodLabel(pm.paymentMethod),
+              })),
+            ]} />
+          {enabledMethods.length === 0 && (
+            <p className="mt-1 text-xs text-slate-400">La empresa no tiene métodos de pago habilitados para alumnos.</p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-bold">Estado del pago</label>
+          <SelectField value={status} onValueChange={setStatus} placeholder="Todos los estados"
+            options={[
+              { value: '', label: 'Todos los estados' },
+              { value: 'Pending', label: 'Pendiente' },
+              { value: 'InReview', label: 'En revisión' },
+              { value: 'Approved', label: 'Aprobado' },
+              { value: 'Rejected', label: 'Rechazado' },
+            ]} />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-bold">Alumno</label>
+          <Input placeholder="Buscar por nombre..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" size="sm" onClick={() => handleExport('pdf')} loading={exporting === 'pdf'} disabled={exporting === 'xlsx'}>
+            <FileText className="h-4 w-4" aria-hidden="true" /> PDF
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => handleExport('xlsx')} loading={exporting === 'xlsx'} disabled={exporting === 'pdf'}>
+            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Excel
+          </Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

@@ -95,6 +95,7 @@ export interface PaymentMethod {
   surchargeType: string
   surchargeValue: number
   enabledBySuperAdmin: boolean
+  isEnabledByAdmin?: boolean
 }
 
 export interface CourseOption {

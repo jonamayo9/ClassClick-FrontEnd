@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { useCallback, useMemo, useState } from 'react'
 import type { Charge, Payment, PaymentMethod, CourseOption, ProofSubmission, ProofView } from '@/types/payments'
 
 const ARS = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+
+const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 export function money(value: number) { return ARS.format(value) }
 
@@ -52,18 +54,19 @@ export function usePaymentMethods() {
 }
 
 /* ── Charges ── */
-export function useCharges(year: number, month: number, status: string, search: string, page: number, chargeTypeId?: string) {
+export function useCharges(year: number | '', month: number | '', status: string, search: string, page: number, chargeTypeId?: string, courseId?: string) {
   const params = new URLSearchParams()
   if (year) params.set('year', String(year))
   if (month) params.set('month', String(month))
   if (status) params.set('status', status)
   if (search) params.set('search', search)
   if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+  if (courseId) params.set('courseId', courseId)
   params.set('page', String(page))
   params.set('pageSize', '25')
 
   return useQuery({
-    queryKey: ['charges', slug(), year, month, status, search, page, chargeTypeId],
+    queryKey: ['charges', slug(), year, month, status, search, page, chargeTypeId, courseId],
     queryFn: async () => {
       const raw = await apiService.get<unknown>(`/api/admin/${slug()}/monthly-charges?${params}`)
       const data = raw as Record<string, unknown>
@@ -83,13 +86,14 @@ export function useCharges(year: number, month: number, status: string, search: 
 }
 
 /* ── Payments ── */
-export function usePaymentsSummary(year: number, month: number, chargeTypeId?: string) {
+export function usePaymentsSummary(year: number | '', month: number | '', chargeTypeId?: string, courseId?: string) {
   const params = new URLSearchParams()
   if (year) params.set('year', String(year))
   if (month) params.set('month', String(month))
   if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+  if (courseId) params.set('courseId', courseId)
   return useQuery({
-    queryKey: ['payments-summary', slug(), year, month, chargeTypeId],
+    queryKey: ['payments-summary', slug(), year, month, chargeTypeId, courseId],
     queryFn: () => apiService.get<{ totalAmount: number; inReview: number; approved: number; rejected: number }>(`/api/admin/${slug()}/payments/summary?${params}`),
     enabled: !!slug(),
   })
@@ -295,12 +299,12 @@ export function usePaymentsPage() {
   const activeSlug = useAuth((s) => s.activeCompanySlug)
   const [tab, setTab] = useState<'charges' | 'payments' | 'financing'>('charges')
 
-  const now = new Date()
-  const [chargeYear, setChargeYear] = useState(now.getFullYear())
-  const [chargeMonth, setChargeMonth] = useState(now.getMonth() + 1)
+  const [chargeYear, setChargeYear] = useState<number | ''>('')
+  const [chargeMonth, setChargeMonth] = useState<number | ''>('')
   const [chargeStatus, setChargeStatus] = useState('')
   const [chargeSearch, setChargeSearch] = useState('')
   const [chargeTypeId, setChargeTypeId] = useState('')
+  const [chargeCourseId, setChargeCourseId] = useState('')
   const [chargePage, setChargePage] = useState(1)
 
   const [paySearch, setPaySearch] = useState('')
@@ -317,8 +321,8 @@ export function usePaymentsPage() {
     search: paySearch, courseId: payCourseId, period: payPeriod,
     method: payMethod, status: payStatus, chargeType: payChargeType, page: payPage,
   })
-  const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId)
-  const { data: paySummaryData } = usePaymentsSummary(chargeYear, chargeMonth, chargeTypeId || undefined)
+  const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId || undefined, chargeCourseId || undefined)
+  const { data: paySummaryData } = usePaymentsSummary(chargeYear, chargeMonth, chargeTypeId || undefined, chargeCourseId || undefined)
 
   const chargeItems = chargesData?.items
   const charges = useMemo(() => chargeItems ?? [], [chargeItems])
@@ -353,19 +357,55 @@ export function usePaymentsPage() {
     [paySummaryData],
   )
 
-  const resetChargesFilters = () => { setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargePage(1) }
+  const resetChargesFilters = () => { setChargeYear(''); setChargeMonth(''); setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargeCourseId(''); setChargePage(1) }
   const resetPaymentsFilters = () => {
     setPaySearch(''); setPayCourseId(''); setPayPeriod(''); setPayMethod(''); setPayStatus(''); setPayChargeType('')
   }
+
+  const [exporting, setExporting] = useState(false)
+  const exportCharges = useCallback(async (format: 'pdf' | 'xlsx'): Promise<string | null> => {
+    if (!activeSlug) return null
+    setExporting(true)
+    try {
+      const params = new URLSearchParams()
+      if (chargeYear) params.set('year', String(chargeYear))
+      if (chargeMonth) params.set('month', String(chargeMonth))
+      if (chargeStatus) params.set('status', chargeStatus)
+      if (chargeSearch) params.set('search', chargeSearch)
+      if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+      if (chargeCourseId) params.set('courseId', chargeCourseId)
+      params.set('format', format)
+
+      const blob = await apiService.getBlob(`/api/admin/${activeSlug}/monthly-charges/export?${params}`)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      if (chargeYear && chargeMonth) {
+        a.download = `Cuotas_${monthNames[chargeMonth - 1]}_${chargeYear}.${format}`
+      } else {
+        const stamp = new Date()
+        const stampText = `${stamp.toISOString().slice(0, 10).replace(/-/g, '')}-${stamp.toTimeString().slice(0, 5).replace(':', '')}`
+        a.download = `Cuotas_${stampText}.${format}`
+      }
+      a.href = url
+      a.click()
+      URL.revokeObjectURL(url)
+      return null
+    } catch (err) {
+      return getApiError(err)
+    } finally {
+      setExporting(false)
+    }
+  }, [activeSlug, chargeYear, chargeMonth, chargeStatus, chargeSearch, chargeTypeId, chargeCourseId])
 
   return {
     activeSlug, tab, setTab,
     chargeYear, setChargeYear, chargeMonth, setChargeMonth,
     chargeStatus, setChargeStatus, chargeSearch, setChargeSearch,
-    chargeTypeId, setChargeTypeId,
+    chargeTypeId, setChargeTypeId, chargeCourseId, setChargeCourseId,
     chargePage, setChargePage, charges, loadingCharges,
     chargeTotalCount, chargeTotalPages, chargeSummary,
     resetChargesFilters,
+    exporting, exportCharges,
     paySearch, setPaySearch, payCourseId, setPayCourseId,
     payPeriod, setPayPeriod, payMethod, setPayMethod,
     payStatus, setPayStatus, payChargeType, setPayChargeType,
