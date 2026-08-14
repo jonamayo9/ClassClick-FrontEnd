@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { apiService } from '@/lib/api'
@@ -56,11 +56,15 @@ function TeachersPageInner() {
   const [courseSearch, setCourseSearch] = useState('')
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set())
 
-  const { data: courses = [], isLoading: coursesLoading } = useQuery({
+  const { data: coursesData, isLoading: coursesLoading } = useQuery({
     queryKey: ['delegate-courses', slug, associateTeacher?.id],
     queryFn: () => apiService.get<DelegateCourse[]>(`/api/admin/${slug}/teachers/${associateTeacher!.id}/courses`),
     enabled: !!associateTeacher,
   })
+
+  // Referencia ESTABLE: mientras no hay datos (query disabled/cargando) devuelve el MISMO [].
+  // Evita que un array nuevo por render re-dispare el effect de sincronización (loop de renders).
+  const courses = useMemo<DelegateCourse[]>(() => coursesData ?? [], [coursesData])
 
   useEffect(() => {
     setSelectedCourses(new Set(courses.filter((c) => c.isAssigned).map((c) => c.id)))
@@ -239,7 +243,7 @@ function TeachersPageInner() {
                     <td className="px-3 py-3 text-right">
                       <div className="flex justify-end gap-1">
                         {t.role === 'Delegate' && (
-                          <Button variant="ghost" size="sm" onClick={() => { setAssociateTeacher(t); setCourseSearch('') }}>Asociar cursos</Button>
+                          <Button variant="ghost" size="sm" onClick={() => { setAssociateTeacher(t); setCourseSearch(''); setSelectedCourses(new Set()) }}>Asociar cursos</Button>
                         )}
                         <Button variant="ghost" size="sm" onClick={() => { setResetPwTeacher(t); setNewPassword(''); setConfirmPassword('') }}>Resetear pass</Button>
                         <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>Editar</Button>
@@ -273,7 +277,7 @@ function TeachersPageInner() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {t.role === 'Delegate' && (
-                    <Button variant="outline" size="sm" onClick={() => { setAssociateTeacher(t); setCourseSearch('') }}>Asociar cursos</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setAssociateTeacher(t); setCourseSearch(''); setSelectedCourses(new Set()) }}>Asociar cursos</Button>
                   )}
                   <Button variant="outline" size="sm" onClick={() => { setResetPwTeacher(t); setNewPassword(''); setConfirmPassword('') }}>Resetear pass</Button>
                   <Button variant="outline" size="sm" onClick={() => openEdit(t)}>Editar</Button>
