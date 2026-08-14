@@ -39,6 +39,7 @@ export interface PublicPageConfig {
   publicAddress?: string
   showActivities: boolean
   showContactSection: boolean
+  showSponsors: boolean
   publishedAtUtc?: string
   companySlugLanding?: string
   logoUrl?: string
@@ -66,6 +67,7 @@ export interface UpdatePublicPage {
   publicAddress?: string | null
   showActivities: boolean
   showContactSection: boolean
+  showSponsors: boolean
   bannerFocalPointX: number
   bannerFocalPointY: number
   logoPositionX: number
@@ -87,7 +89,16 @@ export interface PublicLandingActivity {
   description?: string
   teacherName?: string
   teacherPhoto?: string
+  publicCoverImageUrl?: string
   schedule?: ActivitySchedule[]
+}
+
+export interface PublicLandingSponsor {
+  id: string
+  name: string
+  imageUrl?: string
+  displayOrder: number
+  websiteUrl?: string
 }
 
 export interface PublicLanding {
@@ -121,6 +132,7 @@ export interface PublicLanding {
     altText?: string
     caption?: string
   }>
+  sponsors: PublicLandingSponsor[]
   contactFormConfig?: string
 }
 

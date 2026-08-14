@@ -12,6 +12,8 @@ import { AlertModal } from './components/AlertModal'
 import { UpcomingTable } from './components/UpcomingTable'
 import { EstadoGeneralCard } from './components/EstadoGeneralCard'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
+import { Modal } from '@/components/ui/modal'
+import type { DonutBreakdownRow } from '@/types/dashboard'
 
 function formatPeriodTitle(from: string, to: string): string {
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }
@@ -45,6 +47,7 @@ export function AdminDashboard() {
   const [hasCustomPeriod, setHasCustomPeriod] = useState(false)
   const [chargeTypeId, setChargeTypeId] = useState('')
   const [upcomingPage, setUpcomingPage] = useState(1)
+  const [seeAll, setSeeAll] = useState<{ title: string; rows: DonutBreakdownRow[] } | null>(null)
 
   // Al cambiar período o tipo de cuota, volver a la página 1 de próximos vencimientos.
   useEffect(() => { setUpcomingPage(1) }, [dateFrom, dateTo, chargeTypeId])
@@ -253,12 +256,36 @@ export function AdminDashboard() {
 
       {/* Fila 2: Donuts */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <DonutChart data={studentsDist.data ?? []} title="Alumnos" centerLabel="alumnos" centerValue={k?.activeStudents} loading={studentsDist.isLoading} />
+        <DonutChart data={studentsDist.data?.segments ?? []} title="Alumnos" centerLabel="activos" centerValue={k?.activeStudents} loading={studentsDist.isLoading}
+          rows={studentsDist.data?.byStatus ?? []}
+          onSeeAll={() => setSeeAll({ title: 'Alumnos', rows: studentsDist.data?.byStatus ?? [] })} />
         <DonutChart data={chargesDist.data?.segments ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading}
           breakdown={chargesDist.data?.byType ?? []} />
-        <DonutChart data={docsDist.data ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading} />
-        <DonutChart data={attendanceDist.data ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading} />
+        <DonutChart data={docsDist.data?.segments ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading}
+          rows={docsDist.data?.byDocumentType ?? []}
+          onSeeAll={() => setSeeAll({ title: 'Cumplimiento por tipo documental', rows: docsDist.data?.byDocumentType ?? [] })} />
+        <DonutChart data={attendanceDist.data?.segments ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading}
+          rows={attendanceDist.data?.byCourse ?? []}
+          onSeeAll={() => setSeeAll({ title: 'Asistencia por curso', rows: attendanceDist.data?.byCourse ?? [] })} />
       </div>
+
+      {/* Modal Ver todos */}
+      <Modal open={!!seeAll} onClose={() => setSeeAll(null)} title={seeAll?.title}>
+        <div className="max-h-[70vh] space-y-1 overflow-y-auto p-5 sm:p-6">
+          {seeAll?.rows.map((r) => (
+            <div key={r.name} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm">
+              <span className="truncate text-slate-600 dark:text-slate-300">{r.name}</span>
+              <span className="flex shrink-0 items-center gap-3">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{r.value}</span>
+                <span className="w-12 text-right text-slate-400 dark:text-slate-500">{Math.round(r.percentage)}%</span>
+              </span>
+            </div>
+          ))}
+          {(!seeAll || seeAll.rows.length === 0) && (
+            <p className="py-6 text-center text-sm text-slate-400">Sin datos.</p>
+          )}
+        </div>
+      </Modal>
 
       {/* Fila 3: Líneas de evolución */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

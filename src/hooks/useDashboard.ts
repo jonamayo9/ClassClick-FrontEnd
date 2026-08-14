@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
-import type { AdminDashboardDto, DonutSegment, EvolutionPoint, AlertItem, UpcomingPage, ChargeDistribution } from '@/types/dashboard'
+import type { AdminDashboardDto, DonutSegment, EvolutionPoint, AlertItem, UpcomingPage, ChargeDistribution, StudentDistribution, DocumentDistribution, AttendanceDistribution } from '@/types/dashboard'
 
 function queryParams(dateFrom?: string, dateTo?: string, chargeTypeId?: string, page?: number): string {
   const p = new URLSearchParams()
@@ -31,7 +31,7 @@ export function useDashboardKpis(slug: string, dateFrom?: string, dateTo?: strin
 export function useStudentDistribution(slug: string, dateFrom?: string, dateTo?: string) {
   return useQuery({
     queryKey: ['dashboard-distribution-students', slug, dateFrom, dateTo],
-    queryFn: () => apiService.get<DonutSegment[]>(`/api/admin/${slug}/dashboard/distribution/students${queryParams(dateFrom, dateTo)}`),
+    queryFn: () => apiService.get<StudentDistribution>(`/api/admin/${slug}/dashboard/distribution/students${queryParams(dateFrom, dateTo)}`),
     enabled: !!slug,
   })
 }
@@ -47,7 +47,7 @@ export function useChargeDistribution(slug: string, dateFrom?: string, dateTo?: 
 export function useDocumentDistribution(slug: string, dateFrom?: string, dateTo?: string) {
   return useQuery({
     queryKey: ['dashboard-distribution-documents', slug, dateFrom, dateTo],
-    queryFn: () => apiService.get<DonutSegment[]>(`/api/admin/${slug}/dashboard/distribution/documents${queryParams(dateFrom, dateTo)}`),
+    queryFn: () => apiService.get<DocumentDistribution>(`/api/admin/${slug}/dashboard/distribution/documents${queryParams(dateFrom, dateTo)}`),
     enabled: !!slug,
   })
 }
@@ -55,7 +55,7 @@ export function useDocumentDistribution(slug: string, dateFrom?: string, dateTo?
 export function useAttendanceDistribution(slug: string, dateFrom?: string, dateTo?: string) {
   return useQuery({
     queryKey: ['dashboard-distribution-attendance', slug, dateFrom, dateTo],
-    queryFn: () => apiService.get<DonutSegment[]>(`/api/admin/${slug}/dashboard/distribution/attendance${queryParams(dateFrom, dateTo)}`),
+    queryFn: () => apiService.get<AttendanceDistribution>(`/api/admin/${slug}/dashboard/distribution/attendance${queryParams(dateFrom, dateTo)}`),
     enabled: !!slug,
   })
 }

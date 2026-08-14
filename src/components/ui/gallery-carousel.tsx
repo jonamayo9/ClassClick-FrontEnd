@@ -1,13 +1,33 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type ReactNode, type CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 
-interface GalleryCarouselProps {
-  images: Array<{ imageUrl: string; altText?: string | null; caption?: string | null }>
-  autoPlayInterval?: number
-  className?: string
+export interface GalleryCarouselImage {
+  imageUrl: string
+  altText?: string | null
+  caption?: string | null
 }
 
-export function GalleryCarousel({ images, autoPlayInterval = 5000, className }: GalleryCarouselProps) {
+interface GalleryCarouselProps {
+  images: GalleryCarouselImage[]
+  autoPlayInterval?: number
+  className?: string
+  style?: CSSProperties
+  objectFit?: 'cover' | 'contain'
+  backgroundColor?: string
+  padding?: string
+  renderSlide?: (image: GalleryCarouselImage, index: number) => ReactNode
+}
+
+export function GalleryCarousel({
+  images,
+  autoPlayInterval = 5000,
+  className,
+  style,
+  objectFit = 'cover',
+  backgroundColor,
+  padding,
+  renderSlide,
+}: GalleryCarouselProps) {
   const [current, setCurrent] = useState(0)
   const [paused, setPaused] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined)
@@ -59,6 +79,7 @@ export function GalleryCarousel({ images, autoPlayInterval = 5000, className }: 
 
   return (
     <div className={cn('relative w-full overflow-hidden rounded-xl', className)}
+      style={style}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={handleTouchStart}
@@ -67,12 +88,20 @@ export function GalleryCarousel({ images, autoPlayInterval = 5000, className }: 
         {images.map((img, i) => (
           <div key={i}
             className="absolute inset-0 transition-opacity duration-500"
-            style={{ opacity: i === current ? 1 : 0 }}>
-            <img src={img.imageUrl} alt={img.altText ?? ''} className="h-full w-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
-            {img.caption && (
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-4 pt-8">
-                <p className="text-sm text-white">{img.caption}</p>
-              </div>
+            style={{ opacity: i === current ? 1 : 0, backgroundColor, padding }}>
+            {renderSlide ? (
+              renderSlide(img, i)
+            ) : (
+              <>
+                <img src={img.imageUrl} alt={img.altText ?? ''}
+                  className={cn('h-full w-full', objectFit === 'contain' ? 'object-contain' : 'object-cover')}
+                  loading={i === 0 ? 'eager' : 'lazy'} />
+                {img.caption && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-4 pt-8">
+                    <p className="text-sm text-white">{img.caption}</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         ))}

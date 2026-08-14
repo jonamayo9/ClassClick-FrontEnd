@@ -7,6 +7,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { GalleryCarousel } from '@/components/ui/gallery-carousel'
+import { ScrollCarousel } from '@/components/ui/scroll-carousel'
+import { SponsorsCarousel } from '@/components/ui/sponsors-carousel'
 import { useLanding } from '@/hooks/usePublicPage'
 import { apiService, getApiError } from '@/lib/api'
 import type { ContactFormConfig } from '@/types/public-page'
@@ -374,17 +376,26 @@ export default function LandingPage() {
       {landing.activities?.length > 0 && (
         <div className="mx-auto max-w-5xl px-6 py-12 sm:px-10">
           <h2 className="text-lg font-bold text-center mb-8" style={{ color: colors.text }}>Actividades</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ScrollCarousel itemClass="w-60">
             {landing.activities.map((act: any) => (
               <button key={act.id} onClick={() => setModalActivity(act)}
-                className="rounded-xl border p-5 text-center transition hover:shadow-md"
-                style={{ borderColor: `${colors.primary}20`, backgroundColor: `${colors.primary}08` }}>
-                <h3 className="text-base font-bold" style={{ color: colors.text }}>{act.name}</h3>
-                {act.description && <p className="mt-1 text-sm" style={{ color: `${colors.text}99` }}>{act.description}</p>}
-                {act.teacherName && <p className="mt-2 text-xs" style={{ color: `${colors.text}80` }}>{act.teacherName}</p>}
+                className="w-full overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:shadow-md"
+                style={{ borderColor: `${colors.primary}20` }}>
+                <div className="h-32 w-full overflow-hidden bg-slate-100">
+                  {act.publicCoverImageUrl ? (
+                    <img src={act.publicCoverImageUrl} alt={act.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">Sin imagen</div>
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="text-base font-bold" style={{ color: colors.text }}>{act.name}</h3>
+                  {act.description && <p className="mt-1 text-sm leading-snug" style={{ color: `${colors.text}99` }}>{act.description}</p>}
+                  {act.teacherName && <p className="mt-2 text-xs" style={{ color: `${colors.text}80` }}>{act.teacherName}</p>}
+                </div>
               </button>
             ))}
-          </div>
+          </ScrollCarousel>
         </div>
       )}
 
@@ -433,6 +444,14 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl px-6 py-10">
           <h2 className="text-lg font-bold text-center mb-6" style={{ color: colors.text }}>Galería</h2>
           <GalleryCarousel images={gallery} />
+        </div>
+      )}
+
+      {/* Sponsors */}
+      {landing.sponsors?.length > 0 && (
+        <div className="mx-auto max-w-5xl px-6 py-10">
+          <h2 className="text-lg font-bold text-center mb-6" style={{ color: colors.text }}>Sponsors</h2>
+          <SponsorsCarousel sponsors={landing.sponsors} colors={colors} />
         </div>
       )}
 

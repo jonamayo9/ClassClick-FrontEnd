@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,8 +10,12 @@ import { useToast } from '@/components/ui/toast'
 import { ToastProvider } from '@/components/ui/toast'
 import { useAuth } from '@/stores/auth'
 import { apiService, getApiError } from '@/lib/api'
+import { config as appConfig } from '@/lib/config'
 import { GalleryCarousel } from '@/components/ui/gallery-carousel'
-import { usePublicPage, useUpdatePublicPage, usePublishPage, useUnpublishPage } from '@/hooks/usePublicPage'
+import { ScrollCarousel } from '@/components/ui/scroll-carousel'
+import { SponsorsCarousel } from '@/components/ui/sponsors-carousel'
+import { PublicPageQrPoster } from '@/components/ui/public-page-qr-poster'
+import { usePublicPage, useUpdatePublicPage, usePublishPage, useUnpublishPage, useUploadCourseCover, useDeleteCourseCover, usePublicSponsors } from '@/hooks/usePublicPage'
 import { hasModule } from '@/hooks/useModule'
 
 const VISUAL_STYLES = [
@@ -40,8 +45,12 @@ const PRESET_CSS: Record<string, Record<string, string>> = {
 
 function PublicPageInner() {
   const toast = useToast()
-  const { activeCompanySlug } = useAuth()
+  const { activeCompanySlug, companies } = useAuth()
   const slug = activeCompanySlug ?? ''
+
+  const activeCompany = companies.find((c) => (c.slug ?? c.companySlug) === slug)
+  const companyName = activeCompany?.name ?? ''
+  const companyLogo = activeCompany?.logoUrl || activeCompany?.LogoUrl || ''
 
   const { data: config, isLoading } = usePublicPage(slug)
   const updateMutation = useUpdatePublicPage(slug)
@@ -60,6 +69,7 @@ function PublicPageInner() {
   const [address, setAddress] = useState('')
   const [showActivities, setShowActivities] = useState(true)
   const [showContact, setShowContact] = useState(true)
+  const [showSponsors, setShowSponsors] = useState(false)
   const [isEnabled, setIsEnabled] = useState(false)
   const [publishedAt, setPublishedAt] = useState<string | null>(null)
   const [companySlugLanding, setCompanySlugLanding] = useState<string | null>(null)
@@ -83,6 +93,7 @@ function PublicPageInner() {
   const [logoPosY, setLogoPosY] = useState(50)
   const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [showCapabilityModal, setShowCapabilityModal] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center')
 
   // Gallery
@@ -96,6 +107,10 @@ function PublicPageInner() {
   const [uploadingGallery, setUploadingGallery] = useState(false)
   const galleryFileRef = useRef<HTMLInputElement>(null)
 
+  const [courseCovers, setCourseCovers] = useState<Record<string, string>>({})
+  const [courseCoverFiles, setCourseCoverFiles] = useState<Record<string, { file: File; preview: string }>>({})
+  const [uploadingCover, setUploadingCover] = useState<Record<string, boolean>>({})
+
   // Courses
   const { data: allCourses = [] } = useQuery({
     queryKey: ['admin-courses', slug],
@@ -104,6 +119,48 @@ function PublicPageInner() {
   })
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([])
   const visibleCourses = allCourses.filter((c: any) => c.isActive && selectedCourseIds.includes(c.id))
+
+  const uploadCover = useUploadCourseCover(slug)
+  const deleteCover = useDeleteCourseCover(slug)
+  const sponsorsEnabled = hasModule('sponsors')
+  const { data: publicSponsors = [] } = usePublicSponsors(slug)
+  const activeSponsors = publicSponsors.filter((s: any) => s.isActive)
+
+  function handleCourseCoverFile(courseId: string, file: File | null) {
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
+      return toast('Formato no válido. Usá JPG, PNG o WebP.', 'error')
+    if (file.size > 5 * 1024 * 1024)
+      return toast('La imagen no puede superar los 5 MB.', 'error')
+    setCourseCoverFiles((prev) => ({ ...prev, [courseId]: { file, preview: URL.createObjectURL(file) } }))
+  }
+
+  async function handleUploadCourseCover(courseId: string) {
+    const pending = courseCoverFiles[courseId]
+    if (!pending) return
+    setUploadingCover((prev) => ({ ...prev, [courseId]: true }))
+    try {
+      const res = await uploadCover.mutateAsync({ courseId, file: pending.file })
+      setCourseCovers((prev) => ({ ...prev, [courseId]: res.publicCoverImageUrl }))
+      setCourseCoverFiles((prev) => { const next = { ...prev }; delete next[courseId]; return next })
+      toast('Imagen guardada.')
+    } catch {
+      toast('Error al subir la imagen.', 'error')
+    }
+    setUploadingCover((prev) => ({ ...prev, [courseId]: false }))
+  }
+
+  async function handleDeleteCourseCover(courseId: string) {
+    if (!confirm('¿Eliminar la imagen de presentación de este curso?')) return
+    try {
+      await deleteCover.mutateAsync(courseId)
+      setCourseCovers((prev) => { const next = { ...prev }; delete next[courseId]; return next })
+      setCourseCoverFiles((prev) => { const next = { ...prev }; delete next[courseId]; return next })
+      toast('Imagen eliminada.')
+    } catch {
+      toast('Error al eliminar la imagen.', 'error')
+    }
+  }
 
   // Logo upload
   const [logoUrl, setLogoUrl] = useState('')
@@ -215,6 +272,7 @@ function PublicPageInner() {
     setAddress(config.publicAddress ?? '')
     setShowActivities(config.showActivities)
     setShowContact(config.showContactSection)
+    setShowSponsors(config.showSponsors)
     setIsEnabled(config.isEnabled)
     if (!logoFile && config.logoUrl) setLogoUrl(config.logoUrl)
     setPublishedAt(config.publishedAtUtc ?? null)
@@ -249,6 +307,7 @@ function PublicPageInner() {
         publicAddress: address || null,
         showActivities,
         showContactSection: showContact,
+        showSponsors,
         bannerFocalPointX: bannerFocalX,
         bannerFocalPointY: bannerFocalY,
         logoPositionX: logoPosX,
@@ -316,6 +375,9 @@ function PublicPageInner() {
   }
 
   const colors = PRESET_CSS[colorPreset] ?? PRESET_CSS.blue
+
+  const publicUrl = companySlugLanding ? `${appConfig.publicBaseUrl}/c/${companySlugLanding}` : ''
+  const posterLogo = logoPreview || logoUrl || companyLogo || ''
 
   const TABS = [
     { id: 'general', label: 'General' },
@@ -519,29 +581,109 @@ function PublicPageInner() {
 
           {/* Actividades */}
           {activeTab === 'actividades' && (
-            <Card className="p-5 space-y-4">
-              <h2 className="text-sm font-bold">Actividades disponibles</h2>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={showActivities} onChange={(e) => { setShowActivities(e.target.checked); setDirty(true) }}
-                  className="rounded border-slate-300" />
-                Mostrar actividades disponibles
-              </label>
-              {showActivities && (
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {allCourses.length === 0 && <p className="text-xs text-slate-400">No hay cursos creados.</p>}
-                  {allCourses.filter((c: any) => c.isActive).map((c: any) => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                      <input type="checkbox" checked={selectedCourseIds.includes(c.id)}
-                        onChange={(e) => {
-                          setSelectedCourseIds((prev) => e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id))
-                          setDirty(true)
-                        }} className="rounded border-slate-300" />
-                      <span>{c.name}</span>
-                    </label>
-                  ))}
-                </div>
+            <>
+              <Card className="p-5 space-y-4">
+                <h2 className="text-sm font-bold">Cursos</h2>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={showActivities} onChange={(e) => { setShowActivities(e.target.checked); setDirty(true) }}
+                    className="rounded border-slate-300" />
+                  Mostrar cursos en la página pública
+                </label>
+                <p className="text-xs text-slate-400">Los cursos seleccionados se mostrarán en tu página pública.</p>
+                {showActivities && (
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                    {allCourses.filter((c: any) => c.isActive).length === 0 && (
+                      <p className="text-xs text-slate-400">No hay cursos creados.</p>
+                    )}
+                    {allCourses.filter((c: any) => c.isActive).map((c: any) => {
+                      const pending = courseCoverFiles[c.id]
+                      const cover = pending?.preview ?? courseCovers[c.id] ?? c.publicCoverImageUrl
+                      return (
+                        <div key={c.id} className="rounded-xl border border-slate-200 p-3 space-y-2 dark:border-slate-700">
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" checked={selectedCourseIds.includes(c.id)}
+                              onChange={(e) => {
+                                setSelectedCourseIds((prev) => e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id))
+                                setDirty(true)
+                              }} className="rounded border-slate-300" />
+                            <span className="font-medium">{c.name}</span>
+                          </label>
+                          <div className="flex items-center gap-3">
+                            {cover ? (
+                              <img src={cover} alt={c.name} className="h-14 w-24 rounded-lg border border-slate-200 object-cover dark:border-slate-700" />
+                            ) : (
+                              <div className="flex h-14 w-24 items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-400 dark:border-slate-600 dark:bg-slate-800">
+                                Sin imagen
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {pending ? (
+                                <>
+                                  <Button size="sm" onClick={() => handleUploadCourseCover(c.id)} loading={uploadingCover[c.id]} className="bg-indigo-600 text-white">Subir imagen</Button>
+                                  <Button size="sm" variant="outline" onClick={() => setCourseCoverFiles((prev) => { const next = { ...prev }; delete next[c.id]; return next })}>Cancelar</Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => document.getElementById(`course-cover-${c.id}`)?.click()}>
+                                    {cover ? 'Cambiar imagen' : 'Subir imagen'}
+                                  </Button>
+                                  {cover && (
+                                    <Button size="sm" variant="outline" className="text-red-600 border-red-200" onClick={() => handleDeleteCourseCover(c.id)}>Eliminar</Button>
+                                  )}
+                                </>
+                              )}
+                              <input id={`course-cover-${c.id}`} type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden"
+                                onChange={(e) => { handleCourseCoverFile(c.id, e.target.files?.[0] ?? null); e.target.value = '' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              {sponsorsEnabled && (
+                <Card className="p-5 space-y-4">
+                  <h2 className="text-sm font-bold">Sponsors</h2>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={showSponsors} onChange={(e) => { setShowSponsors(e.target.checked); setDirty(true) }}
+                      className="rounded border-slate-300" />
+                    Mostrar sponsors en la página pública
+                  </label>
+                  <p className="text-xs text-slate-400">Los sponsors activos de tu institución se mostrarán debajo de la galería.</p>
+                  {activeSponsors.length === 0 ? (
+                    <p className="text-xs text-slate-400">No hay sponsors activos para mostrar.</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">{activeSponsors.length} sponsor(s) activo(s).</p>
+                  )}
+                </Card>
               )}
-            </Card>
+
+              <Card className="p-5 space-y-4">
+                <h2 className="text-sm font-bold">Actividades disponibles</h2>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={showActivities} onChange={(e) => { setShowActivities(e.target.checked); setDirty(true) }}
+                    className="rounded border-slate-300" />
+                  Mostrar actividades disponibles
+                </label>
+                {showActivities && (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {allCourses.length === 0 && <p className="text-xs text-slate-400">No hay cursos creados.</p>}
+                    {allCourses.filter((c: any) => c.isActive).map((c: any) => (
+                      <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                        <input type="checkbox" checked={selectedCourseIds.includes(c.id)}
+                          onChange={(e) => {
+                            setSelectedCourseIds((prev) => e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id))
+                            setDirty(true)
+                          }} className="rounded border-slate-300" />
+                        <span>{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </>
           )}
 
           {/* Galería */}
@@ -773,6 +915,18 @@ function PublicPageInner() {
                   </p>
                 )}
               </div>
+              <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-700">
+                <Button onClick={() => setQrOpen(true)} disabled={!isEnabled || !companySlugLanding} className="bg-indigo-600 text-white">
+                  Generar QR
+                </Button>
+                {(!isEnabled || !companySlugLanding) && (
+                  <p className="mt-2 text-xs text-slate-400">
+                    {companySlugLanding
+                      ? 'Publicá la página para generar su QR.'
+                      : 'Configurá la dirección pública para generar su QR.'}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -811,6 +965,35 @@ function PublicPageInner() {
           </div>
         </Modal>
 
+        {/* Generar QR */}
+        <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="Generar QR" className="sm:max-w-lg">
+          <div className="space-y-5 p-5 sm:p-6">
+            <PublicPageQrPoster
+              companyName={companyName || slug}
+              logoUrl={posterLogo || null}
+              publicUrl={publicUrl}
+              colors={colors}
+            />
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button onClick={() => window.print()} className="bg-indigo-600 text-white">Imprimir</Button>
+              <Button variant="outline" onClick={() => setQrOpen(false)}>Cerrar</Button>
+            </div>
+          </div>
+        </Modal>
+
+        {qrOpen && publicUrl && createPortal(
+          <div id="qr-print-root" className="hidden">
+            <PublicPageQrPoster
+              companyName={companyName || slug}
+              logoUrl={posterLogo || null}
+              publicUrl={publicUrl}
+              colors={colors}
+              variant="print"
+            />
+          </div>,
+          document.body
+        )}
+
         {/* Right: Preview - Sticky on desktop */}
         <div className={`${activeTab === 'consultas' ? 'hidden' : 'lg:col-span-3'}`}>
           <div className="lg:sticky lg:top-6">
@@ -832,12 +1015,15 @@ function PublicPageInner() {
                 showContact={showContact}
                 companySlug={companySlugLanding}
                 logoUrl={logoPreview || logoUrl || undefined}
-                courses={showActivities ? visibleCourses : []}
+                courses={showActivities
+                  ? visibleCourses.map((c: any) => ({ ...c, publicCoverImageUrl: courseCovers[c.id] ?? c.publicCoverImageUrl }))
+                  : []}
                 bannerUrl={bannerPreview || bannerUrl || undefined}
                 bannerFocalX={bannerFocalX} bannerFocalY={bannerFocalY}
                 logoPosX={logoPosX} logoPosY={logoPosY}
                 logoSize={logoSize} textAlign={textAlign}
                 galleryImages={galleryImages}
+                sponsors={showSponsors ? activeSponsors : []}
               />
             </div>
           </div>
@@ -870,7 +1056,7 @@ function PublicLandingPreview({
   headline, description, colors, visualStyle,
   whatsApp, instagram, facebook, email, phone, address, showContact,
   companySlug, logoUrl, courses, bannerUrl, bannerFocalX, bannerFocalY,
-  logoPosX, logoPosY, logoSize, textAlign, galleryImages,
+  logoPosX, logoPosY, logoSize, textAlign, galleryImages, sponsors,
 }: {
   headline: string; description: string; colors: Record<string, string>; visualStyle: string
   whatsApp: string; instagram: string; facebook: string
@@ -879,6 +1065,7 @@ function PublicLandingPreview({
   bannerUrl?: string; bannerFocalX?: number; bannerFocalY?: number
   logoPosX?: number; logoPosY?: number; logoSize?: string; textAlign?: string
   galleryImages?: any[]
+  sponsors?: any[]
 }) {
   const isSport = visualStyle === 'sport'
   const isMinimal = visualStyle === 'minimal'
@@ -940,17 +1127,27 @@ function PublicLandingPreview({
       {/* Activities */}
       {courses && courses.length > 0 && (
         <div className="border-t border-white/10 px-6 py-8 sm:px-10" style={{ borderColor: `${colors.primary}20` }}>
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-4xl">
             <h2 className="text-lg font-bold text-center mb-6" style={{ color: colors.text }}>Actividades</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <ScrollCarousel itemClass="w-52">
               {courses.map((c: any) => (
                 <button key={c.id} onClick={() => setModalCourse(c)}
-                  className="rounded-xl border p-4 text-center transition hover:shadow-md" style={{ borderColor: `${colors.primary}20`, backgroundColor: `${colors.primary}08` }}>
-                  <p className="text-sm font-bold" style={{ color: colors.text }}>{c.name}</p>
-                  {c.teacherName && <p className="mt-1 text-xs" style={{ color: `${colors.text}99` }}>{c.teacherName}</p>}
+                  className="w-full overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:shadow-md"
+                  style={{ borderColor: `${colors.primary}20` }}>
+                  <div className="h-28 w-full overflow-hidden bg-slate-100">
+                    {c.publicCoverImageUrl ? (
+                      <img src={c.publicCoverImageUrl} alt={c.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">Sin imagen</div>
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-bold" style={{ color: colors.text }}>{c.name}</p>
+                    {c.description && <p className="mt-1 text-xs leading-snug" style={{ color: `${colors.text}99` }}>{c.description}</p>}
+                  </div>
                 </button>
               ))}
-            </div>
+            </ScrollCarousel>
           </div>
         </div>
       )}
@@ -1007,6 +1204,16 @@ function PublicLandingPreview({
           <div className="mx-auto max-w-4xl">
             <h2 className="text-lg font-bold text-center mb-6" style={{ color: colors.text }}>Galería</h2>
             <GalleryCarousel images={galleryImages} />
+          </div>
+        </div>
+      )}
+
+      {/* Sponsors */}
+      {sponsors && sponsors.length > 0 && (
+        <div className="border-t px-6 py-8 sm:px-10" style={{ borderColor: `${colors.primary}20` }}>
+          <div className="mx-auto max-w-4xl">
+            <h2 className="text-lg font-bold text-center mb-6" style={{ color: colors.text }}>Sponsors</h2>
+            <SponsorsCarousel sponsors={sponsors} colors={colors} interactive={false} />
           </div>
         </div>
       )}

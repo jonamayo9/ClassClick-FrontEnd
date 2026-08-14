@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
-import type { DonutSegment, ChargeTypeBreakdown } from '@/types/dashboard'
+import type { DonutSegment, ChargeTypeBreakdown, DonutBreakdownRow } from '@/types/dashboard'
 
 interface DonutChartProps {
   data: DonutSegment[]
@@ -10,6 +10,8 @@ interface DonutChartProps {
   centerValue?: string | number
   loading?: boolean
   breakdown?: ChargeTypeBreakdown[]
+  rows?: DonutBreakdownRow[]
+  onSeeAll?: () => void
 }
 
 const DONUT_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#14b8a6']
@@ -30,7 +32,7 @@ function CustomTooltip({ active, payload }: any) {
   )
 }
 
-export function DonutChart({ data, title, centerLabel, centerValue, loading, breakdown }: DonutChartProps) {
+export function DonutChart({ data, title, centerLabel, centerValue, loading, breakdown, rows, onSeeAll }: DonutChartProps) {
   const navigate = useNavigate()
   const [hovered, setHovered] = useState<string | null>(null)
 
@@ -109,6 +111,33 @@ export function DonutChart({ data, title, centerLabel, centerValue, loading, bre
               <span className="font-semibold text-slate-800 dark:text-slate-200">{b.total}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {rows && rows.length > 0 && (
+        <div className="mt-2 space-y-1 border-t border-slate-100 pt-2 dark:border-slate-700">
+          {rows.slice(0, 5).map((r) => (
+            <div
+              key={r.name}
+              onClick={() => r.navigateTo && navigate(r.navigateTo)}
+              className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs ${r.navigateTo ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
+            >
+              <span className="truncate text-slate-500 dark:text-slate-400">{r.name}</span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{r.value}</span>
+                <span className="w-10 text-right text-slate-400 dark:text-slate-500">({Math.round(r.percentage)}%)</span>
+              </span>
+            </div>
+          ))}
+          {rows.length > 5 && onSeeAll && (
+            <button
+              type="button"
+              onClick={onSeeAll}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 dark:border-slate-600 dark:text-blue-400 dark:hover:bg-slate-800"
+            >
+              Ver todos
+            </button>
+          )}
         </div>
       )}
     </div>

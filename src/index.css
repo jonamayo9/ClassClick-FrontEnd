@@ -19,6 +19,15 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Oculta visualmente las scrollbars de los carruseles sin deshabilitar el scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 body {
   @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-white;
 }
@@ -36,4 +45,45 @@ body {
 .dark .PhoneInputInput:-webkit-autofill:hover,
 .dark .PhoneInputInput:-webkit-autofill:focus {
   -webkit-box-shadow: 0 0 0 1000px #1e293b inset;
+}
+
+/* Impresión del afiche QR: hoja única, poster a sangre completa.
+   El resto del DOM se saca del flujo con display:none (no visibility).
+   El poster vive en un portal directo en <body> (#qr-print-root). */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+.qr-poster {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+  }
+
+  body > *:not(#qr-print-root) {
+    display: none !important;
+  }
+
+  #qr-print-root {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #qr-print-root,
+  #qr-print-root *,
+  .qr-poster,
+  .qr-poster * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

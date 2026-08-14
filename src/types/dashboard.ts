@@ -1,5 +1,7 @@
 export interface AdminDashboardDto {
   activeStudents: number
+  registeredStudents: number
+  pendingStudents: number
   activeTeachers: number
   activeCourses: number
   activeClasses: number
@@ -78,6 +80,28 @@ export interface ChargeTypeBreakdown {
 export interface ChargeDistribution {
   segments: DonutSegment[]
   byType: ChargeTypeBreakdown[]
+}
+
+export interface DonutBreakdownRow {
+  name: string
+  value: number
+  percentage: number
+  navigateTo?: string
+}
+
+export interface StudentDistribution {
+  segments: DonutSegment[]
+  byStatus: DonutBreakdownRow[]
+}
+
+export interface DocumentDistribution {
+  segments: DonutSegment[]
+  byDocumentType: DonutBreakdownRow[]
+}
+
+export interface AttendanceDistribution {
+  segments: DonutSegment[]
+  byCourse: DonutBreakdownRow[]
 }
 
 export interface CoverageByType {

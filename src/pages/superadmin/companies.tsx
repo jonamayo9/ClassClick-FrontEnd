@@ -12,6 +12,18 @@ import { apiService } from '@/lib/api'
 
 interface Company { id: string; name: string; slug: string; email?: string; phone?: string; whatsapp?: string; description?: string; addressLine1?: string; addressLine2?: string; city?: string; stateOrProvince?: string; postalCode?: string; country?: string; isActive: boolean; isMatchOrganizationEnabled?: boolean; emailNotificationsEnabled?: boolean; companySlugLanding?: string; createdAtUtc: string }
 
+const DEFAULT_MODULES: Record<string, boolean> = {
+  payments: true, documents: true, news: true, sponsors: false,
+  matches: false, clothing: false, tournaments: false, notifications: true,
+  qr_attendance: false, public_page: false,
+}
+
+const MODULE_LABELS: Record<string, string> = {
+  payments: 'Pagos', documents: 'Documentos', news: 'Novedades', sponsors: 'Sponsors',
+  matches: 'Partidos', clothing: 'Indumentaria', tournaments: 'Torneos',
+  notifications: 'Notificaciones', qr_attendance: 'Asistencia QR',
+}
+
 function CompaniesInner() {
   const toast = useToast()
   const qc = useQueryClient()
@@ -30,11 +42,7 @@ function CompaniesInner() {
     isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false,
     companySlugLanding: '',
   })
-  const [modules, setModules] = useState<Record<string, boolean>>({
-    payments: true, documents: true, news: true, sponsors: false,
-    matches: false, clothing: false, tournaments: false, notifications: true,
-    qr_attendance: false,
-  })
+  const [modules, setModules] = useState<Record<string, boolean>>({ ...DEFAULT_MODULES })
   const [clothing, setClothing] = useState({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
   const [paymentMethods, setPaymentMethods] = useState<Record<string, { enabled: boolean; autoCollection: boolean; onlinePayments: boolean }>>({
     Transfer: { enabled: false, autoCollection: false, onlinePayments: false },
@@ -156,7 +164,7 @@ function CompaniesInner() {
   function closeForm() { setShowForm(false); setEditId(null); setSlugTouched(false); setLogoFile(null); setLogoPreview(null) }
   function resetForm() {
     setForm({ name: '', slug: '', description: '', email: '', phone: '', whatsapp: '', addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '', isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false, companySlugLanding: '' })
-    setModules({ payments: true, documents: true, news: true, sponsors: false, matches: false, clothing: false, tournaments: false, notifications: true, qr_attendance: false })
+    setModules({ ...DEFAULT_MODULES })
     setClothing({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
     setPaymentMethods({
       Transfer: { enabled: false, autoCollection: false, onlinePayments: false },
@@ -172,6 +180,10 @@ function CompaniesInner() {
     setEditId(c.id)
     setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive, emailNotificationsEnabled: c.emailNotificationsEnabled ?? false, companySlugLanding: c.companySlugLanding ?? '' })
     setShowForm(true)
+    // Load existing modules so editing doesn't reset or disable them
+    apiService.get<{ modules: Record<string, boolean> }>(`/api/superadmin/companies/${c.id}/clothing/modules`).then((res) => {
+      setModules({ ...DEFAULT_MODULES, ...(res?.modules ?? {}) })
+    }).catch(() => {})
     // Load existing payment methods
     apiService.get<{ paymentMethod: string | number; enabledBySuperAdmin: boolean; autoCollectionEnabledBySuperAdmin?: boolean; mercadoPagoOnlinePaymentsEnabledBySuperAdmin?: boolean }[]>(`/api/superadmin/companies/${c.id}/payment-methods`).then((pms) => {
       const nameMap: Record<string, string> = { 'Transfer': 'Transfer', 'DebitCard': 'DebitCard', 'CreditCard': 'CreditCard', 'MercadoPago': 'MercadoPago', 'Cash': 'Cash' }
@@ -340,14 +352,24 @@ function CompaniesInner() {
             <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
               <h3 className="text-sm font-bold mb-3">Módulos habilitados</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {Object.entries(modules).map(([key, val]) => (
-                  <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                    <input type="checkbox" checked={val} onChange={(e) => setModules({ ...modules, [key]: e.target.checked })}
-                      className="rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
-                    <span className="text-xs font-medium capitalize">{key}</span>
-                  </label>
-                ))}
+                {Object.entries(modules)
+                  .filter(([key]) => key !== 'public_page')
+                  .map(([key, val]) => (
+                    <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                      <input type="checkbox" checked={val} onChange={(e) => setModules({ ...modules, [key]: e.target.checked })}
+                        className="rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
+                      <span className="text-xs font-medium capitalize">{MODULE_LABELS[key] ?? key}</span>
+                    </label>
+                  ))}
               </div>
+              <label className="mt-2 flex items-start gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                <input type="checkbox" checked={modules.public_page} onChange={(e) => setModules({ ...modules, public_page: e.target.checked })}
+                  className="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
+                <span>
+                  <span className="block text-xs font-medium">Página Pública</span>
+                  <span className="block text-[11px] leading-snug text-slate-400">Permite a la empresa publicar su página institucional accesible mediante una URL pública.</span>
+                </span>
+              </label>
             </div>
 
             {/* Clothing settings */}

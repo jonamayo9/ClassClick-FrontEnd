@@ -92,6 +92,7 @@ function StudentsPageInner() {
   const [regFilter, setRegFilter] = useState('')
   const [courseFilter, setCourseFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
   const searchTimer = useRef<number | undefined>(undefined)
 
   const { data, isLoading } = useQuery({
@@ -134,6 +135,30 @@ function StudentsPageInner() {
   const debouncedSearch = (value: string) => {
     clearTimeout(searchTimer.current)
     searchTimer.current = window.setTimeout(() => { setSearch(value); setPage(1) }, 350)
+  }
+
+  async function handleExport() {
+    if (!slug || exporting) return
+    setExporting(true)
+    try {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (regFilter) params.set('isRegistrationCompleted', regFilter)
+      if (courseFilter) params.set('courseId', courseFilter)
+      const qs = params.toString()
+      const blob = await apiService.getBlob(`/api/admin/${slug}/students/export${qs ? '?' + qs : ''}`)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `alumnos_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast('Error al exportar. Intentá nuevamente.', 'error')
+    }
+    setExporting(false)
   }
 
   const createMutation = useMutation({
@@ -329,9 +354,14 @@ function StudentsPageInner() {
       </Card>
 
       <Card className="p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-black">Listado</h2>
-          <span className="text-xs text-slate-400">({totalCount} alumnos)</span>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-black">Listado</h2>
+            <span className="text-xs text-slate-400">({totalCount} alumnos)</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleExport} loading={exporting} disabled={exporting || totalCount === 0}>
+            Exportar
+          </Button>
         </div>
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <Input placeholder="Buscar nombre, email o DNI..." autoComplete="off" onChange={(e) => debouncedSearch(e.target.value)} />
