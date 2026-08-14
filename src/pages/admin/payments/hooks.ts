@@ -297,10 +297,12 @@ export function isChargeCancelled(status: string | number): boolean {
 /* ── Main page state ── */
 export function usePaymentsPage() {
   const activeSlug = useAuth((s) => s.activeCompanySlug)
+  const now = new Date()
+  const currentPeriod = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`
   const [tab, setTab] = useState<'charges' | 'payments' | 'financing'>('charges')
 
-  const [chargeYear, setChargeYear] = useState<number | ''>('')
-  const [chargeMonth, setChargeMonth] = useState<number | ''>('')
+  const [chargeYear, setChargeYear] = useState<number | ''>(now.getFullYear())
+  const [chargeMonth, setChargeMonth] = useState<number | ''>(now.getMonth() + 1)
   const [chargeStatus, setChargeStatus] = useState('')
   const [chargeSearch, setChargeSearch] = useState('')
   const [chargeTypeId, setChargeTypeId] = useState('')
@@ -309,7 +311,7 @@ export function usePaymentsPage() {
 
   const [paySearch, setPaySearch] = useState('')
   const [payCourseId, setPayCourseId] = useState('')
-  const [payPeriod, setPayPeriod] = useState('')
+  const [payPeriod, setPayPeriod] = useState(currentPeriod)
   const [payMethod, setPayMethod] = useState('')
   const [payStatus, setPayStatus] = useState('')
   const [payChargeType, setPayChargeType] = useState('')
@@ -357,9 +359,9 @@ export function usePaymentsPage() {
     [paySummaryData],
   )
 
-  const resetChargesFilters = () => { setChargeYear(''); setChargeMonth(''); setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargeCourseId(''); setChargePage(1) }
+  const resetChargesFilters = () => { setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargeCourseId(''); setChargePage(1) }
   const resetPaymentsFilters = () => {
-    setPaySearch(''); setPayCourseId(''); setPayPeriod(''); setPayMethod(''); setPayStatus(''); setPayChargeType('')
+    setPaySearch(''); setPayCourseId(''); setPayMethod(''); setPayStatus(''); setPayChargeType('')
   }
 
   const [exporting, setExporting] = useState(false)

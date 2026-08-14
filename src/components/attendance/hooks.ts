@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
@@ -22,9 +22,9 @@ export function useDebouncedValue<T>(value: T, delayMs = 350): T {
 
 export function useWorkflowBase(role: AttendanceRole): string {
   const slug = useAuth((s) => s.activeCompanySlug ?? '')
-  return role === 'admin'
-    ? `/api/admin/${slug}/attendance/workflow`
-    : '/api/teacher/attendance/workflow'
+  if (role === 'admin') return `/api/admin/${slug}/attendance/workflow`
+  if (role === 'delegate') return `/api/delegate/${slug}/attendance/workflow`
+  return '/api/teacher/attendance/workflow'
 }
 
 export function useCourseOptions(role: AttendanceRole): {
@@ -52,19 +52,46 @@ export function useCourseOptions(role: AttendanceRole): {
     enabled: role === 'teacher' && !!slug,
   })
 
-  if (role === 'admin') {
-    const classes = (adminClasses.data ?? []) as ClassOption[]
-    const coursesMap = new Map<string, string>()
-    classes.forEach((c) => {
-      if (c.courseId && c.courseName) coursesMap.set(c.courseId, c.courseName)
-    })
-    const courses = Array.from(coursesMap.entries()).map(([id, name]) => ({ id, name }))
-    return { courses, classes, isLoading: adminClasses.isLoading }
-  }
+  const delegateCourses = useQuery({
+    queryKey: ['delegate-courses', slug],
+    queryFn: () => apiService.get<CourseOption[]>(`/api/delegate/${slug}/courses`),
+    enabled: role === 'delegate' && !!slug,
+  })
 
-  const courses = (teacherCourses.data ?? []) as CourseOption[]
-  const classes = (teacherClasses.data ?? []) as ClassOption[]
-  return { courses, classes, isLoading: teacherCourses.isLoading || teacherClasses.isLoading }
+  const delegateClasses = useQuery({
+    queryKey: ['delegate-classes', slug],
+    queryFn: () => apiService.get<ClassOption[]>(`/api/delegate/${slug}/attendance/classes`),
+    enabled: role === 'delegate' && !!slug,
+  })
+
+  // Referencias ESTABLES: evita que clases/cursos cambien de identidad en cada render
+  // y hagan re-disparar effects que los usan como dependencia (loop de renders).
+  const classes = useMemo<ClassOption[]>(() => {
+    if (role === 'delegate') return delegateClasses.data ?? []
+    if (role === 'admin') return adminClasses.data ?? []
+    return teacherClasses.data ?? []
+  }, [role, adminClasses.data, teacherClasses.data, delegateClasses.data])
+
+  const courses = useMemo<CourseOption[]>(() => {
+    if (role === 'delegate') return delegateCourses.data ?? []
+    if (role === 'admin') {
+      const map = new Map<string, string>()
+      classes.forEach((c) => {
+        if (c.courseId && c.courseName) map.set(c.courseId, c.courseName)
+      })
+      return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
+    }
+    return teacherCourses.data ?? []
+  }, [role, classes, delegateCourses.data, teacherCourses.data])
+
+  const isLoading =
+    role === 'delegate'
+      ? delegateCourses.isLoading || delegateClasses.isLoading
+      : role === 'admin'
+        ? adminClasses.isLoading
+        : teacherCourses.isLoading || teacherClasses.isLoading
+
+  return { courses, classes, isLoading }
 }
 
 export interface PendingQueryArgs {
@@ -121,7 +148,7 @@ export function useAttendanceHistory(base: string, args: HistoryQueryArgs) {
 export function useSaveWorkflowAttendance(base: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { date: string; items: SaveAttendanceItem[] }) =>
+    mutationFn: (body: { date: string; items: SaveAttendanceItem[]; authorizedOverdueStudentIds?: string[] }) =>
       apiService.post<SaveAttendanceResult>(`${base}/save`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance-pending'] })

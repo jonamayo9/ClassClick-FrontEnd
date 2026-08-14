@@ -42,6 +42,7 @@ import CancellationsPage from '@/pages/admin/clothing/cancellations/page'
 import SettingsPage from '@/pages/admin/clothing/settings/page'
 import AttendancePage from '@/pages/admin/attendance/page'
 import AdminQrScanPage from '@/pages/admin/attendance/qr-scan'
+import StaffAttendancePage from '@/pages/admin/attendance/staff'
 import TeacherAttendancePage from '@/pages/teacher/attendance/page'
 import TeacherQrScanPage from '@/pages/teacher/attendance/qr-scan'
 import TeacherHomePage from '@/pages/teacher/home'
@@ -50,6 +51,12 @@ import TeacherCourseDetailPage from '@/pages/teacher/course-detail'
 import TeacherProfilePage from '@/pages/teacher/profile'
 import RegistrationPage from '@/pages/student/registration/page'
 import { PlaceholderPage } from '@/pages/admin/_placeholder'
+import DelegateHomePage from '@/pages/delegate/home'
+import DelegateStudentsPage from '@/pages/delegate/students/page'
+import DelegateStudentDetailPage from '@/pages/delegate/students/detail'
+import DelegateDocumentsPage from '@/pages/delegate/documents/page'
+import DelegatePaymentsPage from '@/pages/delegate/payments/page'
+import DelegateAttendancePage from '@/pages/delegate/attendance/page'
 import { StudentHome } from '@/pages/student/home'
 import StudentCoursesPage from '@/pages/student/courses/page'
 import CourseDetailPage from '@/pages/student/courses/detail'
@@ -101,6 +108,7 @@ function RoleRedirect() {
   if (role === 'superadmin') return <Navigate to="/superadmin" replace />
   if (role === 'admin') return <Navigate to="/admin" replace />
   if (role === 'teacher') return <Navigate to="/teacher" replace />
+  if (role === 'delegate') return <Navigate to="/delegate" replace />
   if (role === 'student') return <Navigate to="/student" replace />
   return <Navigate to="/login" replace />
 }
@@ -191,6 +199,8 @@ export default function App() {
             <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
             <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
             <Route path="attendance" element={<AttendancePage />} />
+            <Route path="attendance/staff" element={<StaffAttendancePage />} />
+            <Route path="attendance/students" element={<Navigate to="/admin/attendance" replace />} />
             <Route path="attendance/qr-scan" element={<AdminQrScanPage />} />
             <Route path="attendance/qr-scan/:classId" element={<AdminQrScanPage />} />
             <Route path="company" element={<CompanyPage />} />
@@ -232,6 +242,16 @@ export default function App() {
             <Route path="attendance/qr-scan" element={<TeacherQrScanPage />} />
             <Route path="attendance/qr-scan/:classId" element={<TeacherQrScanPage />} />
             <Route path="profile" element={<TeacherProfilePage />} />
+          </Route>
+
+          <Route path="delegate" element={<RoleGuard roles={['delegate']}><AppLayout /></RoleGuard>}>
+            <Route index element={<DelegateHomePage />} />
+            <Route path="students" element={<DelegateStudentsPage />} />
+            <Route path="students/:id" element={<DelegateStudentDetailPage />} />
+            <Route path="documents" element={<DelegateDocumentsPage />} />
+            <Route path="payments" element={<DelegatePaymentsPage />} />
+            <Route path="attendance" element={<DelegateAttendancePage />} />
+            <Route path="profile" element={<PlaceholderPage title="Mi perfil" description="Próximamente: perfil del delegado" />} />
           </Route>
 
           <Route path="src/pages/student/home/index.html" element={<Navigate to="/student" replace />} />

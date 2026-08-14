@@ -98,43 +98,6 @@ function PaymentsPageInner() {
             >
               Notificar cuotas pendientes
             </Button>
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setExportOpen((v) => !v)}
-                loading={ctx.exporting}
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Exportar
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              {exportOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setExportOpen(false)}
-                    aria-hidden="true"
-                  />
-                  <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                    <button
-                      type="button"
-                      onClick={() => handleExportCharges('pdf')}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExportCharges('xlsx')}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      Excel (XLSX)
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
             <Button variant="primary" size="sm" onClick={() => setShowGenerateModal(true)}>Generar cuotas</Button>
           </div>
         )}
@@ -181,7 +144,7 @@ function PaymentsPageInner() {
       </div>
 
       {ctx.tab === 'charges' ? (
-        <ChargesTab ctx={ctx} chargeTypes={chargeTypeOptions} onPay={setShowPayModal} onEdit={setShowEditModal} onViewProof={setShowProofModal} onViewDetail={setSelectedCharge} />
+        <ChargesTab ctx={ctx} chargeTypes={chargeTypeOptions} exportOpen={exportOpen} setExportOpen={setExportOpen} exporting={ctx.exporting} onExport={handleExportCharges} onPay={setShowPayModal} onEdit={setShowEditModal} onViewProof={setShowProofModal} onViewDetail={setSelectedCharge} />
       ) : ctx.tab === 'payments' ? (
         <PaymentsTab ctx={ctx} onViewDetail={setSelectedPayment} onExport={() => setShowExportModal(true)} />
       ) : (
@@ -251,56 +214,98 @@ function StatCard({ label, value, color }: { label: string; value: string; color
 }
 
 /* ── Charges Tab ── */
-function ChargesTab({ ctx, chargeTypes, onPay, onEdit, onViewProof, onViewDetail }: {
+function ChargesTab({ ctx, chargeTypes, exportOpen, setExportOpen, exporting, onExport, onPay, onEdit, onViewProof, onViewDetail }: {
   ctx: ReturnType<typeof usePaymentsPage>
   chargeTypes: any[]
+  exportOpen: boolean
+  setExportOpen: (v: boolean) => void
+  exporting: boolean
+  onExport: (format: 'pdf' | 'xlsx') => void
   onPay: (id: string) => void; onEdit: (id: string) => void
   onViewProof: (id: string) => void; onViewDetail: (charge: Charge) => void
 }) {
   const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(0, i).toLocaleString('es-AR', { month: 'long' }) }))
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const secondaryActiveCount = [ctx.chargeStatus, ctx.chargeTypeId, ctx.chargeCourseId].filter(Boolean).length
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-        <div className="w-full sm:w-36">
-          <SelectField value={ctx.chargeMonth === '' ? '' : String(ctx.chargeMonth)} onValueChange={(value) => { ctx.setChargeMonth(value === '' ? '' : Number(value)); ctx.setChargePage(1) }}
-            placeholder="Todos los meses"
-            options={[{ value: '', label: 'Todos los meses' }, ...months.map((item) => ({ value: String(item.value), label: item.label }))]} aria-label="Mes" />
-        </div>
-        <div className="w-full sm:w-28">
-          <SelectField value={ctx.chargeYear === '' ? '' : String(ctx.chargeYear)} onValueChange={(value) => { ctx.setChargeYear(value === '' ? '' : Number(value)); ctx.setChargePage(1) }}
-            placeholder="Todos los años"
-            options={[{ value: '', label: 'Todos los años' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} aria-label="Año" />
-        </div>
-        <div className="w-full sm:w-44">
-          <SelectField value={ctx.chargeStatus} onValueChange={(value) => { ctx.setChargeStatus(value); ctx.setChargePage(1) }}
-            placeholder="Todos los estados" options={[
-              { value: '', label: 'Todos los estados' },
-              { value: 'pending', label: 'Pendiente' },
-              { value: 'paid', label: 'Pagada' },
-              { value: 'overdue', label: 'Vencida' },
-            ]} aria-label="Estado" />
-        </div>
-        <div className="w-full sm:w-44">
-          <SelectField value={ctx.chargeTypeId} onValueChange={(value) => { ctx.setChargeTypeId(value); ctx.setChargePage(1) }}
-            placeholder="Todos los tipos" options={[
-              { value: '', label: 'Todos los tipos' },
-              ...chargeTypes.map((item: any) => ({ value: item.id, label: item.name })),
-            ]} aria-label="Tipo de cuota" />
-        </div>
-        <div className="w-full sm:w-48">
-          <SelectField value={ctx.chargeCourseId} onValueChange={(value) => { ctx.setChargeCourseId(value); ctx.setChargePage(1) }}
-            placeholder="Todos los cursos" options={[
-              { value: '', label: 'Todos los cursos' },
-              ...(ctx.courses ?? []).map((course: any) => ({ value: course.id, label: course.name })),
-            ]} aria-label="Curso" />
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+        <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:gap-2">
+          <div className="sm:w-36">
+            <SelectField value={ctx.chargeMonth === '' ? '' : String(ctx.chargeMonth)} onValueChange={(value) => { ctx.setChargeMonth(value === '' ? '' : Number(value)); ctx.setChargePage(1) }}
+              placeholder="Todos los meses"
+              options={[{ value: '', label: 'Todos los meses' }, ...months.map((item) => ({ value: String(item.value), label: item.label }))]} aria-label="Mes" />
+          </div>
+          <div className="sm:w-28">
+            <SelectField value={ctx.chargeYear === '' ? '' : String(ctx.chargeYear)} onValueChange={(value) => { ctx.setChargeYear(value === '' ? '' : Number(value)); ctx.setChargePage(1) }}
+              placeholder="Todos los años"
+              options={[{ value: '', label: 'Todos los años' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} aria-label="Año" />
+          </div>
         </div>
         <Input placeholder="Buscar alumno..." value={ctx.chargeSearch}
           onChange={(e) => { ctx.setChargeSearch(e.target.value); ctx.setChargePage(1) }}
-          className="w-full sm:max-w-[180px]" />
-        <Button variant="ghost" size="sm" onClick={ctx.resetChargesFilters}>Limpiar</Button>
+          className="w-full sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]" />
+        <div className="flex items-center gap-1.5 self-start sm:self-auto">
+          <Button variant="outline" size="sm" className="inline-flex items-center gap-1.5" onClick={() => setFiltersOpen((v) => !v)}>
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filtros{secondaryActiveCount > 0 ? ` (${secondaryActiveCount})` : ''}
+          </Button>
+          <div className="relative">
+            <Button variant="outline" size="sm" loading={exporting}
+              className="inline-flex items-center gap-1.5" onClick={() => setExportOpen(!exportOpen)}>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Exportar
+              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+            </Button>
+            {exportOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} aria-hidden="true" />
+                <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  <button type="button" onClick={() => onExport('pdf')}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">
+                    PDF
+                  </button>
+                  <button type="button" onClick={() => onExport('xlsx')}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">
+                    Excel (XLSX)
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
+
+      {filtersOpen && (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <SelectField value={ctx.chargeStatus} onValueChange={(value) => { ctx.setChargeStatus(value); ctx.setChargePage(1) }}
+              placeholder="Todos los estados" options={[
+                { value: '', label: 'Todos los estados' },
+                { value: 'pending', label: 'Pendiente' },
+                { value: 'paid', label: 'Pagada' },
+                { value: 'overdue', label: 'Vencida' },
+              ]} aria-label="Estado" />
+            <SelectField value={ctx.chargeTypeId} onValueChange={(value) => { ctx.setChargeTypeId(value); ctx.setChargePage(1) }}
+              placeholder="Todos los tipos" options={[
+                { value: '', label: 'Todos los tipos' },
+                ...chargeTypes.map((item: any) => ({ value: item.id, label: item.name })),
+              ]} aria-label="Tipo de cuota" />
+            <SelectField value={ctx.chargeCourseId} onValueChange={(value) => { ctx.setChargeCourseId(value); ctx.setChargePage(1) }}
+              placeholder="Todos los cursos" options={[
+                { value: '', label: 'Todos los cursos' },
+                ...(ctx.courses ?? []).map((course: any) => ({ value: course.id, label: course.name })),
+              ]} aria-label="Curso" />
+          </div>
+          <div className="mt-2 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={ctx.resetChargesFilters}>Limpiar filtros</Button>
+          </div>
+        </div>
+      )}
 
       {ctx.loadingCharges ? (
         <div className="flex justify-center py-16">
@@ -527,32 +532,47 @@ function ChargeBadges({ charge }: { charge: Charge }) {
 function PaymentsTab({ ctx, onViewDetail, onExport }: {
   ctx: ReturnType<typeof usePaymentsPage>; onViewDetail: (payment: Payment) => void; onExport: () => void
 }) {
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const secondaryActiveCount = [ctx.payCourseId, ctx.payStatus].filter(Boolean).length
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         <Input placeholder="Buscar alumno..." value={ctx.paySearch}
-          onChange={(e) => ctx.setPaySearch(e.target.value)} className="max-w-[200px]" />
-        <div className="w-full sm:w-48">
-          <SearchableCombobox value={ctx.payCourseId} onValueChange={ctx.setPayCourseId}
-            options={(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name }))}
-            placeholder="Todos los cursos" />
-        </div>
+          onChange={(e) => ctx.setPaySearch(e.target.value)} className="w-full sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]" />
         <Input placeholder="MM/AAAA" value={ctx.payPeriod} onChange={(e) => ctx.setPayPeriod(e.target.value)}
-          className="max-w-[100px]" />
-        <div className="w-full sm:w-44">
-          <SelectField value={ctx.payStatus} onValueChange={ctx.setPayStatus} placeholder="Todos los estados"
-            options={[
-              { value: '2', label: 'En revisión' },
-              { value: '3', label: 'Aprobado' },
-              { value: '4', label: 'Rechazado' },
-            ]} aria-label="Estado del pago" />
+          className="w-full sm:max-w-[100px]" />
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" className="inline-flex items-center gap-1.5" onClick={() => setFiltersOpen((v) => !v)}>
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filtros{secondaryActiveCount > 0 ? ` (${secondaryActiveCount})` : ''}
+          </Button>
+          <Button variant="outline" size="sm" onClick={onExport}>
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Exportar
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={onExport}>
-          <Download className="h-4 w-4" aria-hidden="true" />
-          Exportar
-        </Button>
-        <Button variant="ghost" size="sm" onClick={ctx.resetPaymentsFilters}>Limpiar</Button>
       </div>
+
+      {filtersOpen && (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <SearchableCombobox value={ctx.payCourseId} onValueChange={ctx.setPayCourseId}
+              options={(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name }))}
+              placeholder="Todos los cursos" />
+            <SelectField value={ctx.payStatus} onValueChange={ctx.setPayStatus} placeholder="Todos los estados"
+              options={[
+                { value: '2', label: 'En revisión' },
+                { value: '3', label: 'Aprobado' },
+                { value: '4', label: 'Rechazado' },
+              ]} aria-label="Estado del pago" />
+          </div>
+          <div className="mt-2 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={ctx.resetPaymentsFilters}>Limpiar filtros</Button>
+          </div>
+        </div>
+      )}
 
       {ctx.loadingPayments ? (
         <div className="flex justify-center py-16">

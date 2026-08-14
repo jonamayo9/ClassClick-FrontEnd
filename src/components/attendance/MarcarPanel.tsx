@@ -7,8 +7,9 @@ import { Pagination } from '@/components/ui/pagination'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { usePendingAttendance, useSaveWorkflowAttendance } from './hooks'
 import { PendingRows } from './Rows'
+import { OverdueAttendanceModal } from './OverdueAttendanceModal'
 import { dayNameFromIso, rowKey, type AttendanceFilters, type ClassOption, type CourseOption } from './utils'
-import type { MarkState } from '@/types/attendance'
+import type { MarkState, OverdueStudent, SaveAttendanceItem, SaveAttendanceResult } from '@/types/attendance'
 
 interface MarcarPanelProps {
   base: string
@@ -34,6 +35,8 @@ export function MarcarPanel({
   const [states, setStates] = useState<Record<string, MarkState>>({})
   const [pendingPage, setPendingPage] = useState<number | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [warningStudents, setWarningStudents] = useState<OverdueStudent[] | null>(null)
+  const [pendingItems, setPendingItems] = useState<SaveAttendanceItem[] | null>(null)
 
   const { data, isLoading, isError, refetch } = usePendingAttendance(base, {
     date: filters.date,
@@ -114,20 +117,53 @@ export function MarcarPanel({
     }
 
     try {
+      // Sonda: el backend detecta alumnos con deuda vencida sin guardar nada.
       const result = await saveMutation.mutateAsync({ date: filters.date, items: itemsToSave })
-      if (result.created?.length) toast(`Asistencia guardada (${result.created.length}).`)
-      if (result.updated?.length) toast(`Asistencia actualizada (${result.updated.length}).`)
-      if (result.skipped?.length) {
-        toast(`${result.skipped.length} registro(s) ya existían (creados por otro usuario).`)
+
+      if (result.requiresConfirmation && (result.overdueStudents?.length ?? 0) > 0) {
+        setPendingItems(itemsToSave)
+        setWarningStudents(result.overdueStudents ?? [])
+        return
       }
-      if (result.qrLocked?.length) {
-        toast(`${result.qrLocked.length} asistencia(s) QR no pueden modificarse.`, 'error')
-      }
-      setStates({})
-      setPage(1)
+
+      handleSaveResult(result)
     } catch {
       toast('Error al guardar la asistencia.', 'error')
     }
+  }
+
+  const handleSaveResult = (result: SaveAttendanceResult) => {
+    if (result.created?.length) toast(`Asistencia guardada (${result.created.length}).`)
+    if (result.updated?.length) toast(`Asistencia actualizada (${result.updated.length}).`)
+    if (result.skipped?.length) {
+      toast(`${result.skipped.length} registro(s) ya existían (creados por otro usuario).`)
+    }
+    if (result.qrLocked?.length) {
+      toast(`${result.qrLocked.length} asistencia(s) QR no pueden modificarse.`, 'error')
+    }
+    setStates({})
+    setPage(1)
+  }
+
+  const finalizeSave = async (authorizedOverdueStudentIds: string[]) => {
+    if (!pendingItems) return
+    setWarningStudents(null)
+    setPendingItems(null)
+    try {
+      const result = await saveMutation.mutateAsync({
+        date: filters.date,
+        items: pendingItems,
+        authorizedOverdueStudentIds,
+      })
+      handleSaveResult(result)
+    } catch {
+      toast('Error al guardar la asistencia.', 'error')
+    }
+  }
+
+  const confirmAll = () => {
+    if (!warningStudents) return
+    finalizeSave(warningStudents.map((s) => s.studentId))
   }
 
   if (loadingOptions) {
@@ -191,10 +227,10 @@ export function MarcarPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" size="sm" onClick={() => markAll('present')}>
-          Marcar visibles como presentes
+          Marcar presentes
         </Button>
         <Button variant="outline" size="sm" onClick={() => markAll('absent')}>
-          Marcar visibles como ausentes
+          Marcar ausentes
         </Button>
       </div>
 
@@ -227,6 +263,15 @@ export function MarcarPanel({
         variant="danger"
         onConfirm={confirmPage}
       />
+
+      {warningStudents && (
+        <OverdueAttendanceModal
+          students={warningStudents}
+          onCancel={() => { setWarningStudents(null); setPendingItems(null) }}
+          onConfirmAll={confirmAll}
+          onConfirmSelected={finalizeSave}
+        />
+      )}
     </div>
   )
 }

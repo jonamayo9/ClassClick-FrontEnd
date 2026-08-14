@@ -138,7 +138,7 @@ function AttendanceWorkflowInner({ role }: { role: AttendanceRole }) {
   const showFilters = tab === 'marcar' ? marMode === 'manual' : tab === 'historial'
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+    <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
       <header>
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Asistencias</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -167,7 +167,7 @@ function AttendanceWorkflowInner({ role }: { role: AttendanceRole }) {
       )}
 
       {showFilters && (
-        <Card className="p-4 sm:p-5">
+        <Card className="p-3 sm:p-4">
           <Filters
             mode={tab}
             value={filters}

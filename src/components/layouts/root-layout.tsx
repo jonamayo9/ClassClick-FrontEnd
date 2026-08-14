@@ -37,6 +37,7 @@ export function RootLayout() {
     const role = user.systemRole?.toLowerCase() ?? ''
     if (role === 'admin') navigate('/admin', { replace: true })
     else if (role === 'superadmin') navigate('/superadmin', { replace: true })
+    else if (role === 'delegate') navigate('/delegate', { replace: true })
     else navigate('/student', { replace: true })
   }, [token, user, navigate, location.pathname])
 
@@ -94,7 +95,9 @@ export function RootLayout() {
                     ? '/admin'
                     : user?.systemRole === 'superadmin'
                       ? '/superadmin'
-                      : '/student'
+                      : user?.systemRole === 'delegate'
+                        ? '/delegate'
+                        : '/student'
                 }
                 className="inline-flex h-9 items-center rounded-xl bg-emerald-500 px-4 text-sm font-bold text-white shadow-lg transition hover:bg-emerald-400 sm:h-10 sm:px-5"
               >

@@ -14,7 +14,11 @@ type FlowState =
   | { kind: 'register'; data: ScanResolveResponse; token: string; registerResult: ScanRegisterResponse }
 
 export function QrScanFlow({ role, embedded = false }: { role: AttendanceRole; embedded?: boolean }) {
-  const backPath = role === 'admin' ? '/admin/attendance' : '/teacher/attendance'
+  const backPath = role === 'admin'
+    ? '/admin/attendance'
+    : role === 'delegate'
+      ? '/delegate/attendance'
+      : '/teacher/attendance'
   const accent = ROLE_ACCENTS[role]
   const qc = useQueryClient()
   const qrEnabled = hasModule('qr_attendance')

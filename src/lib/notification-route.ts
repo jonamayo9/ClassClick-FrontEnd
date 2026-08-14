@@ -17,6 +17,7 @@ function roleHome(role?: string | null) {
   if (normalizedRole === 'superadmin') return '/superadmin'
   if (normalizedRole === 'admin') return '/admin'
   if (normalizedRole === 'teacher') return '/teacher'
+  if (normalizedRole === 'delegate') return '/delegate'
   return '/student'
 }
 
@@ -108,6 +109,12 @@ export function resolveNotificationRoute({
       const rolePrefix = normalizedRole === 'teacher' ? 'teacher' : isAdmin ? 'admin' : 'student'
       return `/${rolePrefix}/courses/${courseId}?tab=muro`
     }
+  }
+
+  if (notificationType.includes('attendance') || notificationType.includes('asistencia')) {
+    const courseId = data?.courseId ?? data?.CourseId
+    if (courseId) return `/student/courses/${courseId}?tab=asistencias`
+    return '/student/courses'
   }
 
   if (notificationType.includes('tournament')) {

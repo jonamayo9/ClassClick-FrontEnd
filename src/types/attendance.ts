@@ -60,11 +60,26 @@ export interface SaveAttendanceItem {
   present: boolean
 }
 
+export interface OverdueCharge {
+  chargeTypeName: string
+  month: number
+  year: number
+  courseName: string
+}
+
+export interface OverdueStudent {
+  studentId: string
+  studentName: string
+  overdueCharges: OverdueCharge[]
+}
+
 export interface SaveAttendanceResult {
   created: string[]
   updated: string[]
   skipped: string[]
   qrLocked: string[]
+  requiresConfirmation?: boolean
+  overdueStudents?: OverdueStudent[]
 }
 
 export type MarkState = 'unmarked' | 'present' | 'absent'

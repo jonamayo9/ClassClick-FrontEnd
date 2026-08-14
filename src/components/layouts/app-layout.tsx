@@ -7,6 +7,7 @@ import { imgUrl } from '@/lib/media'
 import { NotificationsBell } from '@/components/notifications-bell'
 import { StudentCarnetModal } from '@/pages/student/student-carnet'
 import { CompanyBillingBanner } from '@/components/billing/company-billing-banner'
+import { ToastProvider } from '@/components/ui/toast'
 import { hasModule } from '@/hooks/useModule'
 
 interface NavItem { label: string; path: string; icon: string; module?: string }
@@ -20,7 +21,7 @@ const adminGroups: NavGroup[] = [
   ]},
   { name: 'Académico', key: 'academic', items: [
     { label: 'Cursos', path: '/admin/courses', icon: '📚' },
-    { label: 'Profesores', path: '/admin/teachers', icon: '👨‍🏫' },
+    { label: 'Profesores / Delegados', path: '/admin/teachers', icon: '👨‍🏫' },
     { label: 'Clases', path: '/admin/classes', icon: '📅' },
     { label: 'Asistencia', path: '/admin/attendance', icon: '✅' },
   ]},
@@ -65,6 +66,15 @@ const teacherNav: NavItem[] = [
   { label: 'Perfil', path: '/teacher/profile', icon: '👤' },
 ]
 
+const delegateNav: NavItem[] = [
+  { label: 'Inicio', path: '/delegate', icon: '🏠' },
+  { label: 'Alumnos', path: '/delegate/students', icon: '👥' },
+  { label: 'Documentos', path: '/delegate/documents', icon: '📄', module: 'documents' },
+  { label: 'Pagos', path: '/delegate/payments', icon: '💳', module: 'payments' },
+  { label: 'Asistencia', path: '/delegate/attendance', icon: '✅' },
+  { label: 'Perfil', path: '/delegate/profile', icon: '👤' },
+]
+
 const studentNav: NavItem[] = [
   { label: 'Inicio', path: '/student', icon: '🏠' },
   { label: 'Cursos', path: '/student/courses', icon: '📚' },
@@ -101,6 +111,8 @@ export function AppLayout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [companyOpen, setCompanyOpen] = useState(false)
   const [carnetOpen, setCarnetOpen] = useState(false)
+  const [attendanceOpen, setAttendanceOpen] = useState(false)
+  const [attendanceChoice, setAttendanceChoice] = useState(false)
 
   const companyList = useMemo(
     () => ((companies ?? []).length > 0 ? (companies ?? []) : (user?.companies ?? [])),
@@ -132,16 +144,19 @@ export function AppLayout() {
   const role = (activeRole?.toLowerCase() ?? user?.systemRole?.toLowerCase() ?? '') as string
   const isAdmin = role === 'admin'
   const isTeacher = role === 'teacher'
+  const isDelegate = role === 'delegate'
   const isSuperAdmin = role === 'superadmin'
   const groups = isAdmin ? getFilteredGroups() : []
   const studentItems = isAdmin ? [] : studentNav.filter((item) => moduleEnabled(item.module))
   const teacherItems = isTeacher ? teacherNav : []
+  const delegateItems = isDelegate ? delegateNav.filter((item) => moduleEnabled(item.module)) : []
+  const delegateBottomItems = isDelegate ? delegateItems.filter((item) => item.path !== '/delegate/profile') : []
   const superadminItems = isSuperAdmin ? superadminNav : []
-  const allItems = isSuperAdmin ? superadminItems : isAdmin ? groups.flatMap((g) => g.items) : isTeacher ? teacherItems : studentItems
+  const allItems = isSuperAdmin ? superadminItems : isAdmin ? groups.flatMap((g) => g.items) : isDelegate ? delegateItems : isTeacher ? teacherItems : studentItems
   const primaryItems = isAdmin
     ? bottomPrimary.filter((p) => allItems.some((i) => i.path === p.path))
     : allItems
-  const showStudentPayments = !isAdmin && !isTeacher && !isSuperAdmin && moduleEnabled('payments')
+  const showStudentPayments = !isAdmin && !isTeacher && !isDelegate && !isSuperAdmin && moduleEnabled('payments')
 
   useEffect(() => {
     if (!token || !user) navigate('/login', { replace: true })
@@ -165,6 +180,44 @@ export function AppLayout() {
         <span className="text-base">{item.icon}</span>
         {item.label}
       </Link>
+    )
+  }
+
+  const isAttendanceRoute = location.pathname === '/admin/attendance' || location.pathname.startsWith('/admin/attendance/')
+
+  // Item "Asistencia" expandible: Alumnos / Personal. Se mantiene activo en cualquiera de las dos rutas.
+  const renderAdminItem = (item: NavItem, cls: string) => {
+    if (item.path !== '/admin/attendance') return navLink(item, cls)
+
+    const open = attendanceOpen || isAttendanceRoute
+
+    return (
+      <div key={item.path}>
+        <button
+          type="button"
+          onClick={() => setAttendanceOpen((v) => !v)}
+          className={`w-full ${cls} ${isAttendanceRoute ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+          <span className="text-base">{item.icon}</span>
+          {item.label}
+          <svg className={`ml-auto h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {open && (
+          <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-slate-200 pl-2 dark:border-slate-700">
+            <Link to="/admin/attendance" onClick={() => setAttendanceOpen(false)}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${location.pathname === '/admin/attendance' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+              <span className="text-sm">👥</span>
+              Alumnos
+            </Link>
+            <Link to="/admin/attendance/staff" onClick={() => setAttendanceOpen(false)}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${location.pathname === '/admin/attendance/staff' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+              <span className="text-sm">✅</span>
+              Personal
+            </Link>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -242,7 +295,7 @@ export function AppLayout() {
         </div>
       </header>
 
-      <div className="flex flex-1 pb-[68px] lg:pb-0">
+      <div className="flex flex-1 pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0">
         {/* Desktop sidebar */}
         <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block">
           <nav className="flex flex-col gap-4 p-3 pb-8">
@@ -254,11 +307,13 @@ export function AppLayout() {
                   {group.name}
                 </h3>
                 <div className="flex flex-col gap-0.5">
-                  {group.items.map((item) => navLink(item,
+                  {group.items.map((item) => renderAdminItem(item,
                     'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))}
                 </div>
               </div>
             )) : isTeacher ? teacherItems.map((item) => navLink(item,
+              'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
+            : isDelegate ? delegateItems.map((item) => navLink(item,
               'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
             : studentItems.map((item) => navLink(item,
               'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))}
@@ -277,13 +332,15 @@ export function AppLayout() {
                       {group.name}
                     </h3>
                     <div className="flex flex-col gap-0.5">
-                      {group.items.map((item) => navLink(item,
+                      {group.items.map((item) => renderAdminItem(item,
                         'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))}
                     </div>
                   </div>
                 )) : isSuperAdmin ? superadminItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
                 : isTeacher ? teacherItems.map((item) => navLink(item,
+                  'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
+                : isDelegate ? delegateItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
                 : studentItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))}
@@ -302,10 +359,11 @@ export function AppLayout() {
         {/* Main */}
         <main className="flex-1 overflow-x-auto px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8">
           {isAdmin && <CompanyBillingBanner />}
-          <Outlet />
+          <ToastProvider>
+            <Outlet />
+          </ToastProvider>
         </main>
       </div>
-
         {/* Mobile bottom nav */}
         {isSuperAdmin ? (
         <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
@@ -344,6 +402,27 @@ export function AppLayout() {
             </button>
           )}
         </nav>
+      ) : isDelegate ? (
+        /* Floating pill nav for delegate */
+        <>
+          <nav className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:hidden pointer-events-none">
+            <div className="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 bg-white/95 backdrop-blur-xl px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900/95">
+              <div className="grid grid-cols-5 items-end gap-1">
+                {delegateBottomItems.map((item) => {
+                  const active = location.pathname === item.path
+                  return (
+                    <Link key={item.path} to={item.path}
+                      className={`flex flex-col items-center justify-center py-1 rounded-2xl transition ${
+                        active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+                      <span className="text-xl">{item.icon}</span>
+                      <span className="text-[10px] font-medium mt-0.5">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          </nav>
+        </>
       ) : isTeacher ? (
         /* Floating pill nav for teacher */
         <>
@@ -438,10 +517,18 @@ export function AppLayout() {
                     {group.items.map((item) => {
                       if (primaryItems.some((p) => p.path === item.path)) return null
                       const active = location.pathname === item.path
+                      const tileCls = `flex flex-col items-center justify-center gap-1 rounded-2xl p-3 text-center transition ${
+                        active ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`
+                      if (item.path === '/admin/attendance') {
+                        return (
+                          <button key={item.path} type="button" onClick={() => { setMoreOpen(false); setAttendanceChoice(true) }} className={tileCls}>
+                            <span className="text-2xl">{item.icon}</span>
+                            <span className="text-[10px] font-semibold leading-tight sm:text-xs">{item.label}</span>
+                          </button>
+                        )
+                      }
                       return (
-                        <Link key={item.path} to={item.path} onClick={() => setMoreOpen(false)}
-                          className={`flex flex-col items-center justify-center gap-1 rounded-2xl p-3 text-center transition ${
-                            active ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+                        <Link key={item.path} to={item.path} onClick={() => setMoreOpen(false)} className={tileCls}>
                           <span className="text-2xl">{item.icon}</span>
                           <span className="text-[10px] font-semibold leading-tight sm:text-xs">{item.label}</span>
                         </Link>
@@ -481,6 +568,39 @@ export function AppLayout() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/50">
                 <span>🚪</span>
                 Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Chooser móvil: Asistencia -> Alumnos / Personal */}
+      {attendanceChoice && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setAttendanceChoice(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white p-5 pb-8 shadow-2xl dark:bg-slate-900"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-black">Asistencia</h2>
+              <button onClick={() => setAttendanceChoice(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => { setAttendanceChoice(false); navigate('/admin/attendance') }}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 p-4 text-center transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                <span className="text-3xl">👥</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">Asistencia de alumnos</span>
+              </button>
+              <button
+                onClick={() => { setAttendanceChoice(false); navigate('/admin/attendance/staff') }}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 p-4 text-center transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                <span className="text-3xl">✅</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">Asistencia del personal</span>
               </button>
             </div>
           </div>

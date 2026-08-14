@@ -39,4 +39,4 @@ export interface Session {
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 
-export type Role = 'superadmin' | 'admin' | 'student' | 'teacher'
+export type Role = 'superadmin' | 'admin' | 'student' | 'teacher' | 'delegate'

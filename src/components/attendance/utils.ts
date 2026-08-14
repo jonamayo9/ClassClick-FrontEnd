@@ -1,4 +1,4 @@
-export type AttendanceRole = 'admin' | 'teacher'
+export type AttendanceRole = 'admin' | 'teacher' | 'delegate'
 
 export interface AttendanceFilters {
   date: string
@@ -73,6 +73,7 @@ export function formatRegisteredAt(utc?: string | null): string {
 export const ROLE_ACCENTS: Record<AttendanceRole, { hero: string; text: string }> = {
   admin: { hero: 'from-violet-600 via-violet-700 to-purple-800', text: 'text-violet-200' },
   teacher: { hero: 'from-emerald-600 via-emerald-700 to-teal-800', text: 'text-emerald-200' },
+  delegate: { hero: 'from-sky-600 via-sky-700 to-blue-800', text: 'text-sky-200' },
 }
 
 // ============ Filtros: "Todos" como opción real ============
