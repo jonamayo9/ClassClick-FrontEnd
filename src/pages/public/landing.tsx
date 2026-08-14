@@ -11,9 +11,11 @@ import { ScrollCarousel } from '@/components/ui/scroll-carousel'
 import { SponsorsCarousel } from '@/components/ui/sponsors-carousel'
 import { useLanding } from '@/hooks/usePublicPage'
 import { apiService, getApiError } from '@/lib/api'
+import { resolvePublicTheme, type PublicThemeColors } from '@/lib/public-theme'
+import { formatActivitySchedule } from '@/lib/activity-schedule'
 import type { ContactFormConfig } from '@/types/public-page'
 
-const PRESET_COLORS: Record<string, Record<string, string>> = {
+const PRESET_COLORS: Record<string, PublicThemeColors> = {
   blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#60a5fa', bg: '#eff6ff', text: '#1e293b' },
   purple: { primary: '#7c3aed', secondary: '#a78bfa', accent: '#c4b5fd', bg: '#f5f3ff', text: '#1e293b' },
   green: { primary: '#059669', secondary: '#34d399', accent: '#6ee7b7', bg: '#ecfdf5', text: '#1e293b' },
@@ -154,6 +156,7 @@ export default function LandingPage() {
 
   const c = landing.company
   const colors = PRESET_COLORS[c.colorPreset] ?? PRESET_COLORS.blue
+  const theme = resolvePublicTheme(colors)
   const isClassic = c.visualStyle === 'classic'
   const isSport = c.visualStyle === 'sport'
   const align = c.heroTextAlignment ?? 'center'
@@ -261,15 +264,15 @@ export default function LandingPage() {
               style={{ textAlign: align as any, marginLeft: align === 'center' ? 'auto' : undefined, marginRight: align === 'center' ? 'auto' : undefined }}>{c.description}</p>}
             {hasForm ? (
               <button onClick={() => setShowForm(true)}
-                className="mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ backgroundColor: colors.accent }}>
+                className="mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition hover:opacity-90"
+                style={{ backgroundColor: colors.accent, color: theme.onAccent }}>
                 Consultar
               </button>
             ) : c.contact?.whatsApp ? (
               <a href={`https://wa.me/${c.contact.whatsApp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, quiero recibir información sobre las actividades de ${c.name}.`)}`}
                 target="_blank" rel="noopener noreferrer"
-                className="mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ backgroundColor: colors.accent }}>
+                className="mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition hover:opacity-90"
+                style={{ backgroundColor: colors.accent, color: theme.onAccent }}>
                 Consultar por WhatsApp
               </a>
             ) : null}
@@ -377,24 +380,26 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl px-6 py-12 sm:px-10">
           <h2 className="text-lg font-bold text-center mb-8" style={{ color: colors.text }}>Actividades</h2>
           <ScrollCarousel itemClass="w-60">
-            {landing.activities.map((act: any) => (
-              <button key={act.id} onClick={() => setModalActivity(act)}
-                className="w-full overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:shadow-md"
-                style={{ borderColor: `${colors.primary}20` }}>
-                <div className="h-32 w-full overflow-hidden bg-slate-100">
+            {landing.activities.map((act: any) => {
+              const scheduleLine = formatActivitySchedule(act.schedule)
+              return (
+                <button key={act.id} onClick={() => setModalActivity(act)}
+                  className="w-full overflow-hidden rounded-xl border text-left shadow-sm transition hover:shadow-md"
+                  style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
                   {act.publicCoverImageUrl ? (
-                    <img src={act.publicCoverImageUrl} alt={act.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">Sin imagen</div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="text-base font-bold" style={{ color: colors.text }}>{act.name}</h3>
-                  {act.description && <p className="mt-1 text-sm leading-snug" style={{ color: `${colors.text}99` }}>{act.description}</p>}
-                  {act.teacherName && <p className="mt-2 text-xs" style={{ color: `${colors.text}80` }}>{act.teacherName}</p>}
-                </div>
-              </button>
-            ))}
+                    <div className="h-32 w-full overflow-hidden" style={{ backgroundColor: theme.placeholderBg }}>
+                      <img src={act.publicCoverImageUrl} alt={act.name} className="h-full w-full object-cover" />
+                    </div>
+                  ) : null}
+                  <div className="p-4">
+                    <h3 className="text-base font-bold" style={{ color: colors.text }}>{act.name}</h3>
+                    {scheduleLine && <p className="mt-1 text-sm" style={{ color: theme.textMuted }}>{scheduleLine}</p>}
+                    {act.description && <p className="mt-1 text-sm leading-snug" style={{ color: theme.textMuted }}>{act.description}</p>}
+                    {act.teacherName && <p className="mt-2 text-xs" style={{ color: theme.textFaint }}>{act.teacherName}</p>}
+                  </div>
+                </button>
+              )
+            })}
           </ScrollCarousel>
         </div>
       )}
@@ -459,10 +464,10 @@ export default function LandingPage() {
       {hasForm && (
         <div className="mx-auto max-w-xl px-6 py-12 text-center">
           <h2 className="text-lg font-bold mb-3" style={{ color: colors.text }}>Consultanos</h2>
-          <p className="text-sm mb-6" style={{ color: `${colors.text}99` }}>Completá el formulario y te responderemos a la brevedad.</p>
+          <p className="text-sm mb-6" style={{ color: theme.textMuted }}>Completá el formulario y te responderemos a la brevedad.</p>
           <button onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
-            style={{ backgroundColor: colors.accent }}>
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition hover:opacity-90"
+            style={{ backgroundColor: colors.accent, color: theme.onAccent }}>
             Consultar ahora
           </button>
         </div>

@@ -1,4 +1,5 @@
 import { GalleryCarousel, type GalleryCarouselImage } from '@/components/ui/gallery-carousel'
+import type { PublicThemeColors } from '@/lib/public-theme'
 
 interface SponsorCard {
   id: string
@@ -9,7 +10,7 @@ interface SponsorCard {
 
 interface SponsorsCarouselProps {
   sponsors: SponsorCard[]
-  colors: Record<string, string>
+  colors: PublicThemeColors
   interactive?: boolean
 }
 

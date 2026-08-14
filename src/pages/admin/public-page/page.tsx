@@ -6,11 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Modal } from '@/components/ui/modal'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { useToast } from '@/components/ui/toast'
 import { ToastProvider } from '@/components/ui/toast'
 import { useAuth } from '@/stores/auth'
 import { apiService, getApiError } from '@/lib/api'
 import { config as appConfig } from '@/lib/config'
+import { resolvePublicTheme, type PublicThemeColors } from '@/lib/public-theme'
+import { formatActivitySchedule } from '@/lib/activity-schedule'
 import { GalleryCarousel } from '@/components/ui/gallery-carousel'
 import { ScrollCarousel } from '@/components/ui/scroll-carousel'
 import { SponsorsCarousel } from '@/components/ui/sponsors-carousel'
@@ -34,7 +37,7 @@ const COLOR_PRESETS = [
   { id: 'dark', colors: ['#1e293b', '#475569', '#94a3b8'] },
 ]
 
-const PRESET_CSS: Record<string, Record<string, string>> = {
+const PRESET_CSS: Record<string, PublicThemeColors> = {
   blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#60a5fa', bg: '#eff6ff', text: '#1e293b' },
   purple: { primary: '#7c3aed', secondary: '#a78bfa', accent: '#c4b5fd', bg: '#f5f3ff', text: '#1e293b' },
   green: { primary: '#059669', secondary: '#34d399', accent: '#6ee7b7', bg: '#ecfdf5', text: '#1e293b' },
@@ -94,6 +97,10 @@ function PublicPageInner() {
   const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [showCapabilityModal, setShowCapabilityModal] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  const [coverDeleteTarget, setCoverDeleteTarget] = useState<string | null>(null)
+  const [galleryDeleteTarget, setGalleryDeleteTarget] = useState<string | null>(null)
+  const [deletingGalleryImage, setDeletingGalleryImage] = useState(false)
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false)
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center')
 
   // Gallery
@@ -150,16 +157,37 @@ function PublicPageInner() {
     setUploadingCover((prev) => ({ ...prev, [courseId]: false }))
   }
 
-  async function handleDeleteCourseCover(courseId: string) {
-    if (!confirm('¿Eliminar la imagen de presentación de este curso?')) return
+  function handleDeleteCourseCover(courseId: string) {
+    setCoverDeleteTarget(courseId)
+  }
+
+  async function confirmDeleteCourseCover() {
+    const courseId = coverDeleteTarget
+    if (!courseId) return
     try {
       await deleteCover.mutateAsync(courseId)
       setCourseCovers((prev) => { const next = { ...prev }; delete next[courseId]; return next })
       setCourseCoverFiles((prev) => { const next = { ...prev }; delete next[courseId]; return next })
       toast('Imagen eliminada.')
+      setCoverDeleteTarget(null)
     } catch {
       toast('Error al eliminar la imagen.', 'error')
     }
+  }
+
+  async function confirmDeleteGalleryImage() {
+    const imageId = galleryDeleteTarget
+    if (!imageId) return
+    setDeletingGalleryImage(true)
+    try {
+      await apiService.del(`/api/admin/${slug}/public-page/images/${imageId}`)
+      refetchGallery()
+      toast('Imagen eliminada.')
+      setGalleryDeleteTarget(null)
+    } catch {
+      toast('Error al eliminar.', 'error')
+    }
+    setDeletingGalleryImage(false)
   }
 
   // Logo upload
@@ -367,7 +395,11 @@ function PublicPageInner() {
   }
 
   function handleUnpublish() {
-    if (!confirm('¿Despublicar la página?')) return
+    setUnpublishConfirmOpen(true)
+  }
+
+  function confirmUnpublish() {
+    setUnpublishConfirmOpen(false)
     unpublishMutation.mutate(undefined, {
       onSuccess: () => { toast('Página despublicada.'); setIsEnabled(false) },
       onError: (err) => toast(getApiError(err), 'error'),
@@ -583,11 +615,11 @@ function PublicPageInner() {
           {activeTab === 'actividades' && (
             <>
               <Card className="p-5 space-y-4">
-                <h2 className="text-sm font-bold">Cursos</h2>
+                <h2 className="text-sm font-bold">Actividades</h2>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={showActivities} onChange={(e) => { setShowActivities(e.target.checked); setDirty(true) }}
                     className="rounded border-slate-300" />
-                  Mostrar cursos en la página pública
+                  Mostrar actividades en la página pública
                 </label>
                 <p className="text-xs text-slate-400">Los cursos seleccionados se mostrarán en tu página pública.</p>
                 {showActivities && (
@@ -659,30 +691,6 @@ function PublicPageInner() {
                   )}
                 </Card>
               )}
-
-              <Card className="p-5 space-y-4">
-                <h2 className="text-sm font-bold">Actividades disponibles</h2>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={showActivities} onChange={(e) => { setShowActivities(e.target.checked); setDirty(true) }}
-                    className="rounded border-slate-300" />
-                  Mostrar actividades disponibles
-                </label>
-                {showActivities && (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {allCourses.length === 0 && <p className="text-xs text-slate-400">No hay cursos creados.</p>}
-                    {allCourses.filter((c: any) => c.isActive).map((c: any) => (
-                      <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                        <input type="checkbox" checked={selectedCourseIds.includes(c.id)}
-                          onChange={(e) => {
-                            setSelectedCourseIds((prev) => e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id))
-                            setDirty(true)
-                          }} className="rounded border-slate-300" />
-                        <span>{c.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </Card>
             </>
           )}
 
@@ -696,14 +704,7 @@ function PublicPageInner() {
                   {galleryImages.map((img: any) => (
                     <div key={img.id} className="group relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
                       <img src={img.imageUrl} alt="" className="h-24 w-full object-cover" loading="lazy" />
-                      <button onClick={async () => {
-                        if (confirm('¿Eliminar esta imagen?')) {
-                          try {
-                            await apiService.del(`/api/admin/${slug}/public-page/images/${img.id}`)
-                            refetchGallery()
-                          } catch { toast('Error al eliminar.', 'error') }
-                        }
-                      }}
+                      <button onClick={() => setGalleryDeleteTarget(img.id)}
                         className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs text-white opacity-0 transition group-hover:opacity-100">✕</button>
                     </div>
                   ))}
@@ -981,6 +982,40 @@ function PublicPageInner() {
           </div>
         </Modal>
 
+        {/* Confirmaciones */}
+        <ConfirmModal
+          open={!!coverDeleteTarget}
+          onClose={() => setCoverDeleteTarget(null)}
+          title="Eliminar imagen"
+          message="¿Querés eliminar la imagen de esta actividad? La actividad seguirá visible, pero se mostrará sin imagen."
+          confirmText="Eliminar imagen"
+          variant="danger"
+          loading={deleteCover.isPending}
+          onConfirm={confirmDeleteCourseCover}
+        />
+
+        <ConfirmModal
+          open={!!galleryDeleteTarget}
+          onClose={() => setGalleryDeleteTarget(null)}
+          title="Eliminar imagen"
+          message="¿Querés eliminar esta imagen de la galería?"
+          confirmText="Eliminar"
+          variant="danger"
+          loading={deletingGalleryImage}
+          onConfirm={confirmDeleteGalleryImage}
+        />
+
+        <ConfirmModal
+          open={unpublishConfirmOpen}
+          onClose={() => setUnpublishConfirmOpen(false)}
+          title="Despublicar página"
+          message="¿Querés despublicar la página? Los visitantes ya no podrán verla hasta que la vuelvas a publicar."
+          confirmText="Despublicar"
+          variant="danger"
+          loading={unpublishMutation.isPending}
+          onConfirm={confirmUnpublish}
+        />
+
         {qrOpen && publicUrl && createPortal(
           <div id="qr-print-root" className="hidden">
             <PublicPageQrPoster
@@ -1058,7 +1093,7 @@ function PublicLandingPreview({
   companySlug, logoUrl, courses, bannerUrl, bannerFocalX, bannerFocalY,
   logoPosX, logoPosY, logoSize, textAlign, galleryImages, sponsors,
 }: {
-  headline: string; description: string; colors: Record<string, string>; visualStyle: string
+  headline: string; description: string; colors: PublicThemeColors; visualStyle: string
   whatsApp: string; instagram: string; facebook: string
   email: string; phone: string; address: string; showContact: boolean
   companySlug: string | null; logoUrl?: string; courses?: any[]
@@ -1068,6 +1103,7 @@ function PublicLandingPreview({
   sponsors?: any[]
 }) {
   const isSport = visualStyle === 'sport'
+  const theme = resolvePublicTheme(colors)
   const isMinimal = visualStyle === 'minimal'
   const isClassic = visualStyle === 'classic'
   const [modalCourse, setModalCourse] = useState<any | null>(null)
@@ -1105,8 +1141,8 @@ function PublicLandingPreview({
             {whatsApp && (
               <a href={`https://wa.me/${whatsApp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, quiero recibir información sobre las actividades.`)}`}
                 target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
-                style={{ backgroundColor: colors.accent }}>
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition hover:opacity-90"
+                style={{ backgroundColor: colors.accent, color: theme.onAccent }}>
                 Consultar por WhatsApp
               </a>
             )}
@@ -1130,23 +1166,25 @@ function PublicLandingPreview({
           <div className="mx-auto max-w-4xl">
             <h2 className="text-lg font-bold text-center mb-6" style={{ color: colors.text }}>Actividades</h2>
             <ScrollCarousel itemClass="w-52">
-              {courses.map((c: any) => (
-                <button key={c.id} onClick={() => setModalCourse(c)}
-                  className="w-full overflow-hidden rounded-xl border bg-white text-left shadow-sm transition hover:shadow-md"
-                  style={{ borderColor: `${colors.primary}20` }}>
-                  <div className="h-28 w-full overflow-hidden bg-slate-100">
+              {courses.map((c: any) => {
+                const scheduleLine = formatActivitySchedule(c.schedule)
+                return (
+                  <button key={c.id} onClick={() => setModalCourse(c)}
+                    className="w-full overflow-hidden rounded-xl border text-left shadow-sm transition hover:shadow-md"
+                    style={{ backgroundColor: theme.surface, borderColor: theme.surfaceBorder }}>
                     {c.publicCoverImageUrl ? (
-                      <img src={c.publicCoverImageUrl} alt={c.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">Sin imagen</div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="text-sm font-bold" style={{ color: colors.text }}>{c.name}</p>
-                    {c.description && <p className="mt-1 text-xs leading-snug" style={{ color: `${colors.text}99` }}>{c.description}</p>}
-                  </div>
-                </button>
-              ))}
+                      <div className="h-28 w-full overflow-hidden" style={{ backgroundColor: theme.placeholderBg }}>
+                        <img src={c.publicCoverImageUrl} alt={c.name} className="h-full w-full object-cover" />
+                      </div>
+                    ) : null}
+                    <div className="p-3">
+                      <p className="text-sm font-bold" style={{ color: colors.text }}>{c.name}</p>
+                      {scheduleLine && <p className="mt-1 text-xs" style={{ color: theme.textMuted }}>{scheduleLine}</p>}
+                      {c.description && <p className="mt-1 text-xs leading-snug" style={{ color: theme.textMuted }}>{c.description}</p>}
+                    </div>
+                  </button>
+                )
+              })}
             </ScrollCarousel>
           </div>
         </div>
