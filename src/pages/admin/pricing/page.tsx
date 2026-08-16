@@ -1096,15 +1096,16 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!name.trim()) { setError('El nombre es obligatorio.'); return }
-    if (!courseId) { setError('Seleccioná un curso.'); return }
     const pctNum = Number(percentIncrease)
     const fixedNum = Number(fixedIncrease)
     if ((!percentIncrease || pctNum <= 0) && (!fixedIncrease || fixedNum <= 0)) { setError('Debe haber al menos un recargo (porcentaje o fijo).'); return }
+    // "" (Todos los cursos) → null: mora global. Un curso específico → su Guid.
+    const courseIdValue = courseId || null
     try {
       if (editId) {
-        await updateMutation.mutateAsync({ id: editId, name, courseId, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
+        await updateMutation.mutateAsync({ id: editId, name, courseId: courseIdValue, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
       } else {
-        await saveMutation.mutateAsync({ name, courseId, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
+        await saveMutation.mutateAsync({ name, courseId: courseIdValue, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
       }
       resetForm(); toast(editId ? 'Mora actualizada correctamente.' : 'Mora guardada correctamente.')
     } catch { setError('Error al guardar.'); toast('Error al guardar.', 'error') }
@@ -1219,7 +1220,7 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
                     return (
                       <tr key={l.id} className={bg}>
                         <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{l.name}</td>
-                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{l.courseName || 'Todos'}</td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{l.courseName || 'Todos los cursos'}</td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400">Día {l.dueDayOfMonth}</td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{recurrenceLabel(l.recurrenceType)}</td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{charges.join(' + ') || '-'}</td>
