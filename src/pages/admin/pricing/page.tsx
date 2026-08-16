@@ -1080,7 +1080,7 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
   setConfirmAction: (a: { title: string; message: string; confirmText: string; onConfirm: () => void } | null) => void
 }) {
   const [name, setName] = useState('')
-  const [courseId, setCourseId] = useState('')
+  const [courseId, setCourseId] = useState('all')
   const [dueDay, setDueDay] = useState('15')
   const [recurrenceType, setRecurrenceType] = useState<number | string>(LATE_FEE_RECURRENCE.ONE_TIME)
   const [percentIncrease, setPercentIncrease] = useState('')
@@ -1089,7 +1089,7 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
   const [error, setError] = useState('')
 
   function resetForm() {
-    setName(''); setCourseId(''); setDueDay('15'); setRecurrenceType(LATE_FEE_RECURRENCE.ONE_TIME)
+    setName(''); setCourseId('all'); setDueDay('15'); setRecurrenceType(LATE_FEE_RECURRENCE.ONE_TIME)
     setPercentIncrease(''); setFixedIncrease(''); setIsActive(true); setError(''); setEditId(null)
   }
 
@@ -1099,8 +1099,8 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
     const pctNum = Number(percentIncrease)
     const fixedNum = Number(fixedIncrease)
     if ((!percentIncrease || pctNum <= 0) && (!fixedIncrease || fixedNum <= 0)) { setError('Debe haber al menos un recargo (porcentaje o fijo).'); return }
-    // "" (Todos los cursos) → null: mora global. Un curso específico → su Guid.
-    const courseIdValue = courseId || null
+    // "all" (Todos los cursos, sentinel de UI) → null: mora global. Un curso específico → su Guid.
+    const courseIdValue = courseId === 'all' ? null : courseId
     try {
       if (editId) {
         await updateMutation.mutateAsync({ id: editId, name, courseId: courseIdValue, dueDayOfMonth: Number(dueDay), recurrenceType, percentIncrease: pctNum, fixedIncrease: fixedNum, isActive })
@@ -1112,7 +1112,7 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
   }
 
   function handleEdit(item: LatePaymentConfig) {
-    setEditId(item.id); setName(item.name); setCourseId(item.courseId ?? '')
+    setEditId(item.id); setName(item.name); setCourseId(item.courseId ?? 'all')
     setDueDay(String(item.dueDayOfMonth)); setRecurrenceType(item.recurrenceType)
     setPercentIncrease(String(item.percentIncrease)); setFixedIncrease(String(item.fixedIncrease))
     setIsActive(item.isActive)
@@ -1140,7 +1140,7 @@ function LateFeesSection({ courses, lateFees, lfLoading, editId, setEditId, save
           <Input type="text" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
           <Select value={courseId} onChange={(e) => setCourseId(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-            <option value="">Todos los cursos</option>
+            <option value="all">Todos los cursos</option>
             {courses.filter((c) => c.isActive).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
