@@ -95,9 +95,9 @@ const bottomPrimary: NavItem[] = [
   { label: 'Pagos', path: '/admin/payments', icon: '💳' },
 ]
 
-function getFilteredGroups(): NavGroup[] {
+function getFilteredGroups(enabled: (moduleCode?: string) => boolean): NavGroup[] {
   return adminGroups
-    .map((g) => ({ ...g, items: g.items.filter((i) => !i.module || hasModule(i.module)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.module || enabled(i.module)) }))
     .filter((g) => g.items.length > 0)
 }
 
@@ -148,7 +148,7 @@ export function AppLayout() {
   const isTeacher = role === 'teacher'
   const isDelegate = role === 'delegate'
   const isSuperAdmin = role === 'superadmin'
-  const groups = isAdmin ? getFilteredGroups() : []
+  const groups = isAdmin ? getFilteredGroups(moduleEnabled) : []
   const studentItems = isAdmin ? [] : studentNav.filter((item) => moduleEnabled(item.module))
   const teacherItems = isTeacher ? teacherNav : []
   const delegateItems = isDelegate ? delegateNav.filter((item) => moduleEnabled(item.module)) : []

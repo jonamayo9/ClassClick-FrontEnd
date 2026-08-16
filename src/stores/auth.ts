@@ -217,7 +217,8 @@ export const useAuth = create<AuthState>((set, _get) => ({
       }))
       storage.setCompanies(list)
       set({ companies: list })
-    } catch {
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('fetchCompanies: falló GET /api/admin/companies', err)
       // For non-admin users, try to get modules from student profile endpoint
       try {
         const slug = storage.getActiveCompanySlug()
@@ -242,7 +243,9 @@ export const useAuth = create<AuthState>((set, _get) => ({
         }
         storage.setCompanies(updated)
         set({ companies: updated })
-      } catch { /* silent */ }
+      } catch (err2) {
+        if (import.meta.env.DEV) console.error('fetchCompanies: falló el fallback de perfil de alumno', err2)
+      }
     }
   },
   invalidateLocalSession: () => {
