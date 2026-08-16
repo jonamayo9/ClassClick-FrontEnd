@@ -13,6 +13,8 @@ import {
 } from './hooks'
 import { formatDisplayName } from '@/lib/text'
 import { paymentOriginLabel, paymentMethodLabel } from '@/lib/payment-labels'
+import { hasModule } from '@/hooks/useModule'
+import { useEventOptions } from '@/pages/admin/events/hooks'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -533,7 +535,14 @@ function PaymentsTab({ ctx, onViewDetail, onExport }: {
   ctx: ReturnType<typeof usePaymentsPage>; onViewDetail: (payment: Payment) => void; onExport: () => void
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const secondaryActiveCount = [ctx.payCourseId, ctx.payStatus].filter(Boolean).length
+  const eventsEnabled = hasModule('events')
+  const { data: eventOptions = [] } = useEventOptions()
+  // Métodos habilitados para alumnos: mismos criterios que la configuración de pagos.
+  const enabledMethods = useMemo(
+    () => (ctx.paymentMethods ?? []).filter((pm) => pm.enabledBySuperAdmin && pm.isEnabledByAdmin),
+    [ctx.paymentMethods],
+  )
+  const secondaryActiveCount = [ctx.payCourseId, ctx.payStatus, ctx.payMethod, ctx.payEventId].filter(Boolean).length
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -558,15 +567,49 @@ function PaymentsTab({ ctx, onViewDetail, onExport }: {
       {filtersOpen && (
         <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
           <div className="grid gap-2 sm:grid-cols-2">
-            <SearchableCombobox value={ctx.payCourseId} onValueChange={ctx.setPayCourseId}
-              options={(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name }))}
-              placeholder="Todos los cursos" />
+            {eventsEnabled ? (
+              <SearchableCombobox
+                value={ctx.payEventId}
+                onValueChange={(value) => {
+                  ctx.setPayEventId(value)
+                  // Evento y cuota son dimensiones excluyentes: al elegir evento se limpian curso/tipo.
+                  ctx.setPayCourseId('')
+                  ctx.setPayChargeType('')
+                }}
+                options={eventOptions.map((e) => ({ value: e.id, label: e.title }))}
+                placeholder="Todos los eventos"
+                searchPlaceholder="Buscar evento..."
+              />
+            ) : (
+              <SearchableCombobox value={ctx.payCourseId}
+                onValueChange={(value) => { ctx.setPayCourseId(value); ctx.setPayEventId('') }}
+                options={(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name }))}
+                placeholder="Todos los cursos"
+                searchPlaceholder="Buscar curso..." />
+            )}
             <SelectField value={ctx.payStatus} onValueChange={ctx.setPayStatus} placeholder="Todos los estados"
               options={[
                 { value: '2', label: 'En revisión' },
                 { value: '3', label: 'Aprobado' },
                 { value: '4', label: 'Rechazado' },
               ]} aria-label="Estado del pago" />
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {eventsEnabled && (
+              <SearchableCombobox value={ctx.payCourseId}
+                onValueChange={(value) => { ctx.setPayCourseId(value); ctx.setPayEventId('') }}
+                options={(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name }))}
+                placeholder="Todos los cursos"
+                searchPlaceholder="Buscar curso..." />
+            )}
+            <SelectField value={ctx.payMethod} onValueChange={ctx.setPayMethod} placeholder="Todos los métodos"
+              options={[
+                { value: '', label: 'Todos los métodos' },
+                ...enabledMethods.map((pm) => ({
+                  value: String(pm.paymentMethod),
+                  label: pm.displayName || paymentMethodLabel(pm.paymentMethod),
+                })),
+              ]} aria-label="Método de pago" />
           </div>
           <div className="mt-2 flex justify-end">
             <Button variant="ghost" size="sm" onClick={ctx.resetPaymentsFilters}>Limpiar filtros</Button>
@@ -623,11 +666,22 @@ function PaymentsTab({ ctx, onViewDetail, onExport }: {
 function PaymentRow({ payment, index, onViewDetail }: { payment: Payment; index: number; onViewDetail: () => void }) {
   const badge = paymentStatusBadge(payment.paymentStatus)
   const methodLabel = payment.paymentMethodNameSnapshot || getChargePaymentMethodText(payment.paymentMethod)
+  const isEvent = !!payment.eventTicketPurchaseId
   return (
     <tr className={`${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-900/50'} hover:bg-blue-50 dark:hover:bg-slate-800/60 transition-colors`}>
       <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-white">{payment.studentFullName}</td>
-      <td className="px-4 py-2.5 text-slate-500">{payment.courseName}</td>
-      <td className="px-4 py-2.5 text-slate-500">{payment.month}/{payment.year}</td>
+      <td className="px-4 py-2.5 text-slate-500">
+        {isEvent ? (
+          <>
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">Evento</span>
+            <span className="ml-1.5">{payment.eventTitle || 'Entradas de evento'}</span>
+            {payment.eventQuantity != null && <span className="mt-0.5 block text-[10px] text-slate-400">{payment.eventQuantity} entradas</span>}
+          </>
+        ) : (
+          payment.courseName
+        )}
+      </td>
+      <td className="px-4 py-2.5 text-slate-500">{isEvent ? '—' : `${payment.month}/${payment.year}`}</td>
       <td className="px-4 py-2.5 text-right font-semibold text-slate-900 dark:text-white">{money(payment.finalAmount)}</td>
       <td className="px-4 py-2.5 text-center">
         <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badge.classes}`}>{badge.label}</span>
@@ -649,12 +703,17 @@ function PaymentRow({ payment, index, onViewDetail }: { payment: Payment; index:
 function PaymentCard({ payment, onViewDetail }: { payment: Payment; onViewDetail: () => void }) {
   const badge = paymentStatusBadge(payment.paymentStatus)
   const methodLabel = payment.paymentMethodNameSnapshot || getChargePaymentMethodText(payment.paymentMethod)
+  const isEvent = !!payment.eventTicketPurchaseId
   return (
     <Card className="p-3.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-sm truncate text-slate-900 dark:text-white">{payment.studentFullName}</div>
-          <div className="text-xs text-slate-400 mt-0.5">{payment.courseName} · {payment.month}/{payment.year}</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {isEvent
+              ? `${payment.eventTitle || 'Entradas de evento'}${payment.eventQuantity != null ? ` · ${payment.eventQuantity} entradas` : ''}`
+              : `${payment.courseName} · ${payment.month}/${payment.year}`}
+          </div>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${badge.classes}`}>{badge.label}</span>
       </div>
@@ -1072,8 +1131,19 @@ function PaymentDetailModal({ payment, onClose }: { payment: Payment; onClose: (
         <div className="space-y-3">
           <LabelValue label="Alumno" value={payment.studentFullName} />
           <LabelValue label="DNI" value={payment.studentDni} />
-          <LabelValue label="Curso" value={payment.courseName} />
-          <LabelValue label="Período" value={`${payment.month}/${payment.year}`} />
+          {payment.eventTicketPurchaseId ? (
+            <>
+              <LabelValue label="Tipo" value="Evento" />
+              <LabelValue label="Evento" value={payment.eventTitle || 'Entradas de evento'} />
+              {payment.eventQuantity != null && <LabelValue label="Entradas" value={String(payment.eventQuantity)} />}
+              {payment.eventUnitPrice != null && <LabelValue label="Precio unitario" value={money(payment.eventUnitPrice)} />}
+            </>
+          ) : (
+            <>
+              <LabelValue label="Curso" value={payment.courseName} />
+              <LabelValue label="Período" value={`${payment.month}/${payment.year}`} />
+            </>
+          )}
           <LabelValue label="Método" value={methodLabel} />
           <LabelValue label="Origen" value={paymentOriginLabel(payment.paymentOrigin)} />
           <div>
@@ -1104,6 +1174,9 @@ function PaymentDetailModal({ payment, onClose }: { payment: Payment; onClose: (
               )}
               {payment.manualIncreaseAmount > 0 && (
                 <BreakdownRow label="Aumento manual" value={payment.manualIncreaseAmount} color="text-red-600" />
+              )}
+              {payment.paymentMethodSurchargeAmount > 0 && (
+                <BreakdownRow label="Recargo por método" value={payment.paymentMethodSurchargeAmount} color="text-amber-600" />
               )}
               <div className="flex justify-between font-bold border-t border-slate-200 pt-1 mt-1 dark:border-slate-600">
                 <span>Total</span><span>{money(payment.finalAmount)}</span>
@@ -1297,6 +1370,9 @@ function ExportPaymentsModal({ ctx, chargeTypes, onClose }: {
   const [month, setMonth] = useState(prefilledPeriod?.month ?? now.getMonth() + 1)
   const [courseId, setCourseId] = useState(ctx.payCourseId)
   const [chargeTypeId, setChargeTypeId] = useState('')
+  const [eventId, setEventId] = useState(ctx.payEventId)
+  const eventsEnabled = hasModule('events')
+  const { data: eventOptions = [] } = useEventOptions()
   const [method, setMethod] = useState('')
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState(ctx.paySearch)
@@ -1321,6 +1397,7 @@ function ExportPaymentsModal({ ctx, chargeTypes, onClose }: {
       }
       if (courseId) params.set('courseId', courseId)
       if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+      if (eventId) params.set('eventId', eventId)
       if (method) params.set('paymentMethod', method)
       if (status) params.set('paymentStatus', status)
       if (search.trim()) params.set('search', search.trim())
@@ -1376,11 +1453,35 @@ function ExportPaymentsModal({ ctx, chargeTypes, onClose }: {
           )}
         </div>
 
+        {eventsEnabled && (
+          <div>
+            <label className="mb-1 block text-sm font-bold">Evento</label>
+            <SearchableCombobox
+              value={eventId}
+              onValueChange={(value) => {
+                setEventId(value)
+                if (value) {
+                  // Evento y cuota son dimensiones excluyentes; el período no filtra pagos de evento.
+                  setCourseId('')
+                  setChargeTypeId('')
+                  setUsePeriod(false)
+                }
+              }}
+              options={[
+                { value: '', label: 'Todos los eventos' },
+                ...eventOptions.map((e) => ({ value: e.id, label: e.title })),
+              ]}
+              placeholder="Todos los eventos"
+              searchPlaceholder="Buscar evento..."
+            />
+          </div>
+        )}
+
         <div>
           <label className="mb-1 block text-sm font-bold">Curso</label>
           <SearchableCombobox
             value={courseId}
-            onValueChange={setCourseId}
+            onValueChange={(value) => { setCourseId(value); if (value) setEventId('') }}
             options={[
               { value: '', label: 'Todos los cursos' },
               ...(ctx.courses ?? []).map((course) => ({ value: course.id, label: course.name })),
@@ -1392,7 +1493,7 @@ function ExportPaymentsModal({ ctx, chargeTypes, onClose }: {
 
         <div>
           <label className="mb-1 block text-sm font-bold">Tipo de cuota</label>
-          <SelectField value={chargeTypeId} onValueChange={setChargeTypeId} placeholder="Todos los tipos"
+          <SelectField value={chargeTypeId} onValueChange={(value) => { setChargeTypeId(value); if (value) setEventId('') }} placeholder="Todos los tipos"
             options={[
               { value: '', label: 'Todos los tipos' },
               ...chargeTypes.map((ct: any) => ({ value: ct.id, label: ct.name })),

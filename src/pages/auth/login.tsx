@@ -35,6 +35,7 @@ function navigateByRole(navigate: ReturnType<typeof useNavigate>) {
   else if (role === 'admin') navigate('/admin')
   else if (role === 'teacher') navigate('/teacher')
   else if (role === 'delegate') navigate('/delegate')
+  else if (role === 'eventoperator') navigate('/event-operator')
   else if (role === 'student') navigate('/home')
   else navigate('/login')
 }

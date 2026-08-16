@@ -32,6 +32,14 @@ import CompanyPage from '@/pages/admin/company/page'
 import ProfilePage from '@/pages/admin/profile/page'
 import SponsorsPage from '@/pages/admin/sponsors/page'
 import AnnouncementsPage from '@/pages/admin/announcements/page'
+import EventsPage from '@/pages/admin/events/page'
+import EventCheckInPage from '@/pages/admin/events/check-in'
+import EventReportPage from '@/pages/admin/events/report'
+import AdminEventManagementPage from '@/pages/admin/events/manage'
+import EventOperatorsPage from '@/pages/admin/events/operators'
+import { OperatorLayout } from '@/pages/event-operator/layout'
+import OperatorEventsPage from '@/pages/event-operator/events'
+import OperatorProfilePage from '@/pages/event-operator/profile'
 import ClothingPage from '@/pages/admin/clothing/page'
 import CategoriesPage from '@/pages/admin/clothing/categories/page'
 import ProductsPage from '@/pages/admin/clothing/products/page'
@@ -60,6 +68,10 @@ import DelegateAttendancePage from '@/pages/delegate/attendance/page'
 import { StudentHome } from '@/pages/student/home'
 import StudentCoursesPage from '@/pages/student/courses/page'
 import CourseDetailPage from '@/pages/student/courses/detail'
+import StudentEventsPage from '@/pages/student/events/page'
+import StudentEventDetailPage from '@/pages/student/events/detail'
+import StudentEventPaymentResultPage from '@/pages/student/events/payment-result'
+import StudentEventsHistoryPage from '@/pages/student/events/history'
 import StudentPaymentsPage from '@/pages/student/payments/page'
 import MercadoPagoResultPage from '@/pages/student/payments/result'
 import StudentProfilePage from '@/pages/student/profile/page'
@@ -69,6 +81,8 @@ import StudentClothingCatalog from '@/pages/student/clothing/page'
 import StudentClothingOrders from '@/pages/student/clothing/orders/page'
 import StudentClothingOrderDetail from '@/pages/student/clothing/order-detail'
 import PublicPageAdmin from '@/pages/admin/public-page/page'
+import PublicEventPage from '@/pages/public-events/event'
+import PublicEventAccessPage from '@/pages/public-events/access'
 import AdminBillingPage from '@/pages/admin/billing/page'
 import PublicLandingPage from '@/pages/public/landing'
 import { SuperAdminDashboard } from '@/pages/superadmin/dashboard'
@@ -109,6 +123,7 @@ function RoleRedirect() {
   if (role === 'admin') return <Navigate to="/admin" replace />
   if (role === 'teacher') return <Navigate to="/teacher" replace />
   if (role === 'delegate') return <Navigate to="/delegate" replace />
+  if (role === 'eventoperator') return <Navigate to="/event-operator" replace />
   if (role === 'student') return <Navigate to="/student" replace />
   return <Navigate to="/login" replace />
 }
@@ -166,6 +181,8 @@ export default function App() {
           </Route>
 
           <Route path="login" element={<LoginPage />} />
+          <Route path="e/:publicSlug" element={<PublicEventPage />} />
+          <Route path="e/access/:token" element={<PublicEventAccessPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
           <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="register" element={<RegistrationGate />} />
@@ -198,6 +215,11 @@ export default function App() {
             </Route>
             <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
             <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
+            <Route path="events" element={<GuardedRoute moduleCode="events"><EventsPage /></GuardedRoute>} />
+            <Route path="events/operators" element={<GuardedRoute moduleCode="events"><EventOperatorsPage /></GuardedRoute>} />
+            <Route path="events/:id" element={<GuardedRoute moduleCode="events"><AdminEventManagementPage /></GuardedRoute>} />
+            <Route path="events/:id/check-in" element={<GuardedRoute moduleCode="events"><EventCheckInPage /></GuardedRoute>} />
+            <Route path="events/:id/report" element={<GuardedRoute moduleCode="events"><EventReportPage /></GuardedRoute>} />
             <Route path="attendance" element={<AttendancePage />} />
             <Route path="attendance/staff" element={<StaffAttendancePage />} />
             <Route path="attendance/students" element={<Navigate to="/admin/attendance" replace />} />
@@ -222,6 +244,10 @@ export default function App() {
             <Route path="clothing/orders" element={<GuardedRoute moduleCode="clothing"><StudentClothingOrders /></GuardedRoute>} />
             <Route path="clothing/order/:id" element={<GuardedRoute moduleCode="clothing"><StudentClothingOrderDetail /></GuardedRoute>} />
             <Route path="matches" element={<GuardedRoute moduleCode="matches"><PlaceholderPage title="Partidos" /></GuardedRoute>} />
+            <Route path="events" element={<GuardedRoute moduleCode="events"><StudentEventsPage /></GuardedRoute>} />
+            <Route path="events/history" element={<GuardedRoute moduleCode="events"><StudentEventsHistoryPage /></GuardedRoute>} />
+            <Route path="events/:id" element={<GuardedRoute moduleCode="events"><StudentEventDetailPage /></GuardedRoute>} />
+            <Route path="events/:eventId/payment-result" element={<GuardedRoute moduleCode="events"><StudentEventPaymentResultPage /></GuardedRoute>} />
           </Route>
 
           <Route path="superadmin" element={<RoleGuard roles={['superadmin']}><AppLayout /></RoleGuard>}>
@@ -232,6 +258,12 @@ export default function App() {
             <Route path="billing/invoices" element={<SuperAdminBillingInvoicesPage />} />
             <Route path="billing/settings" element={<SuperAdminBillingSettingsPage />} />
             <Route path="document-types" element={<SuperAdminDocumentTypesPage />} />
+          </Route>
+
+          <Route path="event-operator" element={<RoleGuard roles={['eventoperator']}><OperatorLayout /></RoleGuard>}>
+            <Route index element={<OperatorEventsPage />} />
+            <Route path="events/:eventId/check-in" element={<GuardedRoute moduleCode="events"><EventCheckInPage backPath="/event-operator" /></GuardedRoute>} />
+            <Route path="profile" element={<OperatorProfilePage />} />
           </Route>
 
           <Route path="teacher" element={<RoleGuard roles={['teacher']}><AppLayout /></RoleGuard>}>

@@ -10,11 +10,18 @@ import { useAuth } from '@/stores/auth'
 import { apiService } from '@/lib/api'
 import { hasModule } from '@/hooks/useModule'
 import { useBiometric } from '@/hooks/useBiometric'
+import { Fingerprint, Ticket } from 'lucide-react'
 import { StudentCarnetModal } from './student-carnet'
 import {
   useStudentProfile, useStudentBilling, useStudentAnnouncements,
   useStudentSponsors, useStudentCourses, useProfilePhotoUrl
 } from './student.hooks'
+import {
+  useStudentFeaturedEvents, useStudentMyTickets, isPastEvent,
+  daysUntilArgentina, formatEventShort, formatEventTime,
+} from './events/hooks'
+import { StudentEventsCarousel } from './events/featured-carousel'
+import { StudentTicketQrModal } from './events/qr-modal'
 // import type { StudentMatch } from './student.hooks'
 
 const _fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -35,6 +42,7 @@ export function StudentHome() {
   const user = useAuth((s) => s.user)
   const slug = useAuth((s) => s.activeCompanySlug)
   const [carnetOpen, setCarnetOpen] = useState(false)
+  const [qrEventId, setQrEventId] = useState<string | null>(null)
 
   // Only a successful status response can send the student to registration.
   const { data: regStatus } = useQuery({
@@ -61,6 +69,7 @@ export function StudentHome() {
   const hasPayments = hasModule('payments')
   const hasNews = hasModule('news')
   const hasSponsors = hasModule('sponsors')
+  const hasEvents = hasModule('events')
   // const hasMatchesModule = false
 
   const { data: profile, isLoading } = useStudentProfile()
@@ -69,6 +78,19 @@ export function StudentHome() {
   const { data: sponsorsRaw } = useStudentSponsors()
   const { data: courses = [] } = useStudentCourses()
   const { data: photoView } = useProfilePhotoUrl()
+  const { data: featuredEvents = [] } = useStudentFeaturedEvents()
+  // Solo se consulta si el módulo Events está habilitado (el hook lo gatea internamente).
+  const { data: myTickets = [] } = useStudentMyTickets()
+
+  // Próximo evento (cronológicamente) con entradas disponibles: base del recordatorio del Home.
+  const reminderEvent = useMemo(() => {
+    if (!hasEvents) return null
+    const candidates = myTickets
+      .filter((t) => !isPastEvent(t) && t.availableQuantity > 0 && daysUntilArgentina(t.startsAtUtc) >= 0)
+      .sort((a, b) => +new Date(a.startsAtUtc) - +new Date(b.startsAtUtc))
+    return candidates[0] ?? null
+  }, [hasEvents, myTickets])
+  const reminderDays = reminderEvent ? daysUntilArgentina(reminderEvent.startsAtUtc) : -1
 
   const billing = useMemo(() => hasPayments ? billingRaw ?? [] : [], [hasPayments, billingRaw])
   const announcements = useMemo(() => hasNews ? announcementsRaw ?? [] : [], [hasNews, announcementsRaw])
@@ -162,7 +184,9 @@ export function StudentHome() {
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50 p-4 shadow-sm dark:border-violet-900/50 dark:from-violet-950/30 dark:to-fuchsia-950/20">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-lg dark:bg-violet-900/40">🔒</span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/40">
+                <Fingerprint className="h-6 w-6 text-violet-700 dark:text-violet-300" aria-hidden="true" />
+              </span>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-violet-800 dark:text-violet-200">Activá la biometría</p>
                 <p className="text-xs text-violet-600 dark:text-violet-400">Iniciá sesión con tu huella o rostro, más rápido y seguro.</p>
@@ -174,6 +198,56 @@ export function StudentHome() {
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-200 text-violet-400 hover:bg-violet-100 dark:border-violet-700">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Tu próximo evento (recordatorio, debajo de biometría) ─── */}
+      {reminderEvent && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Tu próximo evento</h2>
+          <div className="relative min-h-[150px] overflow-hidden rounded-2xl border border-teal-200 bg-teal-50/60 p-4 shadow-sm dark:border-teal-900/50 dark:bg-slate-900 sm:min-h-[165px]">
+            <div className="relative flex items-stretch gap-3">
+              <div className="flex w-[100px] shrink-0 flex-col items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm dark:bg-teal-700 sm:w-[110px]">
+                {reminderDays === 0 ? (
+                  <span className="px-2 text-center text-lg font-black uppercase tracking-wider">HOY</span>
+                ) : (
+                  <>
+                    <span className="text-3xl font-black leading-none">{reminderDays}</span>
+                    <span className="mt-1 text-[11px] font-bold uppercase tracking-wider">
+                      {reminderDays === 1 ? 'día' : 'días'}
+                    </span>
+                  </>
+                )}
+              </div>
+              <div className="min-w-0 flex-1 py-0.5">
+                <p className="flex items-center gap-1.5 truncate text-base font-bold text-slate-900 dark:text-white">
+                  <Ticket className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                  {reminderEvent.eventTitle}
+                </p>
+                <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                  {reminderDays === 0
+                    ? (reminderEvent.hasStartTime ? formatEventTime(reminderEvent.startsAtUtc) : 'Hoy')
+                    : formatEventShort(reminderEvent.startsAtUtc, reminderEvent.hasStartTime)}
+                </p>
+                {reminderEvent.location && (
+                  <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{reminderEvent.location}</p>
+                )}
+                <div className="my-2.5 h-px bg-slate-200 dark:bg-slate-700" />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+                    🎟 {reminderEvent.availableQuantity} {reminderEvent.availableQuantity === 1 ? 'entrada disponible' : 'entradas disponibles'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setQrEventId(reminderEvent.eventId)}
+                    className="text-xs font-bold text-teal-700 transition hover:text-teal-900 dark:text-teal-300 dark:hover:text-teal-200"
+                  >
+                    Ver entradas →
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -223,6 +297,11 @@ export function StudentHome() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* ─── Próximos eventos (carrusel compacto) ─── */}
+      {hasEvents && featuredEvents.length > 0 && (
+        <StudentEventsCarousel events={featuredEvents} />
       )}
 
       {/* ─── Matches with VS layout ─── */}
@@ -343,6 +422,9 @@ export function StudentHome() {
 
       {/* ─── Carnet Modal ─── */}
       <StudentCarnetModal open={carnetOpen} onClose={() => setCarnetOpen(false)} />
+
+      {/* ─── QR de entradas (recordatorio) ─── */}
+      <StudentTicketQrModal eventId={qrEventId} onClose={() => setQrEventId(null)} />
 
       {/* ─── All matches modal ─── */}
       {/* ─── All matches modal ─── */}
@@ -597,3 +679,4 @@ function MatchesSection({ title, matches, emptyText, companyLogo, companyName, o
   )
 }
 */
+

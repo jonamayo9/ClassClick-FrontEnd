@@ -99,25 +99,37 @@ export function usePaymentsSummary(year: number | '', month: number | '', charge
   })
 }
 
-export function usePayments(filters: { search: string; courseId: string; period: string; method: string; status: string; chargeType: string; page: number }) {
+export function usePayments(filters: { search: string; courseId: string; period: string; method: string; status: string; chargeType: string; eventId: string; page: number }) {
   return useQuery({
     queryKey: ['payments', slug(), filters],
     queryFn: async () => {
-      const data = await apiService.get<Payment[] | { items?: Payment[]; data?: Payment[] }>(`/api/admin/${slug()}/payments`)
+      // El filtro de Evento se resuelve en backend (Payment.EventTicketPurchase.EventId),
+      // compartiendo la misma regla que el export. El resto de filtros se aplican en el cliente.
+      const params = new URLSearchParams()
+      if (filters.eventId) params.set('eventId', filters.eventId)
+      const qs = params.toString()
+      const url = `/api/admin/${slug()}/payments${qs ? `?${qs}` : ''}`
+      const data = await apiService.get<Payment[] | { items?: Payment[]; data?: Payment[] }>(url)
       return unwrapList(data)
     },
     enabled: !!slug(),
     select: useCallback((data: Payment[]) => {
       return data.filter((p) => {
+        const isEvent = !!p.eventTicketPurchaseId
         if (filters.search) {
           const s = filters.search.toLowerCase()
           if (!p.studentFullName.toLowerCase().includes(s) && !p.studentDni.includes(s)) return false
         }
-        if (filters.courseId && p.courseId !== filters.courseId) return false
-        if (filters.period) {
+        // Curso y período son de cuota: para pagos de evento no aplican (tienen month/year = 0).
+        if (!isEvent && filters.courseId && p.courseId !== filters.courseId) return false
+        if (!isEvent && filters.period) {
           const [m, y] = filters.period.split('/')
           if (m && p.month !== parseInt(m)) return false
           if (y && p.year !== parseInt(y)) return false
+        }
+        if (filters.method) {
+          const m = String(filters.method).toLowerCase()
+          if (String(p.paymentMethod).toLowerCase() !== m) return false
         }
         if (filters.status) {
           const statusMap: Record<string, string> = { '2': 'inreview', '3': 'approved', '4': 'rejected' }
@@ -315,13 +327,14 @@ export function usePaymentsPage() {
   const [payMethod, setPayMethod] = useState('')
   const [payStatus, setPayStatus] = useState('')
   const [payChargeType, setPayChargeType] = useState('')
+  const [payEventId, setPayEventId] = useState('')
   const [payPage, setPayPage] = useState(1)
 
   const { data: courses } = useCourseOptions()
   const { data: paymentMethods } = usePaymentMethods()
   const { data: paymentsData, isLoading: loadingPayments } = usePayments({
     search: paySearch, courseId: payCourseId, period: payPeriod,
-    method: payMethod, status: payStatus, chargeType: payChargeType, page: payPage,
+    method: payMethod, status: payStatus, chargeType: payChargeType, eventId: payEventId, page: payPage,
   })
   const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId || undefined, chargeCourseId || undefined)
   const { data: paySummaryData } = usePaymentsSummary(chargeYear, chargeMonth, chargeTypeId || undefined, chargeCourseId || undefined)
@@ -361,7 +374,7 @@ export function usePaymentsPage() {
 
   const resetChargesFilters = () => { setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargeCourseId(''); setChargePage(1) }
   const resetPaymentsFilters = () => {
-    setPaySearch(''); setPayCourseId(''); setPayMethod(''); setPayStatus(''); setPayChargeType('')
+    setPaySearch(''); setPayCourseId(''); setPayMethod(''); setPayStatus(''); setPayChargeType(''); setPayEventId('')
   }
 
   const [exporting, setExporting] = useState(false)
@@ -411,6 +424,7 @@ export function usePaymentsPage() {
     paySearch, setPaySearch, payCourseId, setPayCourseId,
     payPeriod, setPayPeriod, payMethod, setPayMethod,
     payStatus, setPayStatus, payChargeType, setPayChargeType,
+    payEventId, setPayEventId,
     payPage, setPayPage, payments, loadingPayments, paySummary,
     resetPaymentsFilters,
     courses, paymentMethods: payMethods,

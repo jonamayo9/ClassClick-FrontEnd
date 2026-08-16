@@ -15,13 +15,13 @@ interface Company { id: string; name: string; slug: string; email?: string; phon
 const DEFAULT_MODULES: Record<string, boolean> = {
   payments: true, documents: true, news: true, sponsors: false,
   matches: false, clothing: false, tournaments: false, notifications: true,
-  qr_attendance: false, public_page: false,
+  qr_attendance: false, public_page: false, events: false,
 }
 
 const MODULE_LABELS: Record<string, string> = {
   payments: 'Pagos', documents: 'Documentos', news: 'Novedades', sponsors: 'Sponsors',
   matches: 'Partidos', clothing: 'Indumentaria', tournaments: 'Torneos',
-  notifications: 'Notificaciones', qr_attendance: 'Asistencia QR',
+  notifications: 'Notificaciones', qr_attendance: 'Asistencia QR', events: 'Eventos',
 }
 
 function CompaniesInner() {

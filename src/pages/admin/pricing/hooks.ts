@@ -100,6 +100,7 @@ export interface PaymentMethodDetail {
   alias: string | null
   cbu: string | null
   holderName: string | null
+  bankName: string | null
   instructions: string | null
   mercadoPagoOnlinePaymentsEnabled: boolean
   mercadoPagoOnlinePaymentsEnabledBySuperAdmin: boolean

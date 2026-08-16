@@ -1429,6 +1429,7 @@ function PaymentMethodsModal({ pMethods, saveMutation, onClose, toast }: {
         alias: m.alias || null,
         cbu: m.cbu || null,
         holderName: m.holderName || null,
+        bankName: m.bankName || null,
         instructions: m.instructions || null,
         mercadoPagoOnlinePaymentsEnabled: m.mercadoPagoOnlinePaymentsEnabled,
       }))
@@ -1487,6 +1488,11 @@ function PaymentMethodsModal({ pMethods, saveMutation, onClose, toast }: {
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Titular</label>
                 <Input type="text" value={m.holderName ?? ''}
                   onChange={(e) => updateField(m.id, 'holderName', e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Banco</label>
+                <Input type="text" value={m.bankName ?? ''}
+                  onChange={(e) => updateField(m.id, 'bankName', e.target.value)} />
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Instrucciones</label>

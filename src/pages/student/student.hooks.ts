@@ -81,6 +81,7 @@ export interface PaymentMethod {
   alias?: string
   cbu?: string
   holderName?: string
+  bankName?: string
   notes?: string
   instructions?: string
   mercadoPagoOnlinePaymentsEnabled?: boolean

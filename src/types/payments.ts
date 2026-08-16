@@ -9,6 +9,10 @@ export interface Payment {
   courseName: string
   month: number
   year: number
+  eventTicketPurchaseId?: string
+  eventTitle?: string
+  eventQuantity?: number
+  eventUnitPrice?: number
   amount: number
   finalAmount: number
   finalAmountPaid: number

@@ -14,6 +14,14 @@ function parseDate(value?: string | null) {
   return isValid(result) ? result : undefined
 }
 
+/** Parsea un mes "yyyy-MM" (o "yyyy-MM-dd") a un Date local del primer día del mes. */
+function parseMonth(value?: string | null) {
+  if (!value) return undefined
+  const m = value.trim().match(/^(\d{4})-(\d{2})/)
+  if (!m) return undefined
+  return new Date(Number(m[1]), Number(m[2]) - 1, 1)
+}
+
 function isoDate(value?: Date) {
   return value ? format(value, 'yyyy-MM-dd') : ''
 }
@@ -143,6 +151,8 @@ interface DatePickerProps {
   title?: string
   yearRange?: { from: number; to: number }
   variant?: 'default' | 'birthDate'
+  /** Mes "yyyy-MM" al que abrir el calendario cuando value está vacío (útil para alinear con otra fecha). */
+  defaultMonth?: string
 }
 
 const monthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -186,7 +196,7 @@ function CustomSelect({ value, options, onChange }: {
   )
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha', min, max, disabled, className, title = 'Elegir fecha', yearRange, variant = 'default' }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha', min, max, disabled, className, title = 'Elegir fecha', yearRange, variant = 'default', defaultMonth: defaultMonthProp }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Date | undefined>(() => parseDate(value))
   const [viewMode, setViewMode] = useState<'days' | 'monthYear'>('days')
@@ -201,8 +211,9 @@ export function DatePicker({ value, onChange, placeholder = 'Seleccionar fecha',
       const d = parseDate(value)
       return d ?? new Date(currentYear - 15, 0, 1)
     }
-    return parseDate(value) ?? new Date()
-  }, [isBirth, value, currentYear])
+    // Prioridad: valor ya elegido → mes indicado por defaultMonthProp → mes actual.
+    return parseDate(value) ?? parseMonth(defaultMonthProp) ?? new Date()
+  }, [isBirth, value, currentYear, defaultMonthProp])
 
   const [pickerMonth, setPickerMonth] = useState<Date>(defaultMonth)
   const yearScrollRef = useRef<HTMLDivElement>(null)
@@ -453,12 +464,12 @@ export function TimePicker({ value, onChange, minuteStep = 5, className, placeho
   )
 }
 
-export function DateTimePicker({ value, onChange, className }: { value: string; onChange: (value: string) => void; className?: string }) {
+export function DateTimePicker({ value, onChange, className, defaultMonth }: { value: string; onChange: (value: string) => void; className?: string; defaultMonth?: string }) {
   const date = value ? value.slice(0, 10) : ''
   const time = value?.includes('T') ? value.slice(11, 16) : ''
   return (
     <div className={cn('grid gap-2 sm:grid-cols-2', className)}>
-      <DatePicker value={date} onChange={(nextDate) => onChange(nextDate ? `${nextDate}T${time || '00:00'}` : '')} />
+      <DatePicker value={date} defaultMonth={defaultMonth} onChange={(nextDate) => onChange(nextDate ? `${nextDate}T${time || '00:00'}` : '')} />
       <TimePicker value={time} onChange={(nextTime) => onChange(date && nextTime ? `${date}T${nextTime}` : '')} />
     </div>
   )

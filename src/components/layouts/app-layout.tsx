@@ -40,6 +40,7 @@ const adminGroups: NavGroup[] = [
     { label: 'Indumentaria', path: '/admin/clothing', icon: '🧥', module: 'clothing' },
     { label: 'Novedades', path: '/admin/announcements', icon: '📢', module: 'news' },
     { label: 'Sponsors', path: '/admin/sponsors', icon: '🤝', module: 'sponsors' },
+    { label: 'Eventos', path: '/admin/events', icon: '🎪', module: 'events' },
   ]},
   { name: 'Configuración', key: 'settings', items: [
     { label: 'Página pública', path: '/admin/public-page', icon: '🌐' },
@@ -84,6 +85,7 @@ const studentNav: NavItem[] = [
   { label: 'Documentos', path: '/student/documents', icon: '📄', module: 'documents' },
   { label: 'Indumentaria', path: '/student/clothing', icon: '🧥', module: 'clothing' },
   { label: 'Partidos', path: '/student/matches', icon: '⚽', module: 'matches' },
+  { label: 'Eventos', path: '/student/events', icon: '🎪', module: 'events' },
 ]
 
 const bottomPrimary: NavItem[] = [
