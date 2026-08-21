@@ -56,6 +56,7 @@ export interface StudentBilling {
   paymentId?: string
   transferProofImageUrl?: string
   reviewNote?: string
+  notes?: string
   // Nuevos campos multi-cuota
   chargeTypeId?: string
   chargeTypeName?: string

@@ -639,10 +639,15 @@ function ChargeDetailModal({ charge, onClose }: { charge: StudentBilling; onClos
           </div>
         </div>
 
-        {charge.reviewNote?.trim() && (
+        {(charge.notes?.trim() || charge.reviewNote?.trim()) && (
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Notas</div>
-            <div className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{charge.reviewNote}</div>
+            {charge.notes?.trim() && (
+              <div className="mt-0.5 whitespace-pre-line text-sm text-slate-700 dark:text-slate-300">{charge.notes}</div>
+            )}
+            {charge.reviewNote?.trim() && (
+              <div className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{charge.reviewNote}</div>
+            )}
           </div>
         )}
       </div>
