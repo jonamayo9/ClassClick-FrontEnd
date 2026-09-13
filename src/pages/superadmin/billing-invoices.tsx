@@ -12,7 +12,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import { apiService, getApiError } from '@/lib/api'
-import { InvoiceStatus, statusLabel, paymentMethodLabel, type SuperAdminBillingInvoice } from './billing.types'
+import { InvoiceStatus, statusLabel, statusVariant, paymentMethodLabel, type SuperAdminBillingInvoice } from './billing.types'
 import { BillingProofPreviewModal, type BillingProofViewPayload } from '@/components/billing/billing-proof-preview-modal'
 import { BillingPeriodDetail } from '@/components/billing/billing-period-detail'
 
@@ -42,15 +42,11 @@ interface Attention {
   overdueInvoices: AttentionItem[]
 }
 
-const STATUS_VARIANT: Record<number, 'success' | 'warning' | 'danger' | 'info' | 'default' | 'violet'> = {
-  [InvoiceStatus.Draft]: 'default',
-  [InvoiceStatus.Issued]: 'info',
-  [InvoiceStatus.Pending]: 'warning',
-  [InvoiceStatus.UnderReview]: 'violet',
-  [InvoiceStatus.Paid]: 'success',
-  [InvoiceStatus.Overdue]: 'danger',
-  [InvoiceStatus.Cancelled]: 'default',
-}
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'Transfer', label: 'Transferencia bancaria' },
+  { value: 'Cash', label: 'Efectivo' },
+  { value: 'Other', label: 'Otro' },
+]
 
 const FMT = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
@@ -127,6 +123,9 @@ function BillingInvoicesInner() {
   const [proofPreview, setProofPreview] = useState<{ invoiceId: string; period: string } | null>(null)
   const [reviewMode, setReviewMode] = useState<'approve' | 'reject' | null>(null)
   const [reviewForm, setReviewForm] = useState({ reference: '', notes: '', reason: '' })
+  const [markPaidTarget, setMarkPaidTarget] = useState<SuperAdminBillingInvoice | null>(null)
+  const [markPaidForm, setMarkPaidForm] = useState({ paymentMethod: 'Transfer', reference: '', notes: '' })
+  const [deleteTarget, setDeleteTarget] = useState<SuperAdminBillingInvoice | null>(null)
 
   const { data: reviewDetail } = useQuery({
     queryKey: ['billing-invoice', reviewTarget?.invoiceId],
@@ -185,6 +184,46 @@ function BillingInvoicesInner() {
     },
     onError: (err) => toast(getApiError(err), 'error'),
   })
+
+  const markPaidMutation = useMutation({
+    mutationFn: () =>
+      apiService.post<SuperAdminBillingInvoice>(`/api/superadmin/billing/invoices/${markPaidTarget!.id}/paid`, {
+        paymentMethod: markPaidForm.paymentMethod,
+        paymentReference: markPaidForm.reference || null,
+        notes: markPaidForm.notes || null,
+      }),
+    onSuccess: () => {
+      toast('Cargo marcado como pagado.')
+      setMarkPaidTarget(null)
+      setMarkPaidForm({ paymentMethod: 'Transfer', reference: '', notes: '' })
+      invalidateAll()
+    },
+    onError: (err) => toast(getApiError(err), 'error'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      apiService.del(`/api/superadmin/billing/invoices/${deleteTarget!.id}`),
+    onSuccess: () => {
+      toast('Factura eliminada.')
+      setDeleteTarget(null)
+      setDetailTarget(null)
+      invalidateAll()
+    },
+    onError: (err) => toast(getApiError(err), 'error'),
+  })
+
+  // Sólo se ofrece el alta manual sin comprobante para facturas sin comprobante activo.
+  // Si hay comprobante se mantiene el flujo actual de revisión/aprobación.
+  function canMarkPaid(inv: SuperAdminBillingInvoice): boolean {
+    const status = Number(inv.status)
+    return !inv.hasPaymentProof && (status === InvoiceStatus.Pending || status === InvoiceStatus.Issued || status === InvoiceStatus.Overdue)
+  }
+
+  function startMarkPaid(inv: SuperAdminBillingInvoice) {
+    setMarkPaidForm({ paymentMethod: 'Transfer', reference: '', notes: '' })
+    setMarkPaidTarget(inv)
+  }
 
   function resetFilters() {
     setCompanyId('')
@@ -341,17 +380,19 @@ function BillingInvoicesInner() {
                 <div key={inv.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold truncate">{inv.companyName ?? '-'}</span>
-                    <Badge variant={STATUS_VARIANT[Number(inv.status)] ?? 'default'}>{statusLabel(inv.status)}</Badge>
+                    <Badge variant={statusVariant(inv.status)}>{statusLabel(inv.status)}</Badge>
                   </div>
                   <p className="text-xs text-slate-400">{inv.period}</p>
                   <p className="mt-1 text-sm font-black">{FMT.format(inv.amountWithLateFee || inv.totalAmount)}</p>
                   <p className="text-xs text-slate-400">Vence {fmtDate(inv.dueDateUtc)} · {paymentMethodLabel(inv.paymentMethod) ?? '—'}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {Number(inv.status) === InvoiceStatus.UnderReview ? (
+                    {Number(inv.status) === InvoiceStatus.UnderReview && (
                       <Button size="sm" onClick={() => { setReviewTarget({ invoiceId: inv.id }); setReviewMode(null); setReviewForm({ reference: '', notes: '', reason: '' }) }} className="bg-slate-800 text-white hover:bg-slate-700">Revisar</Button>
-                    ) : (
-                      <Button variant="outline" size="sm" onClick={() => setDetailTarget(inv)}>Ver</Button>
                     )}
+                    {canMarkPaid(inv) && (
+                      <Button size="sm" onClick={() => startMarkPaid(inv)} className="bg-emerald-600 text-white hover:bg-emerald-700">Marcar como pagada</Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => setDetailTarget(inv)}>Ver</Button>
                     {inv.hasPaymentProof && (
                       <Button variant="outline" size="sm" onClick={() => setProofPreview({ invoiceId: inv.id, period: inv.period })}>Ver comprobante</Button>
                     )}
@@ -381,17 +422,19 @@ function BillingInvoicesInner() {
                       <td className="px-3 py-2">{inv.companyName ?? '-'}</td>
                       <td className="px-3 py-2">{inv.period}</td>
                       <td className="px-3 py-2 font-medium">{FMT.format(inv.amountWithLateFee || inv.totalAmount)}</td>
-                      <td className="px-3 py-2"><Badge variant={STATUS_VARIANT[Number(inv.status)] ?? 'default'}>{statusLabel(inv.status)}</Badge></td>
+                      <td className="px-3 py-2"><Badge variant={statusVariant(inv.status)}>{statusLabel(inv.status)}</Badge></td>
                       <td className="px-3 py-2">{fmtDate(inv.dueDateUtc)}</td>
                       <td className="px-3 py-2">{paymentMethodLabel(inv.paymentMethod) ?? '—'}</td>
                       <td className="px-3 py-2">{inv.paidAtUtc ? fmtDate(inv.paidAtUtc) : '—'}</td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {Number(inv.status) === InvoiceStatus.UnderReview ? (
+                          {Number(inv.status) === InvoiceStatus.UnderReview && (
                             <Button size="sm" onClick={() => { setReviewTarget({ invoiceId: inv.id }); setReviewMode(null); setReviewForm({ reference: '', notes: '', reason: '' }) }} className="bg-slate-800 text-white hover:bg-slate-700">Revisar</Button>
-                          ) : (
-                            <Button variant="outline" size="sm" onClick={() => setDetailTarget(inv)}>Ver</Button>
                           )}
+                          {canMarkPaid(inv) && (
+                            <Button size="sm" onClick={() => startMarkPaid(inv)} className="bg-emerald-600 text-white hover:bg-emerald-700">Marcar como pagada</Button>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => setDetailTarget(inv)}>Ver</Button>
                           {inv.hasPaymentProof && (
                             <Button variant="outline" size="sm" onClick={() => setProofPreview({ invoiceId: inv.id, period: inv.period })}>Ver comprobante</Button>
                           )}
@@ -418,7 +461,7 @@ function BillingInvoicesInner() {
               <DetailRow label="Número interno" value={reviewDetail.invoiceNumber} />
               <DetailRow label="Importe original" value={FMT.format(reviewDetail.totalAmount)} />
               {reviewDetail.lateFeeAmount > 0 && (
-                <DetailRow label={`Mora (${reviewDetail.lateFeePercentage}%)`} value={FMT.format(reviewDetail.lateFeeAmount)} />
+                <DetailRow label={reviewDetail.lateFeeLabel ?? `Mora (${reviewDetail.lateFeePercentage}%)`} value={FMT.format(reviewDetail.lateFeeAmount)} />
               )}
               {reviewTransferSurcharge > 0 && <DetailRow label="Recargo por transferencia" value={FMT.format(reviewTransferSurcharge)} />}
               <DetailRow label="Total esperado" value={reviewDetail.paymentProofTotalExpected != null ? FMT.format(reviewDetail.paymentProofTotalExpected) : FMT.format(reviewDetail.amountWithLateFee)} />
@@ -524,7 +567,7 @@ function BillingInvoicesInner() {
                 <h3 className="text-sm font-bold mb-3">Importe del cargo</h3>
                 <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
                   <DetailRow label="Importe original" value={FMT.format(detailTarget.totalAmount)} />
-                  <DetailRow label={`Mora (${detailTarget.lateFeePercentage}%)`} value={FMT.format(detailTarget.lateFeeAmount)} />
+                  <DetailRow label={detailTarget.lateFeeLabel ?? `Mora (${detailTarget.lateFeePercentage}%)`} value={FMT.format(detailTarget.lateFeeAmount)} />
                   <DetailRow label="Total actualizado" value={FMT.format(detailTarget.amountWithLateFee)} />
                 </div>
               </div>
@@ -535,6 +578,75 @@ function BillingInvoicesInner() {
                 <Button variant="outline" size="sm" onClick={() => setProofPreview({ invoiceId: detailTarget.id, period: detailTarget.period })}>Ver comprobante</Button>
               )}
               <Button size="sm" onClick={() => downloadPdf(detailTarget)} className="bg-slate-800 text-white hover:bg-slate-700">Descargar PDF</Button>
+              <Button size="sm" variant="danger" onClick={() => setDeleteTarget(detailTarget)} className="bg-red-600 text-white hover:bg-red-700">Eliminar</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Confirmar eliminación de factura */}
+      {deleteTarget && (
+        <Modal open onClose={() => setDeleteTarget(null)} title="¿Eliminar esta factura?" className="sm:max-w-md">
+          <div className="px-5 py-4 sm:px-6 space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Estás por eliminar la factura{' '}
+              <span className="font-semibold text-slate-900 dark:text-white">{deleteTarget.period}</span> de{' '}
+              <span className="font-semibold text-slate-900 dark:text-white">{deleteTarget.companyName ?? 'la empresa'}</span>.
+              Esta acción hará que deje de figurar como pendiente y no se tendrá en cuenta en deuda, mora, alertas ni historial activo.
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>Cancelar</Button>
+              <Button
+                size="sm"
+                variant="danger"
+                loading={deleteMutation.isPending}
+                onClick={() => { if (deleteTarget) deleteMutation.mutate() }}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar factura'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Confirmar pago sin comprobante */}
+      {markPaidTarget && (
+        <Modal open onClose={() => setMarkPaidTarget(null)} title="Confirmar pago sin comprobante" className="sm:max-w-md">
+          <div className="px-5 py-4 sm:px-6 space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Estás por marcar como pagada la cuota{' '}
+              <span className="font-semibold text-slate-900 dark:text-white">{markPaidTarget.period}</span> de{' '}
+              <span className="font-semibold text-slate-900 dark:text-white">{markPaidTarget.companyName ?? 'la empresa'}</span>{' '}
+              sin un comprobante adjunto. ¿Confirmás que querés continuar?
+            </p>
+
+            <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Medio de pago</label>
+                <Select value={markPaidForm.paymentMethod} onChange={(e) => setMarkPaidForm({ ...markPaidForm, paymentMethod: e.target.value })}>
+                  {PAYMENT_METHOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Referencia de pago</label>
+                <Input value={markPaidForm.reference} onChange={(e) => setMarkPaidForm({ ...markPaidForm, reference: e.target.value })} placeholder="Opcional" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Observación</label>
+                <textarea
+                  value={markPaidForm.notes}
+                  onChange={(e) => setMarkPaidForm({ ...markPaidForm, notes: e.target.value })}
+                  rows={2}
+                  placeholder="Opcional"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" size="sm" onClick={() => setMarkPaidTarget(null)} disabled={markPaidMutation.isPending}>Cancelar</Button>
+              <Button size="sm" loading={markPaidMutation.isPending} onClick={() => markPaidMutation.mutate()} className="bg-emerald-600 text-white hover:bg-emerald-700">Confirmar como pagada</Button>
             </div>
           </div>
         </Modal>

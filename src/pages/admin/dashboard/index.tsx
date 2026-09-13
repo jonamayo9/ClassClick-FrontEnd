@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/stores/auth'
 import { apiService } from '@/lib/api'
 import { useDashboardKpis, useStudentDistribution, useChargeDistribution, useDocumentDistribution,
@@ -9,6 +10,8 @@ import { KpiCard } from './components/KpiCard'
 import { DonutChart } from './components/DonutChart'
 import { LineChartWidget } from './components/LineChart'
 import { AlertModal } from './components/AlertModal'
+import { OverdueInvoiceModal, type OverdueInvoice } from './components/OverdueInvoiceModal'
+import { NovedadesModal, type AdminNews } from './components/NovedadesModal'
 import { UpcomingTable } from './components/UpcomingTable'
 import { EstadoGeneralCard } from './components/EstadoGeneralCard'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
@@ -48,6 +51,10 @@ export function AdminDashboard() {
   const [chargeTypeId, setChargeTypeId] = useState('')
   const [upcomingPage, setUpcomingPage] = useState(1)
   const [seeAll, setSeeAll] = useState<{ title: string; rows: DonutBreakdownRow[] } | null>(null)
+  const [overdueOpen, setOverdueOpen] = useState(false)
+  const [overduePhaseDone, setOverduePhaseDone] = useState(false)
+  const [newsOpen, setNewsOpen] = useState(false)
+  const newsOpenedRef = useRef(false)
 
   // Al cambiar período o tipo de cuota, volver a la página 1 de próximos vencimientos.
   useEffect(() => { setUpcomingPage(1) }, [dateFrom, dateTo, chargeTypeId])
@@ -67,6 +74,85 @@ export function AdminDashboard() {
   const upcoming = useUpcomingItems(slug, dateFrom, dateTo, chargeTypeId || undefined, upcomingPage)
   const upcomingData = upcoming.data ?? { items: [], page: 1, pageSize: 15, totalCount: 0, totalPages: 1 }
   const { data: chargeTypes = [] } = useChargeTypeOptions(slug)
+
+  // Modal de facturas vencidas hacia ClassClick: se muestra SOLO después de resolver
+  // el modal de alertas actual (cerrado) o si no corresponde mostrarlo (sin alertas).
+  // Nunca se superponen: overdueOpen se activa una única vez por sesión de login.
+  const alertsResolved = !alerts.isLoading && ((alerts.data?.length ?? 0) === 0 || dashboardAlertsShown)
+  const overdueQuery = useQuery({
+    queryKey: ['admin-overdue-invoices', slug],
+    queryFn: () => apiService.get<OverdueInvoice[]>(`/api/admin/${slug}/billing/overdue`),
+    enabled: !!slug && alertsResolved,
+  })
+  const overdueInvoices = overdueQuery.data ?? []
+
+  useEffect(() => {
+    if (!slug || !alertsResolved) return
+    if (overduePhaseDone) return
+    if (sessionStorage.getItem('overdueInvoiceModalShown') === 'true') {
+      setOverduePhaseDone(true)
+      return
+    }
+    if (overdueQuery.data && overdueQuery.data.length > 0) {
+      setOverdueOpen(true)
+      return
+    }
+    // Datos cargados sin facturas vencidas (o cacheado vacío): la etapa queda resuelta.
+    if (overdueQuery.data) {
+      setOverduePhaseDone(true)
+    }
+  }, [slug, alertsResolved, overduePhaseDone, overdueQuery.data])
+
+  function closeOverdueModal() {
+    sessionStorage.setItem('overdueInvoiceModalShown', 'true')
+    setOverdueOpen(false)
+    setOverduePhaseDone(true)
+  }
+
+  // Etapa 3: novedades de ClassClick para administradores.
+  // Solo cuando la etapa de facturas vencidas quedó resuelta (cerrada o sin contenido).
+  const newsQuery = useQuery({
+    queryKey: ['admin-news', slug],
+    queryFn: () => apiService.get<{ items: AdminNews[]; count: number }>(`/api/admin/${slug}/news`),
+    enabled: !!slug && alertsResolved && overduePhaseDone,
+  })
+  const newsItems = newsQuery.data?.items ?? []
+
+  // Se abre SOLO cuando la query terminó (isSuccess) y hay al menos 1 novedad visible.
+  // Mientras carga, newsItems es [] pero isSuccess es false: nunca abre con "0 novedades".
+  // Si la API falla: no muestra modal vacío y marca la fase resuelta para no bloquear.
+  useEffect(() => {
+    if (!slug || !alertsResolved || !overduePhaseDone) return
+    if (newsOpenedRef.current) return
+    if (sessionStorage.getItem('newsModalShown') === 'true') {
+      newsOpenedRef.current = true
+      return
+    }
+    if (newsQuery.isSuccess) {
+      newsOpenedRef.current = true
+      if (newsItems.length > 0) {
+        setNewsOpen(true)
+      }
+    } else if (newsQuery.isError) {
+      newsOpenedRef.current = true
+    }
+  }, [slug, alertsResolved, overduePhaseDone, newsQuery.isSuccess, newsQuery.isError, newsItems.length])
+
+  // Cierre automático si, con el modal abierto, la lista queda vacía
+  // (p. ej. último dismissal + refetch) o la query deja de tener datos.
+  useEffect(() => {
+    if (!newsOpen) return
+    if (newsQuery.isSuccess && newsItems.length === 0) {
+      setNewsOpen(false)
+    } else if (newsQuery.isError) {
+      setNewsOpen(false)
+    }
+  }, [newsOpen, newsQuery.isSuccess, newsQuery.isError, newsItems.length])
+
+  function closeNewsModal() {
+    sessionStorage.setItem('newsModalShown', 'true')
+    setNewsOpen(false)
+  }
 
   const loading = kpis.isLoading
 
@@ -145,6 +231,21 @@ export function AdminDashboard() {
         open={!dashboardAlertsShown && alertData.length > 0}
         alerts={alertData}
         onClose={dismissAlerts}
+      />
+
+      {/* Modal facturas vencidas hacia ClassClick (independiente del de alertas) */}
+      <OverdueInvoiceModal
+        open={overdueOpen}
+        invoices={overdueInvoices}
+        onClose={closeOverdueModal}
+      />
+
+      {/* Modal novedades de ClassClick para administradores (3º en la secuencia) */}
+      <NovedadesModal
+        open={newsOpen}
+        slug={slug}
+        news={newsItems}
+        onClose={closeNewsModal}
       />
 
       {/* Estado General */}

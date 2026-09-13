@@ -8,6 +8,7 @@ const variants = {
   ghost: 'hover:bg-slate-100 dark:hover:bg-slate-800',
   outline: 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800',
   danger: 'bg-red-600 text-white hover:bg-red-500',
+  violet: 'bg-violet-600 text-white hover:bg-violet-700 dark:bg-violet-600 dark:text-white dark:hover:bg-violet-500',
 } as const
 
 const sizes = {

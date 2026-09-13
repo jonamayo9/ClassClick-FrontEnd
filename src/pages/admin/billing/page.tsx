@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { getApiError, apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
-import { statusLabel, paymentMethodLabel } from '@/pages/superadmin/billing.types'
+import { statusLabel, statusVariant, paymentMethodLabel } from '@/pages/superadmin/billing.types'
 import { BillingPeriodDetail } from '@/components/billing/billing-period-detail'
 import { BillingProofPreviewModal, type BillingProofViewPayload } from '@/components/billing/billing-proof-preview-modal'
 import {
@@ -18,16 +18,6 @@ import {
   type AdminBillingInvoice,
   type BillingPaymentOption,
 } from './hooks'
-
-const STATUS_VARIANT: Record<number, 'success' | 'warning' | 'danger' | 'info' | 'default' | 'violet'> = {
-  1: 'default',
-  2: 'info',
-  3: 'warning',
-  4: 'violet',
-  5: 'success',
-  6: 'danger',
-  7: 'default',
-}
 
 const FMT = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
@@ -138,7 +128,7 @@ function BillingInner() {
           <Card className="p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-bold">Cargo de ClassClick — período {current.period}</h2>
-              <Badge variant={STATUS_VARIANT[current.statusValue] ?? 'default'}>{statusLabel(current.status)}</Badge>
+              <Badge variant={statusVariant(current.status)}>{statusLabel(current.status)}</Badge>
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -195,7 +185,7 @@ function BillingInner() {
               <div key={inv.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold">{inv.period}</span>
-                  <Badge variant={STATUS_VARIANT[inv.statusValue] ?? 'default'}>{statusLabel(inv.status)}</Badge>
+                  <Badge variant={statusVariant(inv.status)}>{statusLabel(inv.status)}</Badge>
                 </div>
                 <p className="mt-1 text-sm font-black">{FMT.format(inv.amountWithLateFee || inv.totalAmount)}</p>
                 <p className="text-xs text-slate-400">Vence {fmt(inv.dueDateUtc)} · {paymentMethodLabel(inv.paymentMethod) ?? '—'}</p>
@@ -227,7 +217,7 @@ function BillingInner() {
                     <td className="px-3 py-2">{inv.period}</td>
                     <td className="px-3 py-2 font-medium">{FMT.format(inv.amountWithLateFee || inv.totalAmount)}</td>
                     <td className="px-3 py-2">{fmt(inv.dueDateUtc)}</td>
-                    <td className="px-3 py-2"><Badge variant={STATUS_VARIANT[inv.statusValue] ?? 'default'}>{statusLabel(inv.status)}</Badge></td>
+                    <td className="px-3 py-2"><Badge variant={statusVariant(inv.status)}>{statusLabel(inv.status)}</Badge></td>
                     <td className="px-3 py-2">{paymentMethodLabel(inv.paymentMethod) ?? '—'}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -323,9 +313,9 @@ function BillingInner() {
             <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
               <h3 className="text-sm font-bold mb-3">Importe del cargo</h3>
               <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                <DetailRow label="Importe original" value={FMT.format(detail.originalAmount)} />
+<DetailRow label="Importe original" value={FMT.format(detail.originalAmount)} />
                 {detail.lateFeeAmount > 0 && (
-                  <DetailRow label={`Mora por vencimiento (${detail.lateFeePercentage}%)`} value={FMT.format(detail.lateFeeAmount)} />
+                  <DetailRow label={detail.lateFeeLabel ?? `Mora por vencimiento (${detail.lateFeePercentage}%)`} value={FMT.format(detail.lateFeeAmount)} />
                 )}
                 <DetailRow label="Total actualizado" value={FMT.format(detail.amountWithLateFee || detail.originalAmount)} />
                 {detail.daysOverdue > 0 && <DetailRow label="Días vencido" value={String(detail.daysOverdue)} />}

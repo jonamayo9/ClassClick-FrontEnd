@@ -76,6 +76,8 @@ export const useAuth = create<AuthState>((set, _get) => ({
     try {
       storage.clearSession()
       sessionStorage.removeItem('dashboardAlertsShown')
+      sessionStorage.removeItem('overdueInvoiceModalShown');
+      sessionStorage.removeItem('newsModalShown')
 
       const raw = await apiService.post<Record<string, unknown>>('/api/auth/login', { email, password })
       const { token, refreshToken, accessTokenExpiresAtUtc, user, companies } = normalizeLoginResponse(raw)
@@ -129,6 +131,8 @@ export const useAuth = create<AuthState>((set, _get) => ({
     try {
       storage.clearSession()
       sessionStorage.removeItem('dashboardAlertsShown')
+      sessionStorage.removeItem('overdueInvoiceModalShown');
+      sessionStorage.removeItem('newsModalShown')
 
       const raw = await apiService.post<Record<string, unknown>>('/api/auth/google', { idToken })
       const { token, refreshToken, accessTokenExpiresAtUtc, user, companies } = normalizeLoginResponse(raw)
@@ -183,6 +187,8 @@ export const useAuth = create<AuthState>((set, _get) => ({
     }
     storage.clearSession()
     sessionStorage.removeItem('dashboardAlertsShown')
+    sessionStorage.removeItem('overdueInvoiceModalShown');
+      sessionStorage.removeItem('newsModalShown')
     set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, dashboardAlertsShown: false })
   },
 
@@ -250,6 +256,8 @@ export const useAuth = create<AuthState>((set, _get) => ({
   },
   invalidateLocalSession: () => {
     sessionStorage.removeItem('dashboardAlertsShown')
+    sessionStorage.removeItem('overdueInvoiceModalShown');
+      sessionStorage.removeItem('newsModalShown')
     set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, isLoading: false, dashboardAlertsShown: false })
   },
 }))

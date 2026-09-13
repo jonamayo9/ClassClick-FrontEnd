@@ -57,7 +57,17 @@ const superadminNav: NavItem[] = [
   { label: 'Tipos doc.', path: '/superadmin/document-types', icon: '📄' },
   { label: 'Consumo y usuarios', path: '/superadmin/billing', icon: '💰' },
   { label: 'Cobros de empresas', path: '/superadmin/billing/invoices', icon: '🧾' },
+  { label: 'Aumentos programados', path: '/superadmin/price-increases', icon: '📈' },
+  { label: 'Novedades', path: '/superadmin/news', icon: '📢' },
   { label: 'Config. ClassClick', path: '/superadmin/billing/settings', icon: '⚙️' },
+]
+
+// Accesos principales del SuperAdmin para la bottom nav mobile (el resto vive en el menú hamburguesa / "Más").
+const superadminBottomNav: NavItem[] = [
+  { label: 'Dashboard', path: '/superadmin', icon: '📊' },
+  { label: 'Empresas', path: '/superadmin/companies', icon: '🏢' },
+  { label: 'Cobros', path: '/superadmin/billing/invoices', icon: '🧾' },
+  { label: 'Novedades', path: '/superadmin/news', icon: '📢' },
 ]
 
 const teacherNav: NavItem[] = [
@@ -154,6 +164,8 @@ export function AppLayout() {
   const delegateItems = isDelegate ? delegateNav.filter((item) => moduleEnabled(item.module)) : []
   const delegateBottomItems = isDelegate ? delegateItems.filter((item) => item.path !== '/delegate/profile') : []
   const superadminItems = isSuperAdmin ? superadminNav : []
+  const superadminBottomItems = isSuperAdmin ? superadminBottomNav : []
+  const superadminMoreItems = isSuperAdmin ? superadminItems.filter((i) => !superadminBottomNav.some((b) => b.path === i.path)) : []
   const allItems = isSuperAdmin ? superadminItems : isAdmin ? groups.flatMap((g) => g.items) : isDelegate ? delegateItems : isTeacher ? teacherItems : studentItems
   const primaryItems = isAdmin
     ? bottomPrimary.filter((p) => allItems.some((i) => i.path === p.path))
@@ -370,7 +382,7 @@ export function AppLayout() {
         {isSuperAdmin ? (
         <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          {superadminItems.map((item) => {
+          {superadminBottomItems.map((item) => {
             const active = location.pathname === item.path
             return (
               <Link key={item.path} to={item.path}
@@ -381,6 +393,13 @@ export function AppLayout() {
               </Link>
             )
           })}
+          {superadminMoreItems.length > 0 && (
+            <button onClick={() => setMoreOpen(true)}
+              className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-300 sm:text-xs">
+              <span className="text-lg sm:text-xl">⋯</span>
+              Más
+            </button>
+          )}
         </nav>
       ) : isAdmin ? (
         <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
@@ -507,7 +526,26 @@ export function AppLayout() {
                 </svg>
               </button>
             </div>
-            {groups.map((group) => {
+            {isSuperAdmin ? (
+              <div>
+                <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Todas las opciones
+                </h3>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                  {superadminMoreItems.map((item) => {
+                    const active = location.pathname === item.path
+                    return (
+                      <Link key={item.path} to={item.path} onClick={() => setMoreOpen(false)}
+                        className={`flex flex-col items-center justify-center gap-1 rounded-2xl p-3 text-center transition ${
+                          active ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
+                        <span className="text-2xl">{item.icon}</span>
+                        <span className="text-[10px] font-semibold leading-tight sm:text-xs">{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : groups.map((group) => {
               // Skip group if all items are already in bottom bar
               if (group.items.every((i) => primaryItems.some((p) => p.path === i.path))) return null
               return (

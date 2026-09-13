@@ -57,6 +57,34 @@ export function statusLabel(status: string | number | undefined | null): string 
   return 'Estado no disponible'
 }
 
+// Variante única del Badge para cada estado de factura de ClassClick.
+// Centralizada acá para que todos los listados (Superadmin y Admin empresa)
+// muestren exactamente el mismo estilo en light/dark mode.
+// Pagada → verde, Pendiente → amarillo/naranja, En revisión → azul, Vencida → rojo.
+export type BillingStatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'default' | 'violet'
+
+const STATUS_VARIANTS: Record<string, BillingStatusVariant> = {
+  '1': 'default',
+  Draft: 'default',
+  '2': 'info',
+  Issued: 'info',
+  '3': 'warning',
+  Pending: 'warning',
+  '4': 'info',
+  UnderReview: 'info',
+  '5': 'success',
+  Paid: 'success',
+  '6': 'danger',
+  Overdue: 'danger',
+  '7': 'default',
+  Cancelled: 'default',
+}
+
+export function statusVariant(status: string | number | undefined | null): BillingStatusVariant {
+  if (status === undefined || status === null || status === '') return 'default'
+  return STATUS_VARIANTS[String(status)] ?? 'default'
+}
+
 export function paymentMethodLabel(method: string | number | undefined | null): string | null {
   if (method === undefined || method === null || method === '') return null
   const label = PM_LABELS[String(method)]
@@ -104,9 +132,11 @@ export interface SuperAdminBillingInvoice {
   extraFixedAmount: number
   baseAmount: number
   extraAmount: number
+  lateWeeks: number
   lateFeePercentage: number
   lateFeeAmount: number
   amountWithLateFee: number
+  lateFeeLabel: string | null
   currency: string
   billingMode: number
   status: string | number

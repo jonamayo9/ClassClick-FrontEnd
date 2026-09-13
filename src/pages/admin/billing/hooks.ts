@@ -51,9 +51,11 @@ export interface AdminBillingInvoice {
   amount: number
   totalAmount: number
   originalAmount: number
+  lateWeeks: number
   lateFeePercentage: number
   lateFeeAmount: number
   amountWithLateFee: number
+  lateFeeLabel: string | null
   daysOverdue: number
   currency: string
   issuedAtUtc: string
@@ -121,6 +123,7 @@ export interface BillingPaymentOptions {
   invoiceId: string
   period: string
   originalAmount: number
+  lateWeeks: number
   lateFeePercentage: number
   lateFeeAmount: number
   amountWithLateFee: number

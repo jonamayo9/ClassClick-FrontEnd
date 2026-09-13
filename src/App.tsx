@@ -92,6 +92,8 @@ import SuperAdminBillingPage from '@/pages/superadmin/billing'
 import SuperAdminBillingInvoicesPage from '@/pages/superadmin/billing-invoices'
 import SuperAdminBillingSettingsPage from '@/pages/superadmin/billing-settings'
 import SuperAdminDocumentTypesPage from '@/pages/superadmin/document-types'
+import SuperAdminNewsPage from '@/pages/superadmin/news'
+import SuperAdminPriceIncreasesPage from '@/pages/superadmin/price-increases'
 const queryClient = new QueryClient()
 
 function AuthGate() {
@@ -258,6 +260,8 @@ export default function App() {
             <Route path="billing/invoices" element={<SuperAdminBillingInvoicesPage />} />
             <Route path="billing/settings" element={<SuperAdminBillingSettingsPage />} />
             <Route path="document-types" element={<SuperAdminDocumentTypesPage />} />
+            <Route path="news" element={<SuperAdminNewsPage />} />
+            <Route path="price-increases" element={<SuperAdminPriceIncreasesPage />} />
           </Route>
 
           <Route path="event-operator" element={<RoleGuard roles={['eventoperator']}><OperatorLayout /></RoleGuard>}>
