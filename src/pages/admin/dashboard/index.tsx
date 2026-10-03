@@ -1,6 +1,9 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Users, CircleDollarSign, Receipt, BadgePercent, BarChart3, FileText, Calendar, CalendarDays, FileSpreadsheet, FileDown } from 'lucide-react'
 import { useAuth } from '@/stores/auth'
+import { resolveHomePath } from '@/lib/auth-route'
 import { apiService } from '@/lib/api'
 import { useDashboardKpis, useStudentDistribution, useChargeDistribution, useDocumentDistribution,
   useAttendanceDistribution, useIncomeEvolution, useStudentEvolution, useDashboardAlerts, useUpcomingItems,
@@ -16,6 +19,7 @@ import { UpcomingTable } from './components/UpcomingTable'
 import { EstadoGeneralCard } from './components/EstadoGeneralCard'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
 import { Modal } from '@/components/ui/modal'
+import { cn } from '@/lib/utils'
 import type { DonutBreakdownRow } from '@/types/dashboard'
 
 function formatPeriodTitle(from: string, to: string): string {
@@ -37,8 +41,22 @@ function formatPeriodTitle(from: string, to: string): string {
 }
 
 export function AdminDashboard() {
-  const { activeCompanySlug, dashboardAlertsShown, dismissAlerts } = useAuth()
+  const { activeCompanySlug, dashboardAlertsShown, dismissAlerts, companies, user } = useAuth()
   const slug = activeCompanySlug ?? ''
+  const activeCompany = companies?.find((c) => (c.slug ?? c.companySlug) === activeCompanySlug)
+  const isSport = activeCompany?.vertical === 'Deportiva'
+  // El Dashboard es exclusivo del vertical Deportivo Individual/Child. Si la empresa
+  // activa es un Group o Educativa (p. ej. durante el cambio de empresa o un URL residual),
+  // NO se consultan APIs de administración Deportiva: se usan slugs vacíos que deshabilitan
+  // las queries y la ruta se redirige al área correcta.
+  const isWrongDashboardContext = activeCompany?.structureType === 'Group' || activeCompany?.vertical === 'Educativa'
+  const dataSlug = isWrongDashboardContext ? '' : slug
+  const hour = new Date().getHours()
+  const greetingPeriod = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches'
+  const userDisplayName = (user?.name ?? user?.firstName ?? '').trim()
+  const greeting = userDisplayName ? `${greetingPeriod}, ${userDisplayName} 👋` : `${greetingPeriod} 👋`
+  const currentMonth = new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  const currentMonthLabel = currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1)
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null)
   const now = useMemo(() => new Date(), [])
   const [dateFrom, setDateFrom] = useState(() => {
@@ -63,31 +81,31 @@ export function AdminDashboard() {
   const evoFrom = hasCustomPeriod ? dateFrom : undefined
   const evoTo = hasCustomPeriod ? dateTo : undefined
 
-  const kpis = useDashboardKpis(slug, dateFrom, dateTo, chargeTypeId || undefined)
-  const studentsDist = useStudentDistribution(slug, dateFrom, dateTo)
-  const chargesDist = useChargeDistribution(slug, dateFrom, dateTo, chargeTypeId || undefined)
-  const docsDist = useDocumentDistribution(slug, dateFrom, dateTo)
-  const attendanceDist = useAttendanceDistribution(slug, dateFrom, dateTo)
-  const incomeEvo = useIncomeEvolution(slug, evoFrom, evoTo, chargeTypeId || undefined)
-  const studentsEvo = useStudentEvolution(slug, evoFrom, evoTo)
-  const alerts = useDashboardAlerts(slug, dateFrom, dateTo)
-  const upcoming = useUpcomingItems(slug, dateFrom, dateTo, chargeTypeId || undefined, upcomingPage)
+  const kpis = useDashboardKpis(dataSlug, dateFrom, dateTo, chargeTypeId || undefined)
+  const studentsDist = useStudentDistribution(dataSlug, dateFrom, dateTo)
+  const chargesDist = useChargeDistribution(dataSlug, dateFrom, dateTo, chargeTypeId || undefined)
+  const docsDist = useDocumentDistribution(dataSlug, dateFrom, dateTo)
+  const attendanceDist = useAttendanceDistribution(dataSlug, dateFrom, dateTo)
+  const incomeEvo = useIncomeEvolution(dataSlug, evoFrom, evoTo, chargeTypeId || undefined)
+  const studentsEvo = useStudentEvolution(dataSlug, evoFrom, evoTo)
+  const alerts = useDashboardAlerts(dataSlug, dateFrom, dateTo)
+  const upcoming = useUpcomingItems(dataSlug, dateFrom, dateTo, chargeTypeId || undefined, upcomingPage)
   const upcomingData = upcoming.data ?? { items: [], page: 1, pageSize: 15, totalCount: 0, totalPages: 1 }
-  const { data: chargeTypes = [] } = useChargeTypeOptions(slug)
+  const { data: chargeTypes = [] } = useChargeTypeOptions(dataSlug)
 
   // Modal de facturas vencidas hacia ClassClick: se muestra SOLO después de resolver
   // el modal de alertas actual (cerrado) o si no corresponde mostrarlo (sin alertas).
   // Nunca se superponen: overdueOpen se activa una única vez por sesión de login.
   const alertsResolved = !alerts.isLoading && ((alerts.data?.length ?? 0) === 0 || dashboardAlertsShown)
   const overdueQuery = useQuery({
-    queryKey: ['admin-overdue-invoices', slug],
-    queryFn: () => apiService.get<OverdueInvoice[]>(`/api/admin/${slug}/billing/overdue`),
-    enabled: !!slug && alertsResolved,
+    queryKey: ['admin-overdue-invoices', dataSlug],
+    queryFn: () => apiService.get<OverdueInvoice[]>(`/api/admin/${dataSlug}/billing/overdue`),
+    enabled: !!dataSlug && alertsResolved,
   })
   const overdueInvoices = overdueQuery.data ?? []
 
   useEffect(() => {
-    if (!slug || !alertsResolved) return
+    if (!dataSlug || !alertsResolved) return
     if (overduePhaseDone) return
     if (sessionStorage.getItem('overdueInvoiceModalShown') === 'true') {
       setOverduePhaseDone(true)
@@ -101,7 +119,7 @@ export function AdminDashboard() {
     if (overdueQuery.data) {
       setOverduePhaseDone(true)
     }
-  }, [slug, alertsResolved, overduePhaseDone, overdueQuery.data])
+  }, [dataSlug, alertsResolved, overduePhaseDone, overdueQuery.data])
 
   function closeOverdueModal() {
     sessionStorage.setItem('overdueInvoiceModalShown', 'true')
@@ -112,9 +130,9 @@ export function AdminDashboard() {
   // Etapa 3: novedades de ClassClick para administradores.
   // Solo cuando la etapa de facturas vencidas quedó resuelta (cerrada o sin contenido).
   const newsQuery = useQuery({
-    queryKey: ['admin-news', slug],
-    queryFn: () => apiService.get<{ items: AdminNews[]; count: number }>(`/api/admin/${slug}/news`),
-    enabled: !!slug && alertsResolved && overduePhaseDone,
+    queryKey: ['admin-news', dataSlug],
+    queryFn: () => apiService.get<{ items: AdminNews[]; count: number }>(`/api/admin/${dataSlug}/news`),
+    enabled: !!dataSlug && alertsResolved && overduePhaseDone,
   })
   const newsItems = newsQuery.data?.items ?? []
 
@@ -122,7 +140,7 @@ export function AdminDashboard() {
   // Mientras carga, newsItems es [] pero isSuccess es false: nunca abre con "0 novedades".
   // Si la API falla: no muestra modal vacío y marca la fase resuelta para no bloquear.
   useEffect(() => {
-    if (!slug || !alertsResolved || !overduePhaseDone) return
+    if (!dataSlug || !alertsResolved || !overduePhaseDone) return
     if (newsOpenedRef.current) return
     if (sessionStorage.getItem('newsModalShown') === 'true') {
       newsOpenedRef.current = true
@@ -136,7 +154,7 @@ export function AdminDashboard() {
     } else if (newsQuery.isError) {
       newsOpenedRef.current = true
     }
-  }, [slug, alertsResolved, overduePhaseDone, newsQuery.isSuccess, newsQuery.isError, newsItems.length])
+  }, [dataSlug, alertsResolved, overduePhaseDone, newsQuery.isSuccess, newsQuery.isError, newsItems.length])
 
   // Cierre automático si, con el modal abierto, la lista queda vacía
   // (p. ej. último dismissal + refetch) o la query deja de tener datos.
@@ -224,8 +242,30 @@ export function AdminDashboard() {
   const hasAttendanceData = k?.averageAttendance !== null && k?.averageAttendance !== undefined
   const hasDocumentData = k?.documentCompliance !== null && k?.documentCompliance !== undefined
 
+  // Contexto Group/Educativa nunca debe renderizar el Dashboard Deportivo.
+  if (isWrongDashboardContext) return <Navigate to={resolveHomePath()} replace />
+
   return (
-    <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6 sm:space-y-5">
+    <div className={cn(
+      'mx-auto w-full p-4 sm:p-6',
+      isSport ? 'max-w-[1320px] space-y-3.5' : 'max-w-7xl space-y-4 sm:space-y-5',
+    )}>
+      {isSport && (
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white">{greeting}</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Esto es lo que está pasando en ClassClick hoy.</p>
+          </div>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex flex-col">
+              <span className="text-base font-bold leading-tight text-slate-900 dark:text-white">{currentMonthLabel}</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Resumen de tu club</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Alert Modal */}
       <AlertModal
         open={!dashboardAlertsShown && alertData.length > 0}
@@ -238,6 +278,7 @@ export function AdminDashboard() {
         open={overdueOpen}
         invoices={overdueInvoices}
         onClose={closeOverdueModal}
+        isSport={isSport}
       />
 
       {/* Modal novedades de ClassClick para administradores (3º en la secuencia) */}
@@ -262,12 +303,13 @@ export function AdminDashboard() {
         hasChargeData={hasChargeData}
         hasAttendanceData={hasAttendanceData}
         hasDocumentData={hasDocumentData}
+        isSport={isSport}
       />
 
       {/* Fila 1: KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KpiCard
-          icon={<svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>}
+          icon={isSport ? <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> : <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>}
           label="Alumnos activos"
           value={k?.activeStudents ?? 0}
           variation={studentVar}
@@ -275,9 +317,10 @@ export function AdminDashboard() {
           color="indigo"
           navigateTo="/admin/students"
           tooltip="Total de alumnos activos en la institución"
+          isSport={isSport}
         />
         <KpiCard
-          icon={<svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          icon={isSport ? <CircleDollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> : <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           label="Ingresos del mes"
           value={`$${(k?.monthlyIncome ?? 0).toLocaleString('es-AR')}`}
           variation={incomeVar}
@@ -285,56 +328,70 @@ export function AdminDashboard() {
           color="emerald"
           navigateTo="/admin/payments"
           tooltip="Total cobrado en el mes actual"
+          isSport={isSport}
         />
         <KpiCard
-          icon={<svg className="h-5 w-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" /></svg>}
+          icon={isSport ? <Receipt className="h-5 w-5 text-rose-600 dark:text-rose-400" /> : <svg className="h-5 w-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" /></svg>}
           label="Deuda pendiente"
           value={`$${(k?.totalDebt ?? 0).toLocaleString('es-AR')}`}
           color="rose"
           navigateTo="/admin/payments"
           tooltip="Suma de cuotas pendientes y vencidas"
+          isSport={isSport}
         />
         <KpiCard
-          icon={<svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          icon={isSport ? <BadgePercent className="h-5 w-5 text-blue-600 dark:text-blue-400" /> : <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           label="Cobranza"
           value={`${k?.collectionRate ?? 0}%`}
           color="blue"
           navigateTo="/admin/payments"
           tooltip="Porcentaje de cuotas pagadas sobre el total"
+          isSport={isSport}
         />
         <KpiCard
-          icon={<svg className="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+          icon={isSport ? <BarChart3 className="h-5 w-5 text-violet-600 dark:text-violet-400" /> : <svg className="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
           label="Asistencia"
           value={`${k?.averageAttendance ?? 0}%`}
           color="violet"
           navigateTo="/admin/classes"
           tooltip="Porcentaje de asistencia promedio"
+          isSport={isSport}
         />
         <KpiCard
-          icon={<svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+          icon={isSport ? <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" /> : <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
           label="Documentación"
           value={`${k?.documentCompliance ?? 0}%`}
           color="amber"
           navigateTo="/admin/records"
           tooltip="Porcentaje de alumnos con toda la documentación obligatoria aprobada"
+          isSport={isSport}
         />
       </div>
 
       {/* Filters + Export */}
-      <div className="space-y-3 sm:flex sm:items-end sm:justify-between sm:gap-3 sm:space-y-0">
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
+      <div className={cn(
+        isSport
+          ? 'flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between dark:border-[rgba(120,150,200,0.25)] dark:bg-[#111C30] dark:shadow-[0_1px_6px_rgba(2,8,23,0.45)]'
+          : 'space-y-3 sm:flex sm:items-end sm:justify-between sm:gap-3 sm:space-y-0'
+      )}>
+        <div className="flex min-w-0 flex-wrap items-end gap-4">
           <div className="min-w-0 sm:max-w-xs">
-            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Período</label>
+            <label className={cn('mb-1 block text-xs font-semibold', isSport ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600 dark:text-slate-400')}>Período</label>
             <DateRangePicker from={dateFrom} to={dateTo}
               onChange={({ from: f, to: t }) => handleDateChange(f, t)} />
             {dateRangeError && <p className="mt-0.5 text-xs text-red-500">{dateRangeError}</p>}
           </div>
-          <div className="min-w-[10rem]">
-            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo de cuota</label>
+          <div className="min-w-[11rem]">
+            <label className={cn('mb-1 block text-xs font-semibold', isSport ? 'text-slate-600 dark:text-slate-400' : 'text-slate-600 dark:text-slate-400')}>Tipo de cuota</label>
             <select
               value={chargeTypeId}
               onChange={(e) => setChargeTypeId(e.target.value)}
-              className="min-h-[2.5rem] w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className={cn(
+                'min-h-[2.5rem] w-full rounded-xl border px-3 text-xs font-medium',
+                isSport
+                  ? 'border-slate-200 bg-white text-slate-700 dark:border-[rgba(120,150,200,0.25)] dark:bg-[#0B1220] dark:text-slate-200 dark:focus:border-[rgba(150,180,235,0.45)]'
+                  : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+              )}
             >
               <option value="">Todos</option>
               {chargeTypes.map((ct: any) => (
@@ -343,14 +400,26 @@ export function AdminDashboard() {
             </select>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5">
           <button type="button" onClick={() => handleExport('excel')} disabled={exporting !== null}
-            className="min-h-[2.5rem] rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {exporting === 'excel' ? 'Exportando...' : 'Exportar Excel'}
+            className={cn(
+              'inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs transition disabled:opacity-50',
+              isSport
+                ? 'border-slate-200 bg-white font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-[rgba(120,150,200,0.25)] dark:bg-[#0B1220] dark:text-slate-200 dark:hover:border-[rgba(150,180,235,0.45)]'
+                : 'border-slate-200 bg-white font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+            )}>
+            {isSport && <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+            <span>{exporting === 'excel' ? 'Exportando...' : 'Exportar Excel'}</span>
           </button>
           <button type="button" onClick={() => handleExport('pdf')} disabled={exporting !== null}
-            className="min-h-[2.5rem] rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {exporting === 'pdf' ? 'Exportando...' : 'Exportar PDF'}
+            className={cn(
+              'inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs transition disabled:opacity-50',
+              isSport
+                ? 'border-slate-200 bg-white font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-[rgba(120,150,200,0.25)] dark:bg-[#0B1220] dark:text-slate-200 dark:hover:border-[rgba(150,180,235,0.45)]'
+                : 'border-slate-200 bg-white font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+            )}>
+            {isSport && <FileDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />}
+            <span>{exporting === 'pdf' ? 'Exportando...' : 'Exportar PDF'}</span>
           </button>
         </div>
       </div>
@@ -359,15 +428,24 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <DonutChart data={studentsDist.data?.segments ?? []} title="Alumnos" centerLabel="activos" centerValue={k?.activeStudents} loading={studentsDist.isLoading}
           rows={studentsDist.data?.byStatus ?? []}
-          onSeeAll={() => setSeeAll({ title: 'Alumnos', rows: studentsDist.data?.byStatus ?? [] })} />
+          onSeeAll={() => setSeeAll({ title: 'Alumnos', rows: studentsDist.data?.byStatus ?? [] })}
+          isSport={isSport} icon={isSport ? <Users className="h-[18px] w-[18px] text-emerald-600 dark:text-emerald-400" /> : undefined}
+          sportColors={['#22c55e', '#f59e0b']} />
         <DonutChart data={chargesDist.data?.segments ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading}
-          breakdown={chargesDist.data?.byType ?? []} />
+          breakdown={chargesDist.data?.byType ?? []}
+          isSport={isSport} icon={isSport ? <CircleDollarSign className="h-[18px] w-[18px] text-amber-600 dark:text-amber-400" /> : undefined}
+          sportColors={['#f59e0b', '#3b82f6']} />
         <DonutChart data={docsDist.data?.segments ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading}
           rows={docsDist.data?.byDocumentType ?? []}
-          onSeeAll={() => setSeeAll({ title: 'Cumplimiento por tipo documental', rows: docsDist.data?.byDocumentType ?? [] })} />
+          onSeeAll={() => setSeeAll({ title: 'Cumplimiento por tipo documental', rows: docsDist.data?.byDocumentType ?? [] })}
+          isSport={isSport} icon={isSport ? <FileText className="h-[18px] w-[18px] text-blue-600 dark:text-blue-400" /> : undefined}
+          sportColors={['#3b82f6', '#64748b']} />
         <DonutChart data={attendanceDist.data?.segments ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading}
           rows={attendanceDist.data?.byCourse ?? []}
-          onSeeAll={() => setSeeAll({ title: 'Asistencia por curso', rows: attendanceDist.data?.byCourse ?? [] })} />
+          onSeeAll={() => setSeeAll({ title: 'Asistencia por curso', rows: attendanceDist.data?.byCourse ?? [] })}
+          isSport={isSport} icon={isSport ? <CalendarDays className="h-[18px] w-[18px] text-violet-600 dark:text-violet-400" /> : undefined}
+          sportColors={['#6366f1', '#94a3b8']}
+          emptyActionTo={isSport ? '/admin/attendance' : undefined} />
       </div>
 
       {/* Modal Ver todos */}
@@ -390,8 +468,8 @@ export function AdminDashboard() {
 
       {/* Fila 3: Líneas de evolución */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <LineChartWidget data={incomeEvo.data ?? []} title={hasCustomPeriod ? `Ingresos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Ingresos últimos 12 meses'} color="#10b981" format="currency" loading={incomeEvo.isLoading} />
-        <LineChartWidget data={studentsEvo.data ?? []} title={hasCustomPeriod ? `Altas de alumnos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Altas de alumnos últimos 12 meses'} color="#6366f1" format="number" loading={studentsEvo.isLoading} />
+        <LineChartWidget data={incomeEvo.data ?? []} title={hasCustomPeriod ? `Ingresos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Ingresos últimos 12 meses'} color="#10b981" format="currency" loading={incomeEvo.isLoading} isSport={isSport} />
+        <LineChartWidget data={studentsEvo.data ?? []} title={hasCustomPeriod ? `Altas de alumnos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Altas de alumnos últimos 12 meses'} color="#6366f1" format="number" loading={studentsEvo.isLoading} isSport={isSport} />
       </div>
 
       {/* Fila 5: Próximos vencimientos */}
@@ -401,6 +479,7 @@ export function AdminDashboard() {
         page={upcomingData.page}
         totalPages={upcomingData.totalPages}
         onPageChange={setUpcomingPage}
+        isSport={isSport}
       />
     </div>
   )

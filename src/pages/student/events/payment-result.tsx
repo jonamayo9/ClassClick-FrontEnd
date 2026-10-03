@@ -13,10 +13,8 @@ const SUCCESS_STATUSES = ['Paid', 'Confirmed']
 const STOP_STATUSES = ['Paid', 'Confirmed', 'Expired', 'Rejected', 'Cancelled']
 
 export default function StudentEventPaymentResultPage() {
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const purchaseId = searchParams.get('purchase')
-  const eventId = searchParams.get('event') || undefined
+  const purchaseId = useSearchParams()[0].get('purchase')
 
   const { data: purchase, isFetching } = useStudentEventPurchase(purchaseId ?? undefined)
   const validate = useValidateEventMercadoPago()
@@ -112,12 +110,12 @@ export default function StudentEventPaymentResultPage() {
               </Button>
             )}
             {(expired || rejected) && (
-              <Button className="w-full bg-violet-600 text-white hover:bg-violet-700" onClick={() => navigate(`/student/events/${eventId}`)}>
+              <Button className="w-full bg-violet-600 text-white hover:bg-violet-700" onClick={() => navigate(purchase?.eventId ? `/student/events/${purchase.eventId}` : '/student/events')}>
                 Comprar nuevamente
               </Button>
             )}
             {pending && (
-              <Button variant="outline" className="w-full" onClick={() => navigate(`/student/events/${eventId}`)}>
+              <Button variant="outline" className="w-full" onClick={() => navigate(purchase?.eventId ? `/student/events/${purchase.eventId}` : '/student/events')}>
                 Volver al evento
               </Button>
             )}

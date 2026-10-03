@@ -1,3 +1,5 @@
+import { resolveHomePath } from '@/lib/auth-route'
+
 type NotificationData = Record<string, unknown>
 
 const legacyRoutes: Record<string, string> = {
@@ -14,8 +16,8 @@ const legacyRoutes: Record<string, string> = {
 
 function roleHome(role?: string | null) {
   const normalizedRole = role?.toLowerCase()
+  if (normalizedRole === 'admin') return resolveHomePath()
   if (normalizedRole === 'superadmin') return '/superadmin'
-  if (normalizedRole === 'admin') return '/admin'
   if (normalizedRole === 'teacher') return '/teacher'
   if (normalizedRole === 'delegate') return '/delegate'
   return '/student'
@@ -87,6 +89,12 @@ export function resolveNotificationRoute({
 
   if (notificationType.includes('financing')) {
     return isAdmin ? '/admin/charge-settings?tab=financing' : '/student/payments'
+  }
+
+  if (notificationType.includes('educativa')) {
+    const slug = data?.companySlug ?? data?.CompanySlug
+    if (isAdmin && slug) return `/educativa/${slug}/pagos`
+    return '/estudiante/pagos'
   }
 
   if (

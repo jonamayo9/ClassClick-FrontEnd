@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/stores/auth'
+import { resolveHomePath } from '@/lib/auth-route'
 import { useTheme } from '@/stores/theme'
 import { subscribeToPush } from '@/lib/push'
 import { config } from '@/lib/config'
@@ -29,15 +30,7 @@ const themeIcons: Record<ThemeMode, string> = { light: '☀️', dark: '🌙', s
 const themeNext: Record<ThemeMode, ThemeMode> = { light: 'dark', dark: 'system', system: 'light' }
 
 function navigateByRole(navigate: ReturnType<typeof useNavigate>) {
-  const user = useAuth.getState().user
-  const role = user?.systemRole?.toLowerCase() ?? ''
-  if (role === 'superadmin') navigate('/superadmin')
-  else if (role === 'admin') navigate('/admin')
-  else if (role === 'teacher') navigate('/teacher')
-  else if (role === 'delegate') navigate('/delegate')
-  else if (role === 'eventoperator') navigate('/event-operator')
-  else if (role === 'student') navigate('/home')
-  else navigate('/login')
+  navigate(resolveHomePath())
 }
 
 export function LoginPage() {

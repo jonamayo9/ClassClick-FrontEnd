@@ -1,3 +1,7 @@
+import { TriangleAlert } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useTheme } from '@/stores/theme'
+
 interface EstadoGeneralCardProps {
   collectionRate: number
   documentCompliance: number
@@ -11,6 +15,8 @@ interface EstadoGeneralCardProps {
   hasChargeData: boolean
   hasAttendanceData: boolean
   hasDocumentData: boolean
+  title?: string
+  isSport?: boolean
 }
 
 function calcScore(
@@ -59,7 +65,22 @@ function calcScore(
   return { score: Math.round(score), label: 'Se requieren acciones urgentes', color: '#ef4444', bg: 'bg-rose-50 dark:bg-rose-950/20', textColor: 'text-rose-700 dark:text-rose-300', summary }
 }
 
-export function EstadoGeneralCard(props: EstadoGeneralCardProps) {
+function SportIndicator({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col justify-center gap-1">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        {icon ?? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="text-[20px] font-extrabold leading-tight text-slate-900 tabular-nums dark:text-white">{value}</span>
+    </div>
+  )
+}
+
+export function EstadoGeneralCard({ title = 'Estado General del Club', isSport = false, ...props }: EstadoGeneralCardProps) {
+  const resolved = useTheme((s) => s.resolved)
+  const isDark = resolved === 'dark'
+  const ringBase = isDark ? '#1E293B' : '#E2E8F0'
   const { score, label, color, bg, textColor, summary } = calcScore(
     props.collectionRate, props.documentCompliance, props.averageAttendance,
     props.hasChargeData, props.hasDocumentData, props.hasAttendanceData,
@@ -67,6 +88,70 @@ export function EstadoGeneralCard(props: EstadoGeneralCardProps) {
   )
 
   const isInsufficient = summary.length === 1 && summary[0].includes('No hay suficientes datos')
+
+  if (isSport) {
+    const needsAction = !isInsufficient && label !== 'Todo funcionando correctamente'
+    const scoreColor = isInsufficient ? undefined : color
+    const scoreTone = isInsufficient
+      ? (isDark ? '#e2e8f0' : '#0f172a')
+      : color
+    const indicators = [
+      <SportIndicator key="cobranza" label="Cobranza" value={`${props.collectionRate}%`} />,
+      <SportIndicator key="documentacion" label="Documentación" value={`${props.documentCompliance}%`} />,
+      <SportIndicator key="asistencia" label="Asistencia" value={`${props.averageAttendance}%`} />,
+      <SportIndicator key="vencidas" label="Cuotas vencidas" value={String(props.overdueCharges)}
+        icon={<TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />} />,
+    ]
+
+    return (
+      <div className="rounded-[14px] border border-violet-200 bg-gradient-to-br from-white to-violet-50/70 px-6 py-5 shadow-sm dark:border-[rgba(139,92,246,0.4)] dark:from-[#111C30] dark:via-[#16203A] dark:to-[#1B1736] dark:shadow-[0_2px_14px_rgba(2,8,23,0.5)]">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+          {/* Score: círculo 80px con el índice 0-100 */}
+          <div className="flex w-[80px] shrink-0 items-center justify-center">
+            <div className="relative h-[80px] w-[80px]">
+              <svg className="absolute inset-0 h-[80px] w-[80px] -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke={ringBase} strokeWidth="6" />
+                {!isInsufficient && (
+                  <circle cx="40" cy="40" r="34" fill="none" stroke={scoreColor} strokeWidth="6"
+                    strokeDasharray={`${(score / 100) * (2 * Math.PI * 34)} ${2 * Math.PI * 34}`}
+                    strokeLinecap="round" />
+                )}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[26px] font-extrabold leading-none" style={{ color: scoreTone }}>{isInsufficient ? '—' : score}</span>
+                {!isInsufficient && (
+                  <span className="mt-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500">/ 100</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Información */}
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[20px] font-extrabold leading-tight text-slate-900 sm:text-[22px] dark:text-white">{title}</h2>
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+              Índice de salud · {isInsufficient ? '—' : `${score}/100`}
+            </p>
+            <p className={cn(
+              'mt-1 text-[13px] font-semibold',
+              isInsufficient ? 'text-slate-400 dark:text-slate-400' : needsAction ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400',
+            )}>
+              {label}
+            </p>
+          </div>
+
+          {/* Indicadores */}
+          <div className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 lg:flex lg:items-stretch lg:gap-0">
+            {indicators.map((ind, i) => (
+              <div key={i} className={cn('flex', i > 0 && 'lg:ml-6 lg:border-l lg:border-slate-200 lg:pl-6 dark:lg:border-[rgba(148,163,184,0.15)]')}>
+                {ind}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`rounded-2xl border border-slate-200 p-5 shadow-sm ${bg} dark:border-slate-700`}>
@@ -84,7 +169,7 @@ export function EstadoGeneralCard(props: EstadoGeneralCardProps) {
             <span className={`text-xl font-black ${textColor}`}>{isInsufficient ? '—' : score}</span>
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">Estado General del Club</h2>
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">{title}</h2>
             <p className={`mt-0.5 text-xs font-medium ${textColor}`}>{label}</p>
           </div>
         </div>

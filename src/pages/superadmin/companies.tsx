@@ -8,9 +8,39 @@ import { Spinner } from '@/components/ui/spinner'
 import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Select } from '@/components/ui/select'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
+import type { CompanyStructureType, CompanyVertical } from '@/types/auth'
 
-interface Company { id: string; name: string; slug: string; email?: string; phone?: string; whatsapp?: string; description?: string; addressLine1?: string; addressLine2?: string; city?: string; stateOrProvince?: string; postalCode?: string; country?: string; isActive: boolean; isMatchOrganizationEnabled?: boolean; emailNotificationsEnabled?: boolean; companySlugLanding?: string; createdAtUtc: string }
+interface Company {
+  id: string
+  name: string
+  slug: string
+  email?: string
+  phone?: string
+  whatsapp?: string
+  description?: string
+  addressLine1?: string
+  addressLine2?: string
+  city?: string
+  stateOrProvince?: string
+  postalCode?: string
+  country?: string
+  isActive: boolean
+  isMatchOrganizationEnabled?: boolean
+  emailNotificationsEnabled?: boolean
+  companySlugLanding?: string
+  createdAtUtc: string
+  structureType?: CompanyStructureType
+  vertical?: CompanyVertical | null
+  parentCompanyId?: string | null
+  parentCompanyName?: string | null
+}
+
+interface GroupChildItem {
+  id: string
+  name: string
+  slug: string
+}
 
 const DEFAULT_MODULES: Record<string, boolean> = {
   payments: true, documents: true, news: true, sponsors: false,
@@ -22,6 +52,17 @@ const MODULE_LABELS: Record<string, string> = {
   payments: 'Pagos', documents: 'Documentos', news: 'Novedades', sponsors: 'Sponsors',
   matches: 'Partidos', clothing: 'Indumentaria', tournaments: 'Torneos',
   notifications: 'Notificaciones', qr_attendance: 'Asistencia QR', events: 'Eventos',
+}
+
+const STRUCTURE_LABEL: Record<CompanyStructureType, string> = {
+  Individual: 'Individual',
+  Group: 'Empresa Grupo',
+  Child: 'Empresa hija / Sede',
+}
+
+const VERTICAL_LABEL: Record<CompanyVertical, string> = {
+  Deportiva: 'Deportiva',
+  Educativa: 'Educativa',
 }
 
 function CompaniesInner() {
@@ -41,6 +82,9 @@ function CompaniesInner() {
     addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '',
     isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false,
     companySlugLanding: '',
+    structureType: 'Individual' as CompanyStructureType,
+    vertical: '' as CompanyVertical | '',
+    parentCompanyId: '',
   })
   const [modules, setModules] = useState<Record<string, boolean>>({ ...DEFAULT_MODULES })
   const [clothing, setClothing] = useState({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
@@ -55,13 +99,18 @@ function CompaniesInner() {
   const [toggleTarget, setToggleTarget] = useState<Company | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null)
 
+  // Children management
+  const [childrenGroup, setChildrenGroup] = useState<Company | null>(null)
+  const [children, setChildren] = useState<GroupChildItem[]>([])
+  const [childrenLoading, setChildrenLoading] = useState(false)
+  const [assignChildId, setAssignChildId] = useState('')
+  const [childrenError, setChildrenError] = useState('')
+
   // Slug validation for landing page
   const [slugStatus, setSlugStatus] = useState<'idle' | 'invalid' | 'checking' | 'available' | 'unavailable'>('idle')
   const [slugMsg, setSlugMsg] = useState('')
   const abortRef = useRef<AbortController | null>(null)
-  const controllerRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const originalSlug = useRef('')
 
   const checkSlug = useCallback(async (slug: string) => {
     if (!slug || slug.length < 3) { setSlugStatus('idle'); setSlugMsg(''); return }
@@ -86,7 +135,15 @@ function CompaniesInner() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   function buildPayload() {
-    const p: Record<string, unknown> = { ...form, isMatchOrganizationEnabled: form.isMatchOrganizationEnabled }
+    const isGroup = form.structureType === 'Group'
+    const isChild = form.structureType === 'Child'
+    const p: Record<string, unknown> = {
+      ...form,
+      structureType: form.structureType,
+      vertical: isGroup ? null : (form.vertical || 'Deportiva'),
+      parentCompanyId: isChild ? (form.parentCompanyId || null) : null,
+      isMatchOrganizationEnabled: form.isMatchOrganizationEnabled,
+    }
     // Send null for empty optional strings to avoid [EmailAddress] validation errors
     for (const key of ['email', 'phone', 'whatsapp', 'description', 'addressLine1', 'addressLine2', 'city', 'stateOrProvince', 'postalCode', 'country']) {
       if (p[key] === '') p[key] = null
@@ -121,7 +178,7 @@ function CompaniesInner() {
       }
       qc.invalidateQueries({ queryKey: ['superadmin-companies'] }); closeForm(); toast('Empresa creada.')
     },
-    onError: () => toast('Error al crear.', 'error'),
+    onError: (err) => toast(getApiError(err) || 'Error al crear.', 'error'),
   })
   const updateMutation = useMutation({
     mutationFn: () => apiService.put(`/api/superadmin/companies/${editId}`, { ...buildPayload(), isActive: form.isActive }),
@@ -147,12 +204,12 @@ function CompaniesInner() {
       }
       qc.invalidateQueries({ queryKey: ['superadmin-companies'] }); closeForm(); toast('Empresa actualizada.')
     },
-    onError: () => toast('Error al actualizar.', 'error'),
+    onError: (err) => toast(getApiError(err) || 'Error al actualizar.', 'error'),
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiService.del(`/api/superadmin/companies/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['superadmin-companies'] }); setDeleteTarget(null); toast('Empresa eliminada.') },
-    onError: () => toast('Error al eliminar.', 'error'),
+    onError: (err) => toast(getApiError(err) || 'Error al eliminar.', 'error'),
   })
 
   const toggleMutation = useMutation({
@@ -163,7 +220,7 @@ function CompaniesInner() {
 
   function closeForm() { setShowForm(false); setEditId(null); setSlugTouched(false); setLogoFile(null); setLogoPreview(null) }
   function resetForm() {
-    setForm({ name: '', slug: '', description: '', email: '', phone: '', whatsapp: '', addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '', isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false, companySlugLanding: '' })
+    setForm({ name: '', slug: '', description: '', email: '', phone: '', whatsapp: '', addressLine1: '', addressLine2: '', city: '', stateOrProvince: '', postalCode: '', country: '', isMatchOrganizationEnabled: false, isActive: true, emailNotificationsEnabled: false, companySlugLanding: '', structureType: 'Individual', vertical: 'Deportiva', parentCompanyId: '' })
     setModules({ ...DEFAULT_MODULES })
     setClothing({ manualProof: true, mercadoPago: false, alias: '', aliasHolder: '' })
     setPaymentMethods({
@@ -178,7 +235,7 @@ function CompaniesInner() {
 
   function openEdit(c: Company) {
     setEditId(c.id)
-    setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive, emailNotificationsEnabled: c.emailNotificationsEnabled ?? false, companySlugLanding: c.companySlugLanding ?? '' })
+    setForm({ name: c.name, slug: c.slug, description: c.description ?? '', email: c.email ?? '', phone: c.phone ?? '', whatsapp: c.whatsapp ?? '', addressLine1: c.addressLine1 ?? '', addressLine2: c.addressLine2 ?? '', city: c.city ?? '', stateOrProvince: c.stateOrProvince ?? '', postalCode: c.postalCode ?? '', country: c.country ?? '', isMatchOrganizationEnabled: c.isMatchOrganizationEnabled ?? false, isActive: c.isActive, emailNotificationsEnabled: c.emailNotificationsEnabled ?? false, companySlugLanding: c.companySlugLanding ?? '', structureType: c.structureType ?? 'Individual', vertical: c.vertical ?? 'Deportiva', parentCompanyId: c.parentCompanyId ?? '' })
     setShowForm(true)
     // Load existing modules so editing doesn't reset or disable them
     apiService.get<{ modules: Record<string, boolean> }>(`/api/superadmin/companies/${c.id}/clothing/modules`).then((res) => {
@@ -217,13 +274,66 @@ function CompaniesInner() {
     setForm((prev) => ({ ...prev, slug: clean }))
   }
 
+  function childCountOf(id: string) {
+    return companies.filter((c) => c.parentCompanyId === id).length
+  }
+  function hasChildren(id: string) {
+    return childCountOf(id) > 0
+  }
+
+  async function openChildren(group: Company) {
+    setChildrenGroup(group)
+    setChildren([])
+    setAssignChildId('')
+    setChildrenError('')
+    setChildrenLoading(true)
+    try {
+      const items = await apiService.get<GroupChildItem[]>(`/api/superadmin/companies/${group.id}/children`)
+      setChildren(items)
+    } catch {
+      setChildrenError('No se pudieron cargar las empresas hijas.')
+    } finally {
+      setChildrenLoading(false)
+    }
+  }
+
+  async function assignChild() {
+    if (!childrenGroup || !assignChildId) return
+    setChildrenError('')
+    try {
+      await apiService.post(`/api/superadmin/companies/${childrenGroup.id}/children`, { childCompanyId: assignChildId })
+      setAssignChildId('')
+      qc.invalidateQueries({ queryKey: ['superadmin-companies'] })
+      await openChildren(childrenGroup)
+      toast('Empresa hija asignada.')
+    } catch (err) {
+      setChildrenError(getApiError(err) || 'No se pudo asignar.')
+    }
+  }
+
+  async function unassignChild(childId: string) {
+    if (!childrenGroup) return
+    setChildrenError('')
+    try {
+      await apiService.del(`/api/superadmin/companies/${childrenGroup.id}/children/${childId}`)
+      qc.invalidateQueries({ queryKey: ['superadmin-companies'] })
+      await openChildren(childrenGroup)
+      toast('Empresa hija desasignada.')
+    } catch (err) {
+      setChildrenError(getApiError(err) || 'No se pudo desasignar.')
+    }
+  }
+
+  // Companies elegibles para ser hijas: Individual (todavía sin grupo padre).
+  const assignable = companies.filter((c) => c.structureType === 'Individual' && c.isActive && c.id !== childrenGroup?.id)
+
   if (isLoading) return <div className="flex items-center justify-center py-24"><Spinner className="h-8 w-8 text-slate-600" /></div>
 
   return (
     <div className="space-y-5 pb-8">
       <div className="rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white sm:p-6">
         <h1 className="text-xl font-black sm:text-2xl">Empresas</h1>
-        <p className="mt-1 text-sm text-slate-400">Gestión de empresas registradas</p>
+        <p className="mt-1 text-sm text-slate-400">Gestión de empresas, grupos y sedes</p>
       </div>
 
       <Card className="p-5 space-y-4">
@@ -234,8 +344,11 @@ function CompaniesInner() {
         {companies.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-400">Sin empresas registradas.</p>
         ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {companies.map((c) => (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {companies.map((c) => {
+              const type = c.structureType ?? 'Individual'
+              const childrenCount = childCountOf(c.id)
+              return (
                 <div key={c.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-bold truncate">{c.name}</p>
@@ -243,8 +356,31 @@ function CompaniesInner() {
                       {c.isActive ? 'Activa' : 'Inactiva'}
                     </span>
                   </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${type === 'Group' ? 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300' : type === 'Child' ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                      {STRUCTURE_LABEL[type]}
+                    </span>
+                    {type !== 'Group' && c.vertical && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        {VERTICAL_LABEL[c.vertical] ?? c.vertical}
+                      </span>
+                    )}
+                    {type === 'Child' && c.parentCompanyName && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        Padre: {c.parentCompanyName}
+                      </span>
+                    )}
+                    {type === 'Group' && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        Hijas: {childrenCount}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-1.5 flex-wrap">
                     <Button variant="outline" size="sm" onClick={() => setDetailTarget(c)}>Ver detalle</Button>
+                    {type === 'Group' && (
+                      <Button variant="outline" size="sm" onClick={() => openChildren(c)}>Hijas ({childrenCount})</Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => openEdit(c)}>Editar</Button>
                     <Button variant="outline" size="sm" onClick={() => setToggleTarget(c)}>
                       {c.isActive ? 'Desactivar' : 'Activar'}
@@ -252,8 +388,9 @@ function CompaniesInner() {
                     <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => setDeleteTarget(c)}>Eliminar</Button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
+          </div>
         )}
       </Card>
 
@@ -264,6 +401,65 @@ function CompaniesInner() {
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nombre *</label><Input value={form.name} onChange={(e) => handleNameChange(e.target.value)} /></div>
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Slug *</label><Input value={form.slug} onChange={(e) => handleSlugChange(e.target.value)} /></div>
             </div>
+
+            {/* Tipo de empresa */}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo de empresa *</label>
+              <Select
+                value={form.structureType}
+                disabled={!!editId && form.structureType === 'Group' && hasChildren(editId)}
+                onChange={(e) => {
+                  const type = e.target.value as CompanyStructureType
+                  setForm((prev) => ({
+                    ...prev,
+                    structureType: type,
+                    parentCompanyId: type === 'Child' ? prev.parentCompanyId : '',
+                    vertical: type === 'Group' ? '' : prev.vertical || 'Deportiva',
+                  }))
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="Individual">Individual</option>
+                <option value="Group">Empresa Grupo</option>
+                <option value="Child">Empresa hija / Sede</option>
+              </Select>
+              {!!editId && form.structureType === 'Group' && hasChildren(editId) && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Este Grupo tiene empresas hijas: no puede cambiar de tipo hasta desasignarlas.
+                </p>
+              )}
+            </div>
+
+            {/* Vertical: solo Individual/Child */}
+            {form.structureType !== 'Group' && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Vertical *</label>
+                <Select
+                  value={form.vertical}
+                  onChange={(e) => setForm({ ...form, vertical: e.target.value as CompanyVertical })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                  <option value="Deportiva">Deportiva</option>
+                  <option value="Educativa">Educativa</option>
+                </Select>
+              </div>
+            )}
+
+            {/* Grupo padre: solo hija */}
+            {form.structureType === 'Child' && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Empresa Grupo (padre) *</label>
+                <Select
+                  value={form.parentCompanyId}
+                  onChange={(e) => setForm({ ...form, parentCompanyId: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                  <option value="">Seleccionar grupo…</option>
+                  {companies.filter((c) => c.structureType === 'Group').map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}{g.isActive ? '' : ' (inactivo)'}</option>
+                  ))}
+                </Select>
+                <p className="mt-1 text-xs text-slate-400">Al guardar, la empresa hija se mueve directamente al grupo elegido.</p>
+              </div>
+            )}
+
             <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Descripción</label><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Email</label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
@@ -301,7 +497,7 @@ function CompaniesInner() {
               </label>
             )}
 
-             {editId && (
+            {editId && (
               <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
                 <h3 className="text-sm font-bold mb-3">Presencia Digital</h3>
                 <div>
@@ -433,9 +629,57 @@ function CompaniesInner() {
         </Modal>
       )}
 
+      {childrenGroup && (
+        <Modal open={true} onClose={() => setChildrenGroup(null)} title={`Empresas hijas · ${childrenGroup.name}`} className="sm:max-w-lg">
+          <div className="px-5 py-4 sm:px-6 space-y-4">
+            {childrenError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-400">{childrenError}</p>}
+            {childrenLoading ? (
+              <div className="flex justify-center py-6 text-slate-400"><Spinner /></div>
+            ) : (
+              <>
+                {children.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    Este grupo todavía no tiene empresas hijas.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {children.map((child) => (
+                      <li key={child.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{child.name}</p>
+                          <p className="text-xs text-slate-400">{child.slug}</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => unassignChild(child.id)}>Desasignar</Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Asignar empresa hija</label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={assignChildId}
+                      onChange={(e) => setAssignChildId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                      <option value="">Seleccionar empresa…</option>
+                      {assignable.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </Select>
+                    <Button variant="outline" size="sm" disabled={!assignChildId} onClick={assignChild}>Asignar</Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
       {detailTarget && (
         <Modal open={true} onClose={() => setDetailTarget(null)} title={detailTarget.name} className="sm:max-w-lg">
           <div className="px-5 py-4 sm:px-6 space-y-3">
+            <Row label="Tipo" value={detailTarget.structureType ? STRUCTURE_LABEL[detailTarget.structureType] : 'Individual'} />
+            {detailTarget.structureType !== 'Group' && <Row label="Vertical" value={detailTarget.vertical ? VERTICAL_LABEL[detailTarget.vertical] : '—'} />}
+            {detailTarget.structureType === 'Group' && <Row label="Empresas hijas" value={String(childCountOf(detailTarget.id))} />}
+            {detailTarget.structureType === 'Child' && <Row label="Grupo padre" value={detailTarget.parentCompanyName ?? '—'} />}
             <Row label="Slug" value={detailTarget.slug} />
             <Row label="Email" value={detailTarget.email} />
             <Row label="Teléfono" value={detailTarget.phone} />

@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/stores/auth'
 import { useTheme } from '@/stores/theme'
+import { resolveHomePath } from '@/lib/auth-route'
 import type { ThemeMode } from '@/types/auth'
 
 const themeIcons: Record<ThemeMode, string> = {
@@ -33,12 +34,7 @@ export function RootLayout() {
 
   useEffect(() => {
     if (!token || !user || location.pathname !== '/') return
-
-    const role = user.systemRole?.toLowerCase() ?? ''
-    if (role === 'admin') navigate('/admin', { replace: true })
-    else if (role === 'superadmin') navigate('/superadmin', { replace: true })
-    else if (role === 'delegate') navigate('/delegate', { replace: true })
-    else navigate('/student', { replace: true })
+    navigate(resolveHomePath(), { replace: true })
   }, [token, user, navigate, location.pathname])
 
   useEffect(() => {

@@ -146,7 +146,7 @@ export const LATE_FEE_RECURRENCE = { ONE_TIME: 1, DAILY: 2, WEEKLY: 3 } as const
 
 export function recurrenceLabel(value: unknown) {
   const text = String(value ?? '').toLowerCase()
-  if (text === 'onetime' || Number(value) === LATE_FEE_RECURRENCE.ONE_TIME) return 'Ãšnica'
+  if (text === 'onetime' || Number(value) === LATE_FEE_RECURRENCE.ONE_TIME) return 'Única'
   if (text === 'daily' || Number(value) === LATE_FEE_RECURRENCE.DAILY) return 'Diaria'
   if (text === 'weekly' || Number(value) === LATE_FEE_RECURRENCE.WEEKLY) return 'Semanal'
   return '-'
@@ -166,7 +166,7 @@ export function formatDateShort(value: string | null | undefined) {
   } catch { return '-' }
 }
 
-/* â”€â”€â”€ Hooks â”€â”€â”€ */
+/* ─── Hooks ─── */
 
 export function useCourses() {
   return useQuery({

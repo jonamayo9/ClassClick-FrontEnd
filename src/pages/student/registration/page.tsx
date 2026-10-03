@@ -37,7 +37,10 @@ function RegistrationInner() {
   })
 
   useEffect(() => {
-    if (status?.registrationCompleted) navigate('/student')
+    if (status?.registrationCompleted) {
+      const company = useAuth.getState().companies.find((c) => (c.slug ?? c.companySlug) === slug())
+      navigate(company?.vertical === 'Educativa' ? '/estudiante' : '/student')
+    }
   }, [status, navigate])
 
   const [firstName, setFirstName] = useState('')

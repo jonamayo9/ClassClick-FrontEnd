@@ -2,15 +2,16 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/stores/auth'
 import { useTheme } from '@/stores/theme'
 import { useState, useEffect, useMemo } from 'react'
-import type { ThemeMode } from '@/types/auth'
+import type { ThemeMode, Company, CompanyContextMode } from '@/types/auth'
 import { imgUrl } from '@/lib/media'
 import { NotificationsBell } from '@/components/notifications-bell'
 import { StudentCarnetModal } from '@/pages/student/student-carnet'
 import { CompanyBillingBanner } from '@/components/billing/company-billing-banner'
 import { ToastProvider } from '@/components/ui/toast'
 import { hasModule } from '@/hooks/useModule'
+import { hasPermission } from '@/hooks/usePermission'
 
-interface NavItem { label: string; path: string; icon: string; module?: string }
+interface NavItem { label: string; path: string; icon: string; module?: string; permission?: string }
 interface NavGroup { name: string; key: string; items: NavItem[] }
 
 const adminGroups: NavGroup[] = [
@@ -114,8 +115,20 @@ function getFilteredGroups(enabled: (moduleCode?: string) => boolean): NavGroup[
 const themeIcons: Record<ThemeMode, string> = { light: '☀️', dark: '🌙', system: '💻' }
 const themeNext: Record<ThemeMode, ThemeMode> = { light: 'dark', dark: 'system', system: 'light' }
 
+function companyDisplayName(c: { name?: string; companyName?: string; slug?: string; companySlug?: string }): string {
+  return c.name?.trim() || c.companyName?.trim() || c.slug || c.companySlug || 'Empresa'
+}
+
+function companyInitial(c: { name?: string; companyName?: string; slug?: string; companySlug?: string }): string {
+  return companyDisplayName(c).charAt(0).toUpperCase()
+}
+
+function companySlugValue(c: { slug?: string; companySlug?: string }): string {
+  return c.slug ?? c.companySlug ?? ''
+}
+
 export function AppLayout() {
-  const { token, user, companies, activeRole, activeCompanySlug, switchCompany, logout, fetchCompanies } = useAuth()
+  const { token, user, companies, activeRole, activeCompanySlug, mode: contextMode, switchCompany, logout, fetchCompanies } = useAuth()
   const { mode, setMode } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
@@ -137,13 +150,6 @@ export function AppLayout() {
     ) ?? null
   }, [companyList, activeCompanySlug])
 
-  function companyDisplayName(c: { name?: string; slug?: string; companySlug?: string }): string {
-    return c.name?.trim() || c.slug || c.companySlug || 'Empresa'
-  }
-  function companyInitial(c: { name?: string; slug?: string; companySlug?: string }): string {
-    const name = companyDisplayName(c)
-    return name.charAt(0).toUpperCase()
-  }
   const companyName = companyDisplayName(activeCompany ?? { name: activeCompanySlug ?? '' }) || activeCompanySlug || 'ClassClick'
   const companyLogo = activeCompany?.logoUrl || activeCompany?.LogoUrl || ''
   const moduleEnabled = (moduleCode?: string) => {
@@ -153,24 +159,139 @@ export function AppLayout() {
     return hasModule(moduleCode)
   }
 
+  const permissionEnabled = (code?: string) => {
+    if (!code) return true
+    return hasPermission(code)
+  }
+
   const role = (activeRole?.toLowerCase() ?? user?.systemRole?.toLowerCase() ?? '') as string
   const isAdmin = role === 'admin'
+  const isStudent = role === 'student'
   const isTeacher = role === 'teacher'
+  const isDocente = role === 'docente'
   const isDelegate = role === 'delegate'
   const isSuperAdmin = role === 'superadmin'
-  const groups = isAdmin ? getFilteredGroups(moduleEnabled) : []
-  const studentItems = isAdmin ? [] : studentNav.filter((item) => moduleEnabled(item.module))
+
+  const isGroupContext = contextMode === 'group' || activeCompany?.structureType === 'Group'
+  const isEducativaContext = isAdmin && !isGroupContext && activeCompany?.vertical === 'Educativa' && activeCompany?.structureType !== 'Group'
+  const isStudentEducativaContext = isStudent && !isSuperAdmin && !isGroupContext && activeCompany?.vertical === 'Educativa' && activeCompany?.structureType !== 'Group'
+  const showAdminArea = isAdmin && !isGroupContext && !isEducativaContext
+  // Ruta EXACTA del Dashboard Deportivo (solo "/admin", sin subrutas ni trailing slash).
+  // En "/admin" el banner de facturación se alinea al mismo contenedor de 1320px del Dashboard.
+  const isDashboardRoute = location.pathname.replace(/\/+$/, '') === '/admin'
+  const navMode = isSuperAdmin ? 'superadmin' : isGroupContext ? 'group' : isEducativaContext ? 'educativa' : isAdmin ? 'admin' : isTeacher ? 'teacher' : isDocente ? 'docente' : isDelegate ? 'delegate' : isStudentEducativaContext ? 'studentEducativa' : 'student'
+
+  const groupItems: NavItem[] = isGroupContext && activeCompanySlug
+    ? [{ label: 'Inicio del grupo', path: `/group-admin/${activeCompanySlug}`, icon: '🏠' }]
+    : []
+
+  const educativaGroups: NavGroup[] = isEducativaContext && activeCompanySlug
+    ? [
+        { name: 'Inicio', key: 'e-home', items: [{ label: 'Dashboard', path: `/educativa/${activeCompanySlug}`, icon: '📊', permission: 'dashboard' }] },
+        { name: 'Alumnos', key: 'e-students', items: [
+          { label: 'Alumnos', path: `/educativa/${activeCompanySlug}/alumnos`, icon: '👥', permission: 'students' },
+          { label: 'Legajos', path: `/educativa/${activeCompanySlug}/records`, icon: '📄', permission: 'records' },
+        ] },
+        { name: 'Académico', key: 'e-academic', items: [
+          { label: 'Formaciones', path: `/educativa/${activeCompanySlug}/formaciones`, icon: '📚', permission: 'trainings' },
+          { label: 'Comisiones', path: `/educativa/${activeCompanySlug}/commissions`, icon: '🎓', permission: 'commissions' },
+          { label: 'Docentes', path: `/educativa/${activeCompanySlug}/docentes`, icon: '👨‍🏫', permission: 'teachers' },
+          { label: 'Clases', path: `/educativa/${activeCompanySlug}/classes`, icon: '📅', permission: 'commissions' },
+          { label: 'Asistencia', path: `/educativa/${activeCompanySlug}/asistencias`, icon: '✅', permission: 'attendance' },
+          { label: 'Certificaciones', path: `/educativa/${activeCompanySlug}/certificaciones`, icon: '🎖️', permission: 'certifications' },
+          { label: 'Graduados', path: `/educativa/${activeCompanySlug}/graduados`, icon: '🎓', permission: 'graduates' },
+          { label: 'Promociones', path: `/educativa/${activeCompanySlug}/promociones`, icon: '🎁', permission: 'promotions' },
+        ] },
+        { name: 'Financiero', key: 'e-financial', items: [
+          { label: 'Pagos y Cuotas', path: `/educativa/${activeCompanySlug}/pagos`, icon: '💳', permission: 'cuotas' },
+          { label: 'Config. pagos', path: `/educativa/${activeCompanySlug}/config-pagos`, icon: '⚙️', permission: 'institution-settings' },
+          { label: 'Config. cuotas', path: `/educativa/${activeCompanySlug}/config-cuotas`, icon: '📋', permission: 'institution-settings' },
+        ] },
+        { name: 'Extras', key: 'e-extras', items: [{ label: 'Novedades', path: `/educativa/${activeCompanySlug}/announcements`, icon: '📢', module: 'news', permission: 'news' }] },
+        { name: 'Configuración', key: 'e-settings', items: [
+          { label: 'Página pública', path: `/educativa/${activeCompanySlug}/public-page`, icon: '🌐', module: 'public_page', permission: 'institution-settings' },
+          { label: 'Roles y Permisos', path: `/educativa/${activeCompanySlug}/permissions`, icon: '🔐', permission: 'admin-management' },
+          { label: 'Mi empresa', path: `/educativa/${activeCompanySlug}/company`, icon: '🏢', permission: 'institution-settings' },
+          { label: 'Plan y facturación', path: `/educativa/${activeCompanySlug}/billing`, icon: '🧾', permission: 'billing' },
+          { label: 'Mi perfil', path: `/educativa/${activeCompanySlug}/profile`, icon: '👤' },
+        ] },
+      ]
+    : []
+
+  const visibleEducativaGroups = educativaGroups
+    .map((g) => ({ ...g, items: g.items.filter((i) =>
+      (!i.module || moduleEnabled(i.module)) &&
+      (!i.permission || permissionEnabled(i.permission)),
+    ) }))
+    .filter((g) => g.items.length > 0)
+
+  const educativaItems: NavItem[] = visibleEducativaGroups.flatMap((g) => g.items)
+
+  const docenteNav: NavItem[] = isDocente
+    ? [
+        { label: 'Mis clases', path: '/docente', icon: '🗓️' },
+      ]
+    : []
+
+  const studentEducativaItems: NavItem[] = isStudentEducativaContext
+    ? [
+        { label: 'Inicio', path: '/estudiante', icon: '🏠' },
+        { label: 'Mis formaciones', path: '/estudiante/formaciones', icon: '🎓' },
+        { label: 'Pagos', path: '/estudiante/pagos', icon: '💳' },
+        { label: 'Certificaciones', path: '/estudiante/certificaciones', icon: '🎖️' },
+        { label: 'Perfil', path: '/estudiante/perfil', icon: '👤' },
+      ]
+    : []
+
+  const groups = showAdminArea ? getFilteredGroups(moduleEnabled) : []
+  const studentItems = navMode === 'student' ? studentNav.filter((item) => moduleEnabled(item.module)) : []
   const teacherItems = isTeacher ? teacherNav : []
   const delegateItems = isDelegate ? delegateNav.filter((item) => moduleEnabled(item.module)) : []
   const delegateBottomItems = isDelegate ? delegateItems.filter((item) => item.path !== '/delegate/profile') : []
   const superadminItems = isSuperAdmin ? superadminNav : []
   const superadminBottomItems = isSuperAdmin ? superadminBottomNav : []
   const superadminMoreItems = isSuperAdmin ? superadminItems.filter((i) => !superadminBottomNav.some((b) => b.path === i.path)) : []
-  const allItems = isSuperAdmin ? superadminItems : isAdmin ? groups.flatMap((g) => g.items) : isDelegate ? delegateItems : isTeacher ? teacherItems : studentItems
-  const primaryItems = isAdmin
+  const allItems = navMode === 'superadmin' ? superadminItems
+    : navMode === 'group' ? groupItems
+    : navMode === 'educativa' ? educativaItems
+    : navMode === 'admin' ? groups.flatMap((g) => g.items)
+    : navMode === 'delegate' ? delegateItems
+    : navMode === 'teacher' ? teacherItems
+    : navMode === 'docente' ? docenteNav
+    : navMode === 'studentEducativa' ? studentEducativaItems
+    : studentItems
+  const primaryItems = navMode === 'admin'
     ? bottomPrimary.filter((p) => allItems.some((i) => i.path === p.path))
     : allItems
   const showStudentPayments = !isAdmin && !isTeacher && !isDelegate && !isSuperAdmin && moduleEnabled('payments')
+
+  // Hijas del Group activo (acceso heredado): aparecen como Company con parentCompanyId == group.
+  const groupChildren = navMode === 'group' && activeCompany
+    ? (companies ?? []).filter((c) => c.parentCompanyId === (activeCompany.id ?? activeCompany.companyId ?? ''))
+    : []
+
+  const enterChildCompany = (child: Company) => {
+    switchCompany(child, 'direct')
+    if (child.vertical === 'Educativa') {
+      navigate(`/educativa/${companySlugValue(child)}`)
+    } else {
+      navigate('/admin')
+    }
+  }
+
+  const selectCompany = (company: Company, selMode: 'direct' | 'group') => {
+    switchCompany(company, selMode)
+    setCompanyOpen(false)
+    setMoreOpen(false)
+    const slug = companySlugValue(company)
+    if (selMode === 'group') {
+      navigate(`/group-admin/${slug}`)
+    } else if (company.vertical === 'Educativa' && company.structureType !== 'Group') {
+      navigate(`/educativa/${slug}/commissions`)
+    } else if (location.pathname.startsWith('/group-admin')) {
+      navigate('/admin')
+    }
+  }
 
   useEffect(() => {
     if (!token || !user) navigate('/login', { replace: true })
@@ -264,26 +385,13 @@ export function AppLayout() {
                 {companyOpen && (
                   <>
                     <div className="fixed inset-0 z-50" onClick={() => setCompanyOpen(false)} />
-                    <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                    <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
                       <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Cambiar empresa</p>
-                      {companyList.map((c) => {
-                        const slug = c.slug ?? c.companySlug ?? ''
-                        const isActive = slug === activeCompanySlug
-                        return (
-                          <button key={slug} onClick={() => { switchCompany(c); setCompanyOpen(false) }}
-                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-                              isActive
-                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                                : 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
-                            }`}>
-                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-[10px] font-bold text-white">
-                              {companyInitial(c)}
-                            </div>
-                            <span className="truncate">{companyDisplayName(c)}</span>
-                            {isActive && <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">✓</span>}
-                          </button>
-                        )
-                      })}
+                      <CompanySwitcherList
+                        companies={companyList}
+                        activeCompanySlug={activeCompanySlug}
+                        onSelect={selectCompany}
+                      />
                     </div>
                   </>
                 )}
@@ -313,9 +421,38 @@ export function AppLayout() {
         {/* Desktop sidebar */}
         <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block">
           <nav className="flex flex-col gap-4 p-3 pb-8">
-            {isSuperAdmin ? superadminItems.map((item) => navLink(item,
+            {navMode === 'superadmin' ? superadminItems.map((item) => navLink(item,
               'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
-            : isAdmin ? groups.map((group) => (
+            : navMode === 'group' ? (
+              <div className="flex flex-col gap-0.5">
+                {groupItems.map((item) => navLink(item,
+                  'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))}
+                {groupChildren.length > 0 && (
+                  <>
+                    <h3 className="mb-1 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Empresas</h3>
+                    {groupChildren.map((child) => (
+                      <button key={child.parentCompanyId ?? child.companyId ?? child.slug} type="button" onClick={() => enterChildCompany(child)}
+                        className="flex w-full items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800">
+                        <span className="truncate">{child.name}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${child.vertical === 'Educativa' ? 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}`}>
+                          {child.vertical === 'Educativa' ? 'Educativa' : 'Deportiva'}
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )
+            : navMode === 'educativa' ? visibleEducativaGroups.map((group) => (
+              <div key={group.key}>
+                <h3 className="mb-1 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{group.name}</h3>
+                <div className="flex flex-col gap-0.5">
+                  {group.items.map((item) => navLink(item,
+                    'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))}
+                </div>
+              </div>
+            ))
+            : navMode === 'admin' ? groups.map((group) => (
               <div key={group.key}>
                 <h3 className="mb-1 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   {group.name}
@@ -325,9 +462,13 @@ export function AppLayout() {
                     'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))}
                 </div>
               </div>
-            )) : isTeacher ? teacherItems.map((item) => navLink(item,
+            )) : navMode === 'teacher' ? teacherItems.map((item) => navLink(item,
               'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
-            : isDelegate ? delegateItems.map((item) => navLink(item,
+            : navMode === 'docente' ? docenteNav.map((item) => navLink(item,
+              'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
+            : navMode === 'delegate' ? delegateItems.map((item) => navLink(item,
+              'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
+            : navMode === 'studentEducativa' ? studentEducativaItems.map((item) => navLink(item,
               'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))
             : studentItems.map((item) => navLink(item,
               'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition'))}
@@ -340,7 +481,7 @@ export function AppLayout() {
             <div className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden" onClick={() => setDrawerOpen(false)} />
             <aside className="fixed inset-y-0 left-0 z-40 mt-14 flex w-72 flex-col border-r border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 lg:hidden">
               <nav className="flex-1 overflow-y-auto px-3 py-4">
-                {isAdmin ? groups.map((group) => (
+                {navMode === 'admin' ? groups.map((group) => (
                   <div key={group.key} className="mb-4">
                     <h3 className="mb-1 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                       {group.name}
@@ -350,11 +491,44 @@ export function AppLayout() {
                         'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))}
                     </div>
                   </div>
-                )) : isSuperAdmin ? superadminItems.map((item) => navLink(item,
+                )) : navMode === 'superadmin' ? superadminItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
-                : isTeacher ? teacherItems.map((item) => navLink(item,
+                : navMode === 'group' ? (
+                  <div className="flex flex-col gap-0.5">
+                    {groupItems.map((item) => navLink(item,
+                      'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))}
+                    {groupChildren.length > 0 && (
+                      <>
+                        <h3 className="mb-1 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Empresas</h3>
+                        {groupChildren.map((child) => (
+                          <button key={child.parentCompanyId ?? child.companyId ?? child.slug} type="button" onClick={() => enterChildCompany(child)}
+                            className="flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800">
+                            <span className="truncate">{child.name}</span>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${child.vertical === 'Educativa' ? 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}`}>
+                              {child.vertical === 'Educativa' ? 'Educativa' : 'Deportiva'}
+                            </span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )
+                : navMode === 'educativa' ? visibleEducativaGroups.map((group) => (
+                  <div key={group.key}>
+                    <h3 className="mb-1 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{group.name}</h3>
+                    <div className="flex flex-col gap-0.5">
+                      {group.items.map((item) => navLink(item,
+                        'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))}
+                    </div>
+                  </div>
+                ))
+                : navMode === 'teacher' ? teacherItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
-                : isDelegate ? delegateItems.map((item) => navLink(item,
+                : navMode === 'docente' ? docenteNav.map((item) => navLink(item,
+                  'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
+                : navMode === 'delegate' ? delegateItems.map((item) => navLink(item,
+                  'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
+                : navMode === 'studentEducativa' ? studentEducativaItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))
                 : studentItems.map((item) => navLink(item,
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition'))}
@@ -372,7 +546,11 @@ export function AppLayout() {
 
         {/* Main */}
         <main className="flex-1 overflow-x-auto px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8">
-          {isAdmin && <CompanyBillingBanner />}
+          {showAdminArea && (
+            <div className={isDashboardRoute ? 'mx-auto w-full max-w-[1320px] px-4 sm:px-6' : ''}>
+              <CompanyBillingBanner />
+            </div>
+          )}
           <ToastProvider>
             <Outlet />
           </ToastProvider>
@@ -401,7 +579,37 @@ export function AppLayout() {
             </button>
           )}
         </nav>
-      ) : isAdmin ? (
+      ) : isGroupContext ? (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {groupItems.map((item) => {
+            const active = location.pathname === item.path
+            return (
+              <Link key={item.path} to={item.path}
+                className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold transition sm:text-xs ${
+                  active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+                <span className="text-lg sm:text-xl">{item.icon}</span>
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
+      ) : isEducativaContext ? (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {educativaItems.map((item) => {
+            const active = location.pathname === item.path
+            return (
+              <Link key={item.path} to={item.path}
+                className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold transition sm:text-xs ${
+                  active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+                <span className="text-lg sm:text-xl">{item.icon}</span>
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
+      ) : navMode === 'admin' ? (
         <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {primaryItems.map((item) => {
@@ -431,6 +639,27 @@ export function AppLayout() {
               <div className="grid grid-cols-5 items-end gap-1">
                 {delegateBottomItems.map((item) => {
                   const active = location.pathname === item.path
+                  return (
+                    <Link key={item.path} to={item.path}
+                      className={`flex flex-col items-center justify-center py-1 rounded-2xl transition ${
+                        active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+                      <span className="text-xl">{item.icon}</span>
+                      <span className="text-[10px] font-medium mt-0.5">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          </nav>
+        </>
+      ) : isStudentEducativaContext ? (
+        /* Floating pill nav for educativa student */
+        <>
+          <nav className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:hidden pointer-events-none">
+            <div className="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 bg-white/95 backdrop-blur-xl px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900/95">
+              <div className="grid grid-cols-4 items-end gap-1">
+                {studentEducativaItems.map((item) => {
+                  const active = location.pathname === item.path || (item.path !== '/estudiante' && location.pathname.startsWith(item.path))
                   return (
                     <Link key={item.path} to={item.path}
                       className={`flex flex-col items-center justify-center py-1 rounded-2xl transition ${
@@ -582,24 +811,11 @@ export function AppLayout() {
               <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
                 <p className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-slate-400">Cambiar empresa</p>
                 <div className="grid grid-cols-1 gap-1">
-                  {companyList.map((c) => {
-                    const slug = c.slug ?? c.companySlug ?? ''
-                    const isActive = slug === activeCompanySlug
-                    return (
-                      <button key={slug} onClick={() => { switchCompany(c); setMoreOpen(false) }}
-                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-                          isActive
-                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                            : 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
-                        }`}>
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-[10px] font-bold text-white">
-                          {companyInitial(c)}
-                        </div>
-                        <span className="truncate">{companyDisplayName(c)}</span>
-                        {isActive && <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">✓</span>}
-                      </button>
-                    )
-                  })}
+                  <CompanySwitcherList
+                    companies={companyList}
+                    activeCompanySlug={activeCompanySlug}
+                    onSelect={selectCompany}
+                  />
                 </div>
               </div>
             )}
@@ -668,3 +884,102 @@ function LogoOrFallback({ src, alt }: { src: string | null; alt: string }) {
     />
   )
 }
+
+function CompanySwitcherList({
+  companies,
+  activeCompanySlug,
+  onSelect,
+}: {
+  companies: Company[]
+  activeCompanySlug: string | null
+  onSelect: (company: Company, mode: CompanyContextMode) => void
+}) {
+  const groups = companies.filter((c) => c.structureType === 'Group')
+  const groupChildSlugs = new Set(
+    groups.flatMap((g) => g.children?.map((ch) => companySlugValue(ch)) ?? [])
+  )
+
+  // Evita duplicar una hija: si el usuario ya pertenece a su Grupo (entrada en companies),
+  // la hija se muestra únicamente dentro del nodo Grupo.
+  const topLevel = companies.filter((c) => {
+    if (c.structureType === 'Group') return false
+    if (c.structureType === 'Child' && groupChildSlugs.has(companySlugValue(c))) return false
+    return true
+  })
+
+  const rowCls = (active: boolean) =>
+    `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+      active
+        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+        : 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+    }`
+
+  return (
+    <>
+      {topLevel.map((c) => {
+        const slug = companySlugValue(c)
+        const isActive = slug === activeCompanySlug
+        return (
+          <button key={slug} onClick={() => onSelect(c, 'direct')} className={rowCls(isActive)}>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-[10px] font-bold text-white">
+              {companyInitial(c)}
+            </div>
+            <span className="truncate">{companyDisplayName(c)}</span>
+            {isActive && <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">✓</span>}
+          </button>
+        )
+      })}
+
+      {groups.map((g) => {
+        const groupSlug = companySlugValue(g)
+        const groupActive = groupSlug === activeCompanySlug
+        const children = g.children ?? []
+        return (
+          <div key={groupSlug} className="mt-1">
+            <button onClick={() => onSelect(g, 'group')} className={rowCls(groupActive)}>
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-700 text-[10px] font-bold text-white">
+                {companyInitial(g)}
+              </div>
+              <span className="truncate">{companyDisplayName(g)}</span>
+              {groupActive && <span className="ml-auto text-xs text-blue-600 dark:text-blue-400">✓</span>}
+            </button>
+
+            {children.length > 0 && (
+              <div className="ml-5 mt-0.5 border-l border-slate-200 pl-2 dark:border-slate-700">
+                {children.map((child) => {
+                  const childSlug = companySlugValue(child)
+                  const direct = companies.find((c) => companySlugValue(c) === childSlug)
+                  const hasDirect = !!direct
+                  const childActive = hasDirect && childSlug === activeCompanySlug
+                  return (
+                    <button
+                      key={childSlug}
+                      onClick={() => hasDirect && onSelect({ ...direct, slug: childSlug, companySlug: childSlug }, 'direct')}
+                      disabled={!hasDirect}
+                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                        childActive
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                          : hasDirect
+                            ? 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                            : 'cursor-not-allowed text-slate-400 dark:text-slate-500'
+                      }`}
+                    >
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-200 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {companyInitial(child)}
+                      </div>
+                      <span className="truncate">{companyDisplayName(child)}</span>
+                      <span className="ml-auto shrink-0 text-[10px] font-semibold">
+                        {hasDirect ? 'Acceso directo' : 'Vía grupo'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+

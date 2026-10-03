@@ -2,12 +2,14 @@ import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useAuth } from '@/stores/auth'
+import { resolveHomePath } from '@/lib/auth-route'
 import { storage } from '@/lib/storage'
 import { apiService } from '@/lib/api'
 import { PwaInstallPrompt } from '@/components/pwa-install'
 import { IosPwaPrompt } from '@/components/ios-pwa-prompt'
 import { BiometricAppLock } from '@/components/biometric-app-lock'
 import { ModuleGuard } from '@/components/module-guard'
+import { PermissionGuard } from '@/components/permission-guard'
 import { RootLayout } from '@/components/layouts/root-layout'
 import { AppLayout } from '@/components/layouts/app-layout'
 import { LandingPage } from '@/pages/landing'
@@ -94,6 +96,31 @@ import SuperAdminBillingSettingsPage from '@/pages/superadmin/billing-settings'
 import SuperAdminDocumentTypesPage from '@/pages/superadmin/document-types'
 import SuperAdminNewsPage from '@/pages/superadmin/news'
 import SuperAdminPriceIncreasesPage from '@/pages/superadmin/price-increases'
+import { GroupAdminPage } from '@/pages/group-admin/page'
+import { EducativaCommissionsPage } from '@/pages/educativa/commissions/page'
+import { EducativaEnrollmentsPage } from '@/pages/educativa/enrollments/page'
+import { EducativaEnrollmentDetailPage } from '@/pages/educativa/enrollment-detail/page'
+import { EstudianteHomePage } from '@/pages/estudiante/home/page'
+import { EstudianteFormacionesPage } from '@/pages/estudiante/formaciones/page'
+import { EstudianteFormacionDetailPage } from '@/pages/estudiante/formaciones/[enrollmentId]/page'
+import { EstudiantePagosPage } from '@/pages/estudiante/pagos/page'
+import { EstudianteMercadoPagoResultPage } from '@/pages/estudiante/pagos/mercadopago-result'
+import { EstudianteCertificacionesPage } from '@/pages/estudiante/certificaciones/page'
+import { EducativaDashboardPage } from '@/pages/educativa/dashboard/page'
+import { EducativaCertificacionesPage } from '@/pages/educativa/certificaciones/page'
+import { EducativaFormacionesPage } from '@/pages/educativa/formaciones/page'
+import { EducativaCommissionClassesPage } from '@/pages/educativa/commissions/classes/page'
+import { EducativaAsistenciasPage } from '@/pages/educativa/asistencias/page'
+import PagosPage from '@/pages/educativa/pagos/page'
+import AlumnosPage from '@/pages/educativa/alumnos/page'
+import DocentesPage from '@/pages/educativa/docentes/page'
+import { EducativaClasesPage } from '@/pages/educativa/clases/page'
+import ConfigPagosPage from '@/pages/educativa/config-pagos/page'
+import ConfigCuotasPage from '@/pages/educativa/config-cuotas/page'
+import GraduadosPage from '@/pages/educativa/graduados/page'
+import PromocionesPage from '@/pages/educativa/promociones/page'
+import { EducativaPermissionsPage } from '@/pages/educativa/permissions/page'
+import { DocenteMisClasesPage } from '@/pages/docente/mis-clases/page'
 const queryClient = new QueryClient()
 
 function AuthGate() {
@@ -118,20 +145,18 @@ function AuthGate() {
 }
 
 function RoleRedirect() {
-  const { token, user, activeRole } = useAuth()
-  const role = (activeRole?.toLowerCase() ?? user?.systemRole?.toLowerCase() ?? '') as string
+  const { token, user } = useAuth()
   if (!token || !user) return <Navigate to="/login" replace />
-  if (role === 'superadmin') return <Navigate to="/superadmin" replace />
-  if (role === 'admin') return <Navigate to="/admin" replace />
-  if (role === 'teacher') return <Navigate to="/teacher" replace />
-  if (role === 'delegate') return <Navigate to="/delegate" replace />
-  if (role === 'eventoperator') return <Navigate to="/event-operator" replace />
-  if (role === 'student') return <Navigate to="/student" replace />
-  return <Navigate to="/login" replace />
+  // Resolución única de la ruta de inicio (Group / Child Deportiva / Child Educativa / Individual).
+  return <Navigate to={resolveHomePath()} replace />
 }
 
 function GuardedRoute({ moduleCode, children }: { moduleCode?: string; children: React.ReactNode }) {
   return <ModuleGuard moduleCode={moduleCode}>{children}</ModuleGuard>
+}
+
+function PermissionedRoute({ code, children }: { code: string; children: React.ReactNode }) {
+  return <PermissionGuard code={code}>{children}</PermissionGuard>
 }
 
 function RoleGuard({ roles, children }: { roles: string[]; children: React.ReactNode }) {
@@ -142,8 +167,30 @@ function RoleGuard({ roles, children }: { roles: string[]; children: React.React
   return <>{children}</>
 }
 
+/**
+ * Evita que un Admin con contexto Group o empresa Educativa renderice /admin
+ * (Dashboard Deportivo). Redirige al área correcta. El SuperAdmin no se restringe.
+ */
+function CompanyContextGuard({ children }: { children: React.ReactNode }) {
+  const { activeCompanySlug, companies, mode, activeRole, user } = useAuth()
+  const role = (activeRole?.toLowerCase() ?? user?.systemRole?.toLowerCase() ?? '') as string
+  const company = (companies ?? []).find((c) => (c.slug ?? c.companySlug) === activeCompanySlug)
+  const isWrongContext = role === 'admin' && (
+    mode === 'group' || company?.structureType === 'Group' || company?.vertical === 'Educativa'
+  )
+  if (isWrongContext) return <Navigate to={resolveHomePath()} replace />
+  return <>{children}</>
+}
+
+function StudentVerticalGate({ children }: { children: React.ReactNode }) {
+  const { activeCompanySlug, companies } = useAuth()
+  const company = (companies ?? []).find((c) => (c.slug ?? c.companySlug) === activeCompanySlug)
+  if (company?.vertical === 'Educativa') return <Navigate to="/estudiante" replace />
+  return <>{children}</>
+}
+
 function RegistrationGate() {
-  const { token, user, activeRole, activeCompanySlug } = useAuth()
+  const { token, user, activeRole, activeCompanySlug, companies } = useAuth()
   const role = (activeRole?.toLowerCase() ?? user?.systemRole?.toLowerCase() ?? '')
   const statusQuery = useQuery({
     queryKey: ['registration-status', activeCompanySlug],
@@ -161,22 +208,36 @@ function RegistrationGate() {
     return <div className="flex min-h-dvh items-center justify-center bg-white text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400">Validando registro...</div>
   }
   if (statusQuery.isError) return <Navigate to="/login" replace />
-  if (statusQuery.data?.registrationCompleted) return <Navigate to="/student" replace />
+  if (statusQuery.data?.registrationCompleted) {
+    const company = (companies ?? []).find((c) => (c.slug ?? c.companySlug) === activeCompanySlug)
+    return <Navigate to={company?.vertical === 'Educativa' ? '/estudiante' : '/student'} replace />
+  }
   return <RegistrationPage />
 }
 
+function SplashScreen() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+    </div>
+  )
+}
+
 export default function App() {
+  const hydrated = useAuth((s) => s.hydrated)
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthGate />
-        <BiometricAppLock />
-        <PwaInstallPrompt />
-        <IosPwaPrompt />
-        <Routes>
-          <Route element={<RootLayout />}>
-            <Route index element={<LandingPage />} />
-            <Route path="home" element={<RoleRedirect />} />
+        {hydrated ? (
+          <>
+            <BiometricAppLock />
+            <PwaInstallPrompt />
+            <IosPwaPrompt />
+            <Routes>
+              <Route element={<RootLayout />}>
+                <Route index element={<LandingPage />} />
+                <Route path="home" element={<RoleRedirect />} />
             <Route path="prueba-gratis" element={<TrialSignupPage />} />
             <Route path="privacidad" element={<PrivacyPage />} />
             <Route path="terminos" element={<TermsPage />} />
@@ -190,7 +251,7 @@ export default function App() {
           <Route path="register" element={<RegistrationGate />} />
           <Route path="c/:companySlug" element={<PublicLandingPage />} />
 
-          <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
+          <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><CompanyContextGuard><AppLayout /></CompanyContextGuard></RoleGuard>}>
             <Route index element={<AdminDashboard />} />
             <Route path="students" element={<StudentsPage />} />
             <Route path="records" element={<GuardedRoute moduleCode="documents"><RecordsPage /></GuardedRoute>} />
@@ -233,7 +294,7 @@ export default function App() {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="student" element={<RoleGuard roles={['student']}><AppLayout /></RoleGuard>}>
+          <Route path="student" element={<RoleGuard roles={['student']}><StudentVerticalGate><AppLayout /></StudentVerticalGate></RoleGuard>}>
             <Route index element={<StudentHome />} />
             <Route path="courses" element={<StudentCoursesPage />} />
             <Route path="courses/:id" element={<CourseDetailPage />} />
@@ -249,7 +310,17 @@ export default function App() {
             <Route path="events" element={<GuardedRoute moduleCode="events"><StudentEventsPage /></GuardedRoute>} />
             <Route path="events/history" element={<GuardedRoute moduleCode="events"><StudentEventsHistoryPage /></GuardedRoute>} />
             <Route path="events/:id" element={<GuardedRoute moduleCode="events"><StudentEventDetailPage /></GuardedRoute>} />
-            <Route path="events/:eventId/payment-result" element={<GuardedRoute moduleCode="events"><StudentEventPaymentResultPage /></GuardedRoute>} />
+            <Route path="events/payment-result" element={<GuardedRoute moduleCode="events"><StudentEventPaymentResultPage /></GuardedRoute>} />
+          </Route>
+
+          <Route path="estudiante" element={<RoleGuard roles={['student']}><AppLayout /></RoleGuard>}>
+            <Route index element={<EstudianteHomePage />} />
+            <Route path="formaciones" element={<EstudianteFormacionesPage />} />
+            <Route path="formaciones/:enrollmentId" element={<EstudianteFormacionDetailPage />} />
+            <Route path="pagos" element={<EstudiantePagosPage />} />
+            <Route path="pagos/mercadopago/result" element={<EstudianteMercadoPagoResultPage />} />
+            <Route path="certificaciones" element={<EstudianteCertificacionesPage />} />
+            <Route path="perfil" element={<StudentProfilePage />} />
           </Route>
 
           <Route path="superadmin" element={<RoleGuard roles={['superadmin']}><AppLayout /></RoleGuard>}>
@@ -262,6 +333,40 @@ export default function App() {
             <Route path="document-types" element={<SuperAdminDocumentTypesPage />} />
             <Route path="news" element={<SuperAdminNewsPage />} />
             <Route path="price-increases" element={<SuperAdminPriceIncreasesPage />} />
+          </Route>
+
+          <Route path="group-admin/:companySlug" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
+            <Route index element={<GroupAdminPage />} />
+          </Route>
+
+          <Route path="educativa/:companySlug" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
+            <Route index element={<PermissionedRoute code="dashboard"><EducativaDashboardPage /></PermissionedRoute>} />
+            <Route path="commissions" element={<PermissionedRoute code="commissions"><EducativaCommissionsPage /></PermissionedRoute>} />
+            <Route path="commissions/:commissionId/classes" element={<PermissionedRoute code="commissions"><EducativaCommissionClassesPage /></PermissionedRoute>} />
+            <Route path="commissions/:commissionId/enrollments" element={<PermissionedRoute code="commissions"><EducativaEnrollmentsPage /></PermissionedRoute>} />
+            <Route path="commissions/:commissionId/enrollments/:enrollmentId" element={<PermissionedRoute code="commissions"><EducativaEnrollmentDetailPage /></PermissionedRoute>} />
+            <Route path="formaciones" element={<PermissionedRoute code="trainings"><EducativaFormacionesPage /></PermissionedRoute>} />
+            <Route path="asistencias" element={<PermissionedRoute code="attendance"><EducativaAsistenciasPage /></PermissionedRoute>} />
+            <Route path="alumnos" element={<PermissionedRoute code="students"><AlumnosPage /></PermissionedRoute>} />
+            <Route path="records" element={<PermissionedRoute code="records"><RecordsPage /></PermissionedRoute>} />
+            <Route path="docentes" element={<PermissionedRoute code="teachers"><DocentesPage /></PermissionedRoute>} />
+            <Route path="classes" element={<PermissionedRoute code="commissions"><EducativaClasesPage /></PermissionedRoute>} />
+            <Route path="config-pagos" element={<PermissionedRoute code="institution-settings"><ConfigPagosPage /></PermissionedRoute>} />
+            <Route path="config-cuotas" element={<PermissionedRoute code="institution-settings"><ConfigCuotasPage /></PermissionedRoute>} />
+            <Route path="graduados" element={<PermissionedRoute code="graduates"><GraduadosPage /></PermissionedRoute>} />
+            <Route path="promociones" element={<PermissionedRoute code="promotions"><PromocionesPage /></PermissionedRoute>} />
+            <Route path="certificaciones" element={<PermissionedRoute code="certifications"><EducativaCertificacionesPage /></PermissionedRoute>} />
+            <Route path="pagos" element={<PermissionedRoute code="cuotas"><PagosPage /></PermissionedRoute>} />
+            <Route path="permissions" element={<PermissionedRoute code="admin-management"><EducativaPermissionsPage /></PermissionedRoute>} />
+            <Route path="company" element={<PermissionedRoute code="institution-settings"><CompanyPage /></PermissionedRoute>} />
+            <Route path="public-page" element={<PermissionedRoute code="institution-settings"><PublicPageAdmin /></PermissionedRoute>} />
+            <Route path="billing" element={<PermissionedRoute code="billing"><AdminBillingPage /></PermissionedRoute>} />
+            <Route path="announcements" element={<PermissionedRoute code="news"><AnnouncementsPage /></PermissionedRoute>} />
+            <Route path="profile" element={<ProfilePage />} />
+          </Route>
+
+          <Route path="docente" element={<RoleGuard roles={['docente', 'teacher']}><AppLayout /></RoleGuard>}>
+            <Route index element={<DocenteMisClasesPage />} />
           </Route>
 
           <Route path="event-operator" element={<RoleGuard roles={['eventoperator']}><OperatorLayout /></RoleGuard>}>
@@ -299,7 +404,11 @@ export default function App() {
           <Route path="src/pages/admin/student-files/index.html" element={<Navigate to="/admin/records" replace />} />
           <Route path="src/pages/admin/students/sibling-links/index.html" element={<Navigate to="/admin/siblings" replace />} />
           <Route path="*" element={<RoleRedirect />} />
-        </Routes>
+            </Routes>
+          </>
+        ) : (
+          <SplashScreen />
+        )}
       </BrowserRouter>
     </QueryClientProvider>
   )

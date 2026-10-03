@@ -234,7 +234,9 @@ function PaymentPageInner() {
     const result = new Map<string, StudentBilling>()
     for (const current of billing) {
       const ownerKey = current.studentId || current.studentFullName || ''
-      const currentDue = new Date(current.dueDateUtc).getTime()
+      const isEarlierPeriod = (candidate: StudentBilling) =>
+        candidate.year < current.year ||
+        (candidate.year === current.year && candidate.month < current.month)
       const earlier = billing
         .filter((candidate) => {
           const candidateOwnerKey = candidate.studentId || candidate.studentFullName || ''
@@ -242,12 +244,14 @@ function PaymentPageInner() {
           const paymentStatus = normalizePaymentStatus(candidate.paymentStatus)
           return candidate.chargeId !== current.chargeId &&
             candidateOwnerKey === ownerKey &&
-            candidate.chargeTypeId === current.chargeTypeId &&
             (status === 'pending' || status === 'overdue') &&
             paymentStatus !== 'approved' &&
-            new Date(candidate.dueDateUtc).getTime() < currentDue
+            isEarlierPeriod(candidate)
         })
-        .sort((a, b) => new Date(a.dueDateUtc).getTime() - new Date(b.dueDateUtc).getTime())[0]
+        .sort((a, b) =>
+          (a.year - b.year) ||
+          (a.month - b.month) ||
+          new Date(a.dueDateUtc).getTime() - new Date(b.dueDateUtc).getTime())[0]
       if (earlier) result.set(current.chargeId, earlier)
     }
     return result
@@ -528,7 +532,7 @@ function StudentChargeCard({
         </div>
         {paymentBlockedByDebt && earlierDebt && (
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-            Primero resolvé la cuota anterior que vence el {formatDate(earlierDebt.dueDateUtc)}.
+            Primero resolvé la deuda del período {String(earlierDebt.month).padStart(2, '0')}/{earlierDebt.year}.
           </p>
         )}
       </div>

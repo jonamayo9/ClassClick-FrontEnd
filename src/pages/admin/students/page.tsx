@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { apiService } from '@/lib/api'
@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Select } from '@/components/ui/select'
+import { ActionMenu } from '@/components/ui/action-menu'
 import { AxiosError } from 'axios'
 import { createWhatsAppUrl } from '@/lib/whatsapp'
 
@@ -52,34 +53,6 @@ function StudentAvatar({ student, className }: { student: Student; className?: s
 
 const regBadge = (c: boolean) => c ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
 const activeBadge = (a: boolean) => a ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
-
-function ActionMenu({ actions }: { actions: { label: string; onClick: () => void; danger?: boolean }[] }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    function handleClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    if (open) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300">
-        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="10" cy="16" r="1.5" /></svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-          {actions.map((a) => (
-            <button key={a.label} onClick={() => { setOpen(false); a.onClick() }}
-              className={`flex w-full items-center px-4 py-2.5 text-left text-sm font-medium transition ${a.danger ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'}`}>
-              {a.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function StudentsPage() { return <ToastProvider><StudentsPageInner /></ToastProvider> }
 

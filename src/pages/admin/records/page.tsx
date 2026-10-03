@@ -22,6 +22,11 @@ import type { Student, StudentDocument } from './hooks'
 const PAGE_SIZE = 20
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
+/** "Curso" es del vertical Deportivo; en Educativa se oculta el filtro y no se consulta. */
+function isEducativaContext() {
+  return useAuth.getState().companies.find((c) => (c.slug ?? c.companySlug) === slug())?.vertical === 'Educativa'
+}
+
 async function downloadBlob(url: string, fileName: string) {
   try {
     const res = await fetch(url)
@@ -49,6 +54,7 @@ function isPdf(m: string | null) { return String(m || '').toLowerCase() === 'app
 
 export default function RecordsPage() {
   const qc = useQueryClient()
+  const isEducativa = isEducativaContext()
   const [pageTab, setPageTab] = useState<'records' | 'documents'>('records')
   const [draft, setDraft] = useState({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
   const [applied, setApplied] = useState({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
@@ -154,13 +160,15 @@ export default function RecordsPage() {
                 onChange={(e) => setDraft((p) => ({ ...p, search: e.target.value }))}
                 onKeyDown={(e) => e.key === 'Enter' && applyFilters()} />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Curso</label>
-              <FilterSelect value={draft.courseId} onChange={(v) => setDraft((p) => ({ ...p, courseId: v }))}>
-                <option value="">Todos los cursos</option>
-                {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </FilterSelect>
-            </div>
+            {!isEducativa && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Curso</label>
+                <FilterSelect value={draft.courseId} onChange={(v) => setDraft((p) => ({ ...p, courseId: v }))}>
+                  <option value="">Todos los cursos</option>
+                  {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </FilterSelect>
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Alumno</label>
               <FilterSelect value={draft.status} onChange={(v) => setDraft((p) => ({ ...p, status: v }))}>
@@ -734,6 +742,7 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
   onReview?: (doc: StudentDocument) => void
   toast: (msg: string, type?: 'success' | 'error') => void
 }) {
+  const isEducativa = isEducativaContext()
   const PAGE_SIZE = 20
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -840,11 +849,13 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Input placeholder="Buscar alumno o documento..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
-        <select value={filterCourse} onChange={(e) => { setFilterCourse(e.target.value); setPage(1) }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-          <option value="">Todos los cursos</option>
-          {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {!isEducativa && (
+          <select value={filterCourse} onChange={(e) => { setFilterCourse(e.target.value); setPage(1) }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option value="">Todos los cursos</option>
+            {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <select value={filterDocType} onChange={(e) => { setFilterDocType(e.target.value); setPage(1) }}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
           <option value="">Todos los tipos</option>
@@ -1440,7 +1451,8 @@ function DetailDrawer({ detail, isLoading, documentTypes, onClose, onDownload, o
                     <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
                       className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-violet-700 shadow-sm border border-slate-200 rounded-xl px-3 py-2 hover:file:bg-violet-50 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-violet-300 dark:border-slate-600" />
                   </div>
-                  <Button size="sm" onClick={handleUpload} disabled={!uploadFile || !uploadDocType} loading={uploading}
+                  <Button size="sm" onClick={handleUpload}
+                    disabled={!uploadFile || (!isEducativaContext() && !uploadDocType)} loading={uploading}
                     className="bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-500/20 shrink-0 sm:w-auto w-full">Subir</Button>
                 </div>
                 {uploadFile && (

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { FileText, X } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 
@@ -62,9 +63,10 @@ interface OverdueInvoiceModalProps {
   open: boolean
   invoices: OverdueInvoice[]
   onClose: () => void
+  isSport?: boolean
 }
 
-export function OverdueInvoiceModal({ open, invoices, onClose }: OverdueInvoiceModalProps) {
+export function OverdueInvoiceModal({ open, invoices, onClose, isSport = false }: OverdueInvoiceModalProps) {
   const navigate = useNavigate()
 
   function goToInvoice() {
@@ -73,6 +75,35 @@ export function OverdueInvoiceModal({ open, invoices, onClose }: OverdueInvoiceM
   }
 
   const single = invoices.length === 1
+
+  if (isSport) {
+    if (!open || invoices.length === 0) return null
+    const title = single ? 'Tenés una factura vencida' : `Tenés ${invoices.length} facturas vencidas`
+    const desc = single
+      ? 'Una factura de tu institución hacia ClassClick se encuentra vencida. Regularizala para evitar que la mora continúe acumulándose.'
+      : `Tu institución tiene ${invoices.length} facturas vencidas hacia ClassClick. Regularizalas para evitar que la mora continúe acumulándose.`
+    return (
+      <div className="flex min-h-[56px] w-full flex-col justify-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/40 dark:bg-[#2A1C10] dark:shadow-[0_2px_10px_rgba(2,8,23,0.4)]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/15">
+            <FileText className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-amber-900 dark:text-white">{title}</p>
+            <p className="mt-0.5 truncate text-xs leading-snug text-amber-700 dark:text-amber-100/70">{desc}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={goToInvoice} className="bg-amber-500 text-amber-950 hover:bg-amber-400">
+            Ver factura
+          </Button>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-amber-700 transition hover:bg-amber-100 hover:text-amber-900 dark:text-amber-100/60 dark:hover:bg-white/5 dark:hover:text-amber-100" aria-label="Cerrar">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <Modal

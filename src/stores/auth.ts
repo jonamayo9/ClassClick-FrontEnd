@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { storage } from '@/lib/storage'
 import { apiService } from '@/lib/api'
-import type { User, Company } from '@/types/auth'
+import type { User, Company, CompanyContextMode } from '@/types/auth'
 
 interface AuthState {
   token: string | null
@@ -9,14 +9,16 @@ interface AuthState {
   companies: Company[]
   activeCompanySlug: string | null
   activeRole: string | null
+  mode: CompanyContextMode | null
   isLoading: boolean
   dashboardAlertsShown: boolean
+  hydrated: boolean
 
   hydrate: () => void
   login: (email: string, password: string) => Promise<void>
   loginWithGoogle: (idToken: string) => Promise<void>
   logout: () => Promise<void>
-  switchCompany: (company: Company) => void
+  switchCompany: (company: Company, mode?: CompanyContextMode) => void
   fetchCompanies: () => Promise<void>
   invalidateLocalSession: () => void
   dismissAlerts: () => void
@@ -47,14 +49,21 @@ function resolveCompanySlug(company: Company | null) {
   return company.slug ?? company.companySlug ?? null
 }
 
+function resolveMode(company: Company | null): CompanyContextMode {
+  if (!company) return 'direct'
+  return company.structureType === 'Group' ? 'group' : 'direct'
+}
+
 export const useAuth = create<AuthState>((set, _get) => ({
   token: storage.getToken(),
   user: storage.getUser<User>(),
   companies: storage.getCompanies<Company>(),
   activeCompanySlug: storage.getActiveCompanySlug(),
   activeRole: storage.getActiveRole(),
+  mode: storage.getActiveContext<{ mode?: CompanyContextMode } | null>()?.mode ?? 'direct',
   isLoading: false,
   dashboardAlertsShown: false,
+  hydrated: false,
 
   hydrate: () => {
     const token = storage.getToken()
@@ -62,8 +71,10 @@ export const useAuth = create<AuthState>((set, _get) => ({
     const companies = storage.getCompanies<Company>()
     const activeCompanySlug = storage.getActiveCompanySlug()
     const activeRole = storage.getActiveRole()
+    const context = storage.getActiveContext<{ mode?: CompanyContextMode } | null>()
+    const mode = context?.mode ?? 'direct'
     const shown = sessionStorage.getItem('dashboardAlertsShown') === 'true'
-    set({ token, user, companies, activeCompanySlug, activeRole, dashboardAlertsShown: shown })
+    set({ token, user, companies, activeCompanySlug, activeRole, mode, dashboardAlertsShown: shown, hydrated: true })
   },
 
   dismissAlerts: () => {
@@ -96,6 +107,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
       const defaultAccess = resolveDefaultAccess(companies)
       const companySlug = resolveCompanySlug(defaultAccess)
       const role = resolveRole(defaultAccess)
+      const mode = resolveMode(defaultAccess)
 
       const context: Record<string, string | null> = {}
       if (companySlug) {
@@ -108,7 +120,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
       }
 
       if (companySlug && role) {
-        storage.setActiveContext({ companySlug, role })
+        storage.setActiveContext({ companySlug, role, mode })
       }
 
       set({
@@ -117,8 +129,10 @@ export const useAuth = create<AuthState>((set, _get) => ({
         companies,
         activeCompanySlug: companySlug,
         activeRole: role,
+        mode,
         isLoading: false,
         dashboardAlertsShown: false,
+        hydrated: true,
       })
     } catch (err) {
       set({ isLoading: false })
@@ -151,10 +165,11 @@ export const useAuth = create<AuthState>((set, _get) => ({
       const defaultAccess = resolveDefaultAccess(companies)
       const companySlug = resolveCompanySlug(defaultAccess)
       const role = resolveRole(defaultAccess)
+      const mode = resolveMode(defaultAccess)
 
       if (companySlug) storage.setActiveCompanySlug(companySlug)
       if (role) storage.setActiveRole(role)
-      if (companySlug && role) storage.setActiveContext({ companySlug, role })
+      if (companySlug && role) storage.setActiveContext({ companySlug, role, mode })
 
       set({
         token,
@@ -162,7 +177,9 @@ export const useAuth = create<AuthState>((set, _get) => ({
         companies,
         activeCompanySlug: companySlug,
         activeRole: role,
+        mode,
         isLoading: false,
+        hydrated: true,
       })
     } catch (err) {
       set({ isLoading: false })
@@ -185,20 +202,21 @@ export const useAuth = create<AuthState>((set, _get) => ({
     } catch {
       // ignore
     }
-    storage.clearSession()
+storage.clearSession()
     sessionStorage.removeItem('dashboardAlertsShown')
     sessionStorage.removeItem('overdueInvoiceModalShown');
       sessionStorage.removeItem('newsModalShown')
-    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, dashboardAlertsShown: false })
+    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, mode: null, dashboardAlertsShown: false, hydrated: true })
   },
 
-  switchCompany: (company: Company) => {
+  switchCompany: (company: Company, modeArg?: CompanyContextMode) => {
     const slug = resolveCompanySlug(company)
     const role = resolveRole(company)
+    const mode = modeArg ?? resolveMode(company)
     if (slug) storage.setActiveCompanySlug(slug)
     if (role) storage.setActiveRole(role)
-    if (slug && role) storage.setActiveContext({ companySlug: slug, role })
-    set({ activeCompanySlug: slug, activeRole: role })
+    if (slug && role) storage.setActiveContext({ companySlug: slug, role, mode })
+    set({ activeCompanySlug: slug, activeRole: role, mode })
   },
 
   fetchCompanies: async () => {
@@ -212,14 +230,23 @@ export const useAuth = create<AuthState>((set, _get) => ({
             ? (data as Record<string, unknown>).data
             : []
       const list: Company[] = (raw as Record<string, unknown>[]).map((item) => ({
+        id: (item.id ?? item.companyId ?? '') as string,
+        companyId: (item.id ?? item.companyId ?? '') as string,
         slug: (item.slug ?? item.companySlug ?? '') as string,
         companySlug: (item.slug ?? item.companySlug ?? '') as string,
         name: (item.name ?? item.companyName ?? 'Empresa') as string,
+        companyName: (item.name ?? item.companyName ?? 'Empresa') as string,
         role: (item.role ?? '') as string,
         logoUrl: (item.logoUrl ?? '') as string,
         LogoUrl: (item.logoUrl ?? '') as string,
         modules: (item.modules ?? {}) as Record<string, boolean>,
+        permissions: (item.permissions ?? {}) as Record<string, boolean>,
         isActive: (item.isActive ?? true) as boolean,
+        structureType: (item.structureType ?? 'Individual') as Company['structureType'],
+        vertical: (item.vertical ?? null) as Company['vertical'],
+        parentCompanyId: (item.parentCompanyId ?? undefined) as string | undefined,
+        parentCompanyName: (item.parentCompanyName ?? undefined) as string | undefined,
+        children: (item.children ?? []) as Company[],
       }))
       storage.setCompanies(list)
       set({ companies: list })
@@ -254,10 +281,10 @@ export const useAuth = create<AuthState>((set, _get) => ({
       }
     }
   },
-  invalidateLocalSession: () => {
+invalidateLocalSession: () => {
     sessionStorage.removeItem('dashboardAlertsShown')
     sessionStorage.removeItem('overdueInvoiceModalShown');
       sessionStorage.removeItem('newsModalShown')
-    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, isLoading: false, dashboardAlertsShown: false })
+    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, mode: null, isLoading: false, dashboardAlertsShown: false })
   },
 }))

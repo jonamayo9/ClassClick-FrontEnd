@@ -114,10 +114,14 @@ export interface DocumentType {
 }
 
 export function useCourses() {
+  // "Curso" es un concepto del vertical Deportivo. En Educativa no se consultan cursos
+  // (evita depender de /api/admin/.../courses, exclusivo de Deportivo) ni se usa el filtro.
+  const company = useAuth.getState().companies.find((c) => (c.slug ?? c.companySlug) === slug())
+  const isEducativa = company?.vertical === 'Educativa'
   return useQuery({
     queryKey: ['records-courses', slug()],
     queryFn: () => apiService.get<Course[]>(`/api/admin/${slug()}/courses`),
-    enabled: !!slug(),
+    enabled: !!slug() && !isEducativa,
     select: (data) => (Array.isArray(data) ? data : []),
   })
 }
