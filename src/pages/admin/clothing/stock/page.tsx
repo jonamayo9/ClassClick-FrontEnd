@@ -12,6 +12,22 @@ import type { Product, ProductVariant } from '../hooks'
 import { useProducts } from '../products/hooks'
 import { useUpdateProductStock, useUpdateVariantStock } from './hooks'
 
+function StockNumbers({ tracksStock, stockQuantity, reservedQuantity, availableQuantity }: {
+  tracksStock: boolean
+  stockQuantity: number | null
+  reservedQuantity: number
+  availableQuantity: number | null
+}) {
+  if (!tracksStock) {
+    return <span className="text-xs text-slate-400">Disponible siempre</span>
+  }
+  return (
+    <span className="text-xs text-slate-600 dark:text-slate-300">
+      Físico: <b>{stockQuantity ?? 0}</b> · Reservado: <b>{reservedQuantity}</b> · Disponible: <b className="text-violet-600 dark:text-violet-400">{availableQuantity ?? 0}</b>
+    </span>
+  )
+}
+
 function StockPageInner() {
   const { data: products = [], isLoading } = useProducts()
   const updateProductStock = useUpdateProductStock()
@@ -23,7 +39,7 @@ function StockPageInner() {
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [editTracksStock, setEditTracksStock] = useState(true)
   const [editQuantity, setEditQuantity] = useState('0')
-  const [variantEdits, setVariantEdits] = useState<Record<string, { tracksStock: boolean; stockQuantity: string; isActive: boolean }>>({})
+  const [savingVariantId, setSavingVariantId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const text = search.trim().toLowerCase()
@@ -39,27 +55,23 @@ function StockPageInner() {
     variants: products.reduce((sum, p) => sum + (p.variants?.length ?? 0), 0),
     outOfStock: products.filter((p) => {
       if (!p.isActive) return false
-      if (p.hasVariants) return p.variants?.every((v) => v.isActive && v.tracksStock && !v.stockQuantity)
-      return p.tracksStock && !p.stockQuantity
+      if (p.hasVariants) {
+        const variants = p.variants ?? []
+        if (variants.length === 0) return false
+        return variants.filter((v) => v.isActive && v.tracksStock).length > 0 &&
+          variants.filter((v) => v.isActive && v.tracksStock && (v.availableQuantity ?? 0) <= 0).length === variants.filter((v) => v.isActive && v.tracksStock).length
+      }
+      return p.tracksStock && (p.availableQuantity ?? 0) <= 0
     }).length,
   }
 
-    function toggleExpand(product: Product) {
+  function toggleExpand(product: Product) {
     const isCurrentlyExpanded = expanded.has(product.id)
     if (isCurrentlyExpanded) {
       setExpanded((prev) => { const n = new Set(prev); n.delete(product.id); return n })
     } else {
       setExpanded((prev) => { const n = new Set(prev); n.add(product.id); return n })
-      product.variants?.forEach((v) => {
-        setVariantEdits((prev) =>
-          prev[v.id] ? prev : { ...prev, [v.id]: { tracksStock: v.tracksStock, stockQuantity: v.stockQuantity == null ? '0' : String(v.stockQuantity), isActive: v.isActive } }
-        )
-      })
     }
-  }
-
-  function patchVariantEdit(variantId: string, patch: Partial<{ tracksStock: boolean; stockQuantity: string; isActive: boolean }>) {
-    setVariantEdits((prev) => ({ ...prev, [variantId]: { ...prev[variantId], ...patch } }))
   }
 
   function openEditProduct(p: Product) {
@@ -84,6 +96,7 @@ function StockPageInner() {
   }
 
   async function saveVariantStock(productId: string, variant: ProductVariant) {
+    setSavingVariantId(variant.id)
     try {
       await updateVariantStock.mutateAsync({
         productId,
@@ -95,31 +108,26 @@ function StockPageInner() {
       toast(`Variante "${variant.name}" actualizada.`)
     } catch {
       toast(`Error al actualizar la variante "${variant.name}".`, 'error')
+    } finally {
+      setSavingVariantId(null)
     }
-  }
-
-  function variantBadge(v: ProductVariant): { label: string; variant: 'success' | 'danger' | 'info' | 'default' } {
-    if (!v.isActive) return { label: 'Inactivo', variant: 'default' }
-    if (!v.tracksStock) return { label: 'Disponible siempre', variant: 'info' }
-    if (v.stockQuantity && v.stockQuantity > 0) return { label: `${v.stockQuantity}`, variant: 'success' }
-    return { label: 'Sin stock', variant: 'danger' }
   }
 
   function productBadge(p: Product): { label: string; variant: 'success' | 'danger' | 'info' | 'default' } {
     if (!p.isActive) return { label: 'Inactivo', variant: 'default' }
     if (p.hasVariants) return { label: `${p.variants?.filter((v) => v.isActive).length ?? 0} variantes activas`, variant: 'info' }
     if (!p.tracksStock) return { label: 'Disponible siempre', variant: 'info' }
-    if (p.stockQuantity && p.stockQuantity > 0) return { label: `${p.stockQuantity} en stock`, variant: 'success' }
+    if ((p.availableQuantity ?? 0) > 0) return { label: `${p.availableQuantity} disponibles`, variant: 'success' }
     return { label: 'Sin stock', variant: 'danger' }
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
-      <BackButton to="/admin/clothing" label="Volver a Indumentaria" />
+      <BackButton to="/admin/clothing" label="Volver a la tienda" />
       <PageHero
         label="Stock"
         title="Gestión de stock"
-        description="Controlá el stock por producto y por variante."
+        description="Stock físico, reservado y disponible por producto y variante."
         stats={[
           { label: 'Productos', value: stats.products },
           { label: 'Variantes', value: stats.variants },
@@ -147,27 +155,25 @@ function StockPageInner() {
           <EmptyState icon="📦" title="Sin productos" description="No hay productos para mostrar." />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50">
-                <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                  <th className="px-4 py-3">Producto</th>
-                  <th className="px-4 py-3">Categoría</th>
-                  <th className="px-4 py-3">Tipo</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filtered.map((p, idx) => {
-                  const bg = idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'
-                  const badge = productBadge(p)
-                  return (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/50">
+                  <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    <th className="px-4 py-3">Producto</th>
+                    <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Stock</th>
+                    <th className="px-4 py-3 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filtered.map((p) => (
                     <Fragment key={p.id}>
-                      <tr className={bg}>
+                      <tr className="bg-white dark:bg-slate-900">
                         <td className="px-4 py-3">
                           <p className="font-semibold text-slate-900 dark:text-white">{p.name}</p>
+                          <p className="text-xs text-slate-400">{p.categoryName ?? ''}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{p.categoryName ?? '-'}</td>
                         <td className="px-4 py-3">
                           {p.hasVariants ? (
                             <span className="text-xs text-violet-600 dark:text-violet-400">Con variantes</span>
@@ -176,7 +182,13 @@ function StockPageInner() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          <Badge variant={productBadge(p).variant}>{productBadge(p).label}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          {p.hasVariants
+                            ? <StockNumbers tracksStock={true} stockQuantity={null} reservedQuantity={0} availableQuantity={null} />
+                            : <StockNumbers tracksStock={p.tracksStock} stockQuantity={p.stockQuantity} reservedQuantity={p.reservedQuantity} availableQuantity={p.availableQuantity} />
+                          }
                         </td>
                         <td className="px-4 py-3 text-right">
                           {p.hasVariants ? (
@@ -200,36 +212,25 @@ function StockPageInner() {
                               ) : (
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                   {p.variants.map((v) => {
-                                    const edit = variantEdits[v.id] ?? { tracksStock: v.tracksStock, stockQuantity: v.stockQuantity == null ? '0' : String(v.stockQuantity), isActive: v.isActive }
-                                    const localTracks = edit.tracksStock
-                                    const localActive = edit.isActive
+                                    const localTracks = v.tracksStock
+                                    const localActive = v.isActive
                                     return (
                                       <div key={v.id} className="flex flex-wrap items-center gap-3 py-2">
                                         <span className="min-w-[100px] text-sm font-medium text-slate-900 dark:text-white">{v.name}</span>
-                                        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                                          <input type="checkbox" checked={localTracks} onChange={(e) => patchVariantEdit(v.id, { tracksStock: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-violet-600" />
-                                          Stock
-                                        </label>
-                                        {localTracks ? (
-                                          <Input type="number" min="0" value={edit.stockQuantity} onChange={(e) => patchVariantEdit(v.id, { stockQuantity: e.target.value })} className="w-20" />
-                                        ) : (
-                                          <span className="w-20 text-xs text-slate-400">Siempre</span>
-                                        )}
-                                        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                                          <input type="checkbox" checked={localActive} onChange={(e) => patchVariantEdit(v.id, { isActive: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-violet-600" />
-                                          Activa
-                                        </label>
-                                        <Badge variant={variantBadge(v).variant}>{variantBadge(v).label}</Badge>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                          {localActive ? 'Activa' : 'Inactiva'}
+                                        </span>
+                                        <StockNumbers tracksStock={localTracks} stockQuantity={v.stockQuantity} reservedQuantity={v.reservedQuantity} availableQuantity={v.availableQuantity} />
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          loading={updateVariantStock.isPending}
+                                          loading={savingVariantId === v.id}
                                           onClick={async () => {
                                             const updated: ProductVariant = {
                                               ...v,
-                                              tracksStock: localTracks,
-                                              stockQuantity: localTracks ? Number(edit.stockQuantity || 0) : null,
-                                              isActive: localActive,
+                                              tracksStock: v.tracksStock,
+                                              stockQuantity: v.tracksStock ? Number(v.stockQuantity ?? 0) : null,
+                                              isActive: v.isActive,
                                             }
                                             await saveVariantStock(p.id, updated)
                                           }}
@@ -246,10 +247,10 @@ function StockPageInner() {
                         </tr>
                       )}
                     </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </Card>
@@ -261,6 +262,7 @@ function StockPageInner() {
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
               <div>
                 <h2 className="text-base font-bold text-slate-900 dark:text-white">Stock: {editProduct.name}</h2>
+                <p className="text-xs text-slate-400">Físico {editProduct.stockQuantity ?? 0} · Reservado {editProduct.reservedQuantity} · Disponible {editProduct.availableQuantity ?? 0}</p>
               </div>
               <button
                 onClick={() => setEditProduct(null)}
@@ -276,8 +278,9 @@ function StockPageInner() {
               </label>
               {editTracksStock && (
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Cantidad</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Stock físico</label>
                   <Input type="number" min="0" value={editQuantity} onChange={(e) => setEditQuantity(e.target.value)} />
+                  <p className="mt-1 text-xs text-slate-400">El stock físico no puede quedar menor a lo reservado ({editProduct.reservedQuantity}).</p>
                 </div>
               )}
               <div className="flex gap-3 pt-1">

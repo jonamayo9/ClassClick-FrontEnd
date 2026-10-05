@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
-import { cancellationStatusLabel } from '../hooks'
+import { cancellationStatusLabel, CancellationStatus } from '../hooks'
 import { useCancellationRequests, useApproveCancellation, useRejectCancellation } from './hooks'
 
 function CancellationsPageInner() {
@@ -33,7 +33,7 @@ function CancellationsPageInner() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => r.status === 1).length,
+    pending: requests.filter((r) => r.status === CancellationStatus.Pending).length,
   }
 
   async function handleAction() {
@@ -104,7 +104,7 @@ function CancellationsPageInner() {
                         <Badge variant={cs.variant}>{cs.label}</Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {r.status === 1 && (
+                        {r.status === CancellationStatus.Pending && (
                           <div className="flex justify-end gap-1.5">
                             <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => { setActionRequest({ id: r.id, type: 'approve' }); setNote('') }}>
                               Aprobar

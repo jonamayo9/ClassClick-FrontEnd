@@ -18,6 +18,9 @@ interface EstadoGeneralHeroProps {
   /** Asistencia real del período (fallback cuando el factor "Asistencia" de hoy no tiene datos). */
   academicRate?: number
   hasAcademicRate?: boolean
+  /** La empresa tiene clases configuradas (funcionalidad Asistencia aplicable). Si es false,
+   *  el factor Académico (asistencia) se EXCLUYE del Estado General. */
+  hasAttendanceSetup?: boolean
   attention?: EstadoGeneralAttention | null
   onVerDetalle: () => void
 }
@@ -161,6 +164,11 @@ function Indicator({
   )
 }
 
+const INDICATOR_GRID: Record<number, string> = {
+  2: 'grid grid-cols-1 gap-3 sm:grid-cols-2',
+  3: 'grid grid-cols-1 gap-3 sm:grid-cols-3',
+}
+
 export function EstadoGeneralHero({
   state,
   loading,
@@ -168,6 +176,7 @@ export function EstadoGeneralHero({
   hasOccupancyData,
   academicRate,
   hasAcademicRate,
+  hasAttendanceSetup,
   attention,
   onVerDetalle,
 }: EstadoGeneralHeroProps) {
@@ -198,7 +207,12 @@ export function EstadoGeneralHero({
 
   const academicFactor = state.factors.find((f) => f.name === 'Asistencia')
   const financialFactor = state.factors.find((f) => f.name === 'Cobranza')
-  const missing = state.factors.filter((f) => !f.hasData).map((f) => f.name)
+  const missing = state.factors
+    .filter((f) => !f.hasData)
+    // Sin clases configuradas, Asistencia queda EXCLUIDA del Estado General (no se reporta
+    // como factor faltante ni como "sin datos"): la funcionalidad no aplica.
+    .filter((f) => !(f.name === 'Asistencia' && !hasAttendanceSetup))
+    .map((f) => f.name)
   const missingLabel = missing.length > 0 ? `Falta: ${missing.join(', ')}.` : null
 
   // Académico: usa el factor real de asistencia (hoy). Si no hay asistencia registrada hoy
@@ -219,14 +233,16 @@ export function EstadoGeneralHero({
   const StatusIcon = s.icon
 
   const indicators = (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <Indicator
-        icon={<GraduationCap className="h-4 w-4" aria-hidden="true" />}
-        label="Académico"
-        value={academicValue}
-        color="#22c55e"
-        hasData={academicData}
-      />
+    <div className={INDICATOR_GRID[(hasAttendanceSetup ? 1 : 0) + 2]}>
+      {hasAttendanceSetup && (
+        <Indicator
+          icon={<GraduationCap className="h-4 w-4" aria-hidden="true" />}
+          label="Académico"
+          value={academicValue}
+          color="#22c55e"
+          hasData={academicData}
+        />
+      )}
       <Indicator
         icon={<CircleDollarSign className="h-4 w-4" aria-hidden="true" />}
         label="Financiero"

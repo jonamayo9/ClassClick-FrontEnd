@@ -18,9 +18,13 @@ import { NovedadesModal, type AdminNews } from './components/NovedadesModal'
 import { UpcomingTable } from './components/UpcomingTable'
 import { EstadoGeneralCard } from './components/EstadoGeneralCard'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
-import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
-import type { DonutBreakdownRow } from '@/types/dashboard'
+import { ReviewBanners } from '@/components/reviews/review-banners'
+import { ClothingOrdersDashboardCard } from '@/components/dashboard/clothing-orders-card'
+import { ClothingFinancialDashboardCard } from '@/components/dashboard/clothing-financial-card'
+import { DashboardDetailModal, type DashboardDetailSpec, type DetailColumn, type DetailFilter } from '@/components/dashboard/dashboard-detail-modal'
+import { paymentMethodLabel } from '@/lib/payment-labels'
+import type { EvolutionPoint } from '@/types/dashboard'
 
 function formatPeriodTitle(from: string, to: string): string {
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }
@@ -38,6 +42,90 @@ function formatPeriodTitle(from: string, to: string): string {
     return `últimos ${m} ${m === 1 ? 'mes' : 'meses'}`
   }
   return `${f.toLocaleDateString('es-AR', opts)} al ${t.toLocaleDateString('es-AR', opts)}`
+}
+
+const money = (n: number | undefined | null) => `$${(n ?? 0).toLocaleString('es-AR')}`
+
+function fmtDateUtc(v?: string | null): string {
+  if (!v) return '-'
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return '-'
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${day}/${m}/${y}`
+}
+
+function chargeStatusBadge(status: string) {
+  const map: Record<string, string> = {
+    Paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    Overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    Cancelled: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+  }
+  const label: Record<string, string> = { Paid: 'Pagada', Overdue: 'Vencida', Pending: 'Pendiente', Cancelled: 'Cancelada' }
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${map[status] ?? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+      {label[status] ?? status}
+    </span>
+  )
+}
+
+function paymentStatusBadge(status: string) {
+  const map: Record<string, string> = {
+    Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    Rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    InReview: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  }
+  const label: Record<string, string> = { Approved: 'Aprobado', Rejected: 'Rechazado', InReview: 'En revisión', Pending: 'Pendiente' }
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${map[status] ?? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+      {label[status] ?? status}
+    </span>
+  )
+}
+
+function docStatusBadge(status: string) {
+  const map: Record<string, string> = {
+    Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    Rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    Submitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    Expired: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  }
+  const label: Record<string, string> = {
+    Approved: 'Aprobado', Rejected: 'Rechazado', Pending: 'Pendiente', Submitted: 'Enviado', Expired: 'Expirado',
+  }
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${map[status] ?? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+      {label[status] ?? status}
+    </span>
+  )
+}
+
+function attendanceBadge(situation: string) {
+  const present = situation === 'Presente'
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${present ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>
+      {situation}
+    </span>
+  )
+}
+
+// Grillas dinámicas: cuando una KPI/card no aplica (configuración, permisos o condición
+// funcional) desaparece y las restantes redistribuyen el espacio sin dejar columnas vacías.
+// Las clases son literales para que Tailwind las genere (JIT no admite nombres dinámicos).
+const KPI_GRID: Record<number, string> = {
+  4: 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4',
+  5: 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5',
+  6: 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6',
+}
+
+const DONUT_GRID: Record<number, string> = {
+  2: 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2',
+  3: 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3',
+  4: 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4',
 }
 
 export function AdminDashboard() {
@@ -68,7 +156,8 @@ export function AdminDashboard() {
   const [hasCustomPeriod, setHasCustomPeriod] = useState(false)
   const [chargeTypeId, setChargeTypeId] = useState('')
   const [upcomingPage, setUpcomingPage] = useState(1)
-  const [seeAll, setSeeAll] = useState<{ title: string; rows: DonutBreakdownRow[] } | null>(null)
+  const [detailSpec, setDetailSpec] = useState<DashboardDetailSpec | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(false)
   const [overduePhaseDone, setOverduePhaseDone] = useState(false)
   const [newsOpen, setNewsOpen] = useState(false)
@@ -84,8 +173,8 @@ export function AdminDashboard() {
   const kpis = useDashboardKpis(dataSlug, dateFrom, dateTo, chargeTypeId || undefined)
   const studentsDist = useStudentDistribution(dataSlug, dateFrom, dateTo)
   const chargesDist = useChargeDistribution(dataSlug, dateFrom, dateTo, chargeTypeId || undefined)
-  const docsDist = useDocumentDistribution(dataSlug, dateFrom, dateTo)
-  const attendanceDist = useAttendanceDistribution(dataSlug, dateFrom, dateTo)
+  const docsDist = useDocumentDistribution(dataSlug, dateFrom, dateTo, !!kpis.data?.hasDocumentTypes)
+  const attendanceDist = useAttendanceDistribution(dataSlug, dateFrom, dateTo, !!kpis.data?.hasAttendanceSetup)
   const incomeEvo = useIncomeEvolution(dataSlug, evoFrom, evoTo, chargeTypeId || undefined)
   const studentsEvo = useStudentEvolution(dataSlug, evoFrom, evoTo)
   const alerts = useDashboardAlerts(dataSlug, dateFrom, dateTo)
@@ -218,6 +307,246 @@ export function AdminDashboard() {
     setExporting(null)
   }, [slug, dateFrom, dateTo, chargeTypeId])
 
+  // ── Modales de detalle: cada KPI/gráfico abre un modal con el detalle real ──
+  const periodChip = `Período: ${dateFrom} al ${dateTo}`
+  const chargeTypeOptions = (chargeTypes ?? []).map((ct: any) => ({ value: ct.id, label: ct.name }))
+  const chargeTypeDefault: Record<string, string> = chargeTypeId ? { chargeTypeId } : {}
+  const chargeStatusOptions = [
+    { value: 'Pending', label: 'Pendiente' },
+    { value: 'Overdue', label: 'Vencida' },
+    { value: 'Paid', label: 'Pagada' },
+    { value: 'Unpaid', label: 'Impagas (pendiente + vencida)' },
+  ]
+  const paymentMethodOptions = [
+    { value: 'Transfer', label: 'Transferencia' },
+    { value: 'Cash', label: 'Efectivo' },
+    { value: 'MercadoPago', label: 'Mercado Pago' },
+    { value: 'DebitCard', label: 'Tarjeta de débito' },
+    { value: 'CreditCard', label: 'Tarjeta de crédito' },
+  ]
+  const docStatusOptions = [
+    { value: 'Pending', label: 'Pendiente' },
+    { value: 'Submitted', label: 'Enviado' },
+    { value: 'Approved', label: 'Aprobado' },
+    { value: 'Rejected', label: 'Rechazado' },
+    { value: 'Expired', label: 'Expirado' },
+  ]
+  const attendanceStatusOptions = [
+    { value: 'true', label: 'Presentes' },
+    { value: 'false', label: 'Ausentes' },
+  ]
+
+  const studentColumns: DetailColumn[] = [
+    { key: 'studentName', header: 'Alumno', render: (r: any) => (
+      <div>
+        <p className="font-semibold text-slate-800 dark:text-slate-200">{r.studentName}</p>
+        <p className="text-xs text-slate-400">{r.email}</p>
+      </div>
+    ) },
+    { key: 'dni', header: 'DNI', render: (r: any) => r.dni ?? '—' },
+    { key: 'courseName', header: 'Curso', render: (r: any) => r.courseName ?? '—' },
+    { key: 'createdAtUtc', header: 'Inscripción', render: (r: any) => fmtDateUtc(r.createdAtUtc) },
+    { key: 'registrationCompleted', header: 'Registro', render: (r: any) => r.registrationCompleted ? 'Completo' : 'Pendiente' },
+  ]
+
+  const enrollmentColumns: DetailColumn[] = [
+    { key: 'studentName', header: 'Alumno', render: (r: any) => (
+      <div>
+        <p className="font-semibold text-slate-800 dark:text-slate-200">{r.studentName}</p>
+        <p className="text-xs text-slate-400">{r.email}</p>
+      </div>
+    ) },
+    { key: 'dni', header: 'DNI', render: (r: any) => r.dni ?? '—' },
+    { key: 'courseName', header: 'Curso', render: (r: any) => r.courseName ?? '—' },
+    { key: 'createdAtUtc', header: 'Fecha de alta', render: (r: any) => fmtDateUtc(r.createdAtUtc) },
+    { key: 'registrationCompleted', header: 'Registro', render: (r: any) => r.registrationCompleted ? 'Completo' : 'Pendiente' },
+  ]
+
+  const chargeColumns: DetailColumn[] = [
+    { key: 'studentName', header: 'Alumno', render: (r: any) => <span className="font-semibold text-slate-800 dark:text-slate-200">{r.studentName}</span> },
+    { key: 'period', header: 'Período', render: (r: any) => r.period },
+    { key: 'chargeTypeName', header: 'Tipo', render: (r: any) => r.chargeTypeName },
+    { key: 'dueDateUtc', header: 'Vencimiento', render: (r: any) => fmtDateUtc(r.dueDateUtc) },
+    { key: 'status', header: 'Estado', render: (r: any) => chargeStatusBadge(r.status) },
+    { key: 'amount', header: 'Importe', align: 'right', render: (r: any) => money(r.amount) },
+    { key: 'currency', header: 'Moneda', render: () => <span className="text-xs text-slate-400">ARS</span> },
+    { key: 'balance', header: 'Saldo', align: 'right', render: (r: any) => <span className="font-semibold text-slate-900 dark:text-white">{money(r.balance)}</span> },
+  ]
+
+  const paymentColumns: DetailColumn[] = [
+    { key: 'studentName', header: 'Alumno / Origen', render: (r: any) => (
+      <div>
+        <p className="font-semibold text-slate-800 dark:text-slate-200">{r.studentName ?? r.payerName ?? '—'}</p>
+        <p className="text-xs text-slate-400">{r.concept}</p>
+      </div>
+    ) },
+    { key: 'period', header: 'Período', render: (r: any) => r.period || '—' },
+    { key: 'paidAtUtc', header: 'Fecha', render: (r: any) => fmtDateUtc(r.paidAtUtc) },
+    { key: 'paymentMethod', header: 'Medio de pago', render: (r: any) => paymentMethodLabel(r.paymentMethod) },
+    { key: 'amount', header: 'Importe', align: 'right', render: (r: any) => money(r.amount) },
+    { key: 'currency', header: 'Moneda', render: () => <span className="text-xs text-slate-400">ARS</span> },
+    { key: 'status', header: 'Estado', render: (r: any) => paymentStatusBadge(r.status) },
+  ]
+
+  const attendanceColumns: DetailColumn[] = [
+    { key: 'studentName', header: 'Alumno', render: (r: any) => <span className="font-semibold text-slate-800 dark:text-slate-200">{r.studentName}</span> },
+    { key: 'courseName', header: 'Curso', render: (r: any) => r.courseName },
+    { key: 'classLabel', header: 'Clase', render: (r: any) => r.classLabel },
+    { key: 'date', header: 'Fecha', render: (r: any) => r.date },
+    { key: 'situation', header: 'Situación', render: (r: any) => attendanceBadge(r.situation) },
+  ]
+
+  const docColumns: DetailColumn[] = [
+    { key: 'studentName', header: 'Alumno', render: (r: any) => <span className="font-semibold text-slate-800 dark:text-slate-200">{r.studentName}</span> },
+    { key: 'documentTypeName', header: 'Tipo de documento', render: (r: any) => r.documentTypeName },
+    { key: 'status', header: 'Estado', render: (r: any) => docStatusBadge(r.status) },
+    { key: 'expirationDateUtc', header: 'Vencimiento', render: (r: any) => fmtDateUtc(r.expirationDateUtc) },
+    { key: 'assignedAtUtc', header: 'Asignado', render: (r: any) => fmtDateUtc(r.assignedAtUtc) },
+  ]
+
+  const detailQp = (extra?: Record<string, string>) => {
+    const p = new URLSearchParams({ dateFrom, dateTo })
+    if (extra) for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v)
+    return p.toString()
+  }
+
+  function openDetail(spec: DashboardDetailSpec) {
+    if (!dataSlug) return
+    setDetailSpec(spec)
+    setDetailOpen(true)
+  }
+
+  function openStudents() {
+    openDetail({
+      title: 'Alumnos activos',
+      value: k?.activeStudents ?? 0,
+      valueLabel: 'alumnos activos',
+      periodLabel: periodChip,
+      endpoint: `/api/admin/${dataSlug}/dashboard/detail/students?${detailQp()}`,
+      filters: [{ kind: 'search', param: 'search', label: 'Búsqueda' }],
+      columns: studentColumns,
+      emptyText: 'No hay alumnos activos para los filtros seleccionados.',
+    })
+  }
+
+  function openEnrollments(from?: string, to?: string, value?: string | number) {
+    const f = from ?? dateFrom
+    const t = to ?? dateTo
+    openDetail({
+      title: 'Altas de alumnos',
+      value: value ?? (from ? '—' : (k?.newStudentsThisMonth ?? 0)),
+      valueLabel: 'alumnos nuevos',
+      periodLabel: `Período: ${f} al ${t}`,
+      endpoint: `/api/admin/${dataSlug}/dashboard/detail/enrollments?dateFrom=${f}&dateTo=${t}`,
+      filters: [{ kind: 'search', param: 'search', label: 'Búsqueda' }],
+      columns: enrollmentColumns,
+      emptyText: 'No hay altas de alumnos en el período.',
+    })
+  }
+
+  function openRevenue(from?: string, to?: string, value?: string | number) {
+    const f = from ?? dateFrom
+    const t = to ?? dateTo
+    openDetail({
+      title: 'Recaudación del período',
+      value: value ?? (from ? '—' : money(k?.monthlyIncome ?? 0)),
+      valueLabel: 'pagos aprobados',
+      periodLabel: `Período: ${f} al ${t}`,
+      endpoint: `/api/admin/${dataSlug}/dashboard/detail/payments?${new URLSearchParams({ dateFrom: f, dateTo: t, ...(chargeTypeId ? { chargeTypeId } : {}) }).toString()}`,
+      defaultParams: chargeTypeDefault,
+      filters: [
+        { kind: 'search', param: 'search', label: 'Búsqueda' },
+        { kind: 'select', param: 'paymentMethod', label: 'Medio de pago', options: paymentMethodOptions },
+        { kind: 'select', param: 'chargeTypeId', label: 'Tipo de cuota', options: chargeTypeOptions },
+      ],
+      columns: paymentColumns,
+      emptyText: 'No hay pagos aprobados en el período.',
+    })
+  }
+
+  function openCharges(opts?: { title?: string; value?: string | number; valueLabel?: string; status?: string; scope?: 'debt' | 'period' }) {
+    const defaults: Record<string, string> = { ...chargeTypeDefault }
+    if (opts?.status) defaults.status = opts.status
+    if (opts?.scope) defaults.scope = opts.scope
+    const filters: DetailFilter[] = [{ kind: 'search', param: 'search', label: 'Búsqueda' }]
+    if (!opts?.status) filters.push({ kind: 'select', param: 'status', label: 'Estado', options: chargeStatusOptions })
+    filters.push({ kind: 'select', param: 'chargeTypeId', label: 'Tipo de cuota', options: chargeTypeOptions })
+    openDetail({
+      title: opts?.title ?? 'Cuotas',
+      value: opts?.value ?? (chargesDist.data?.segments ?? []).reduce((s, d) => s + d.count, 0),
+      valueLabel: opts?.valueLabel ?? 'cuotas del período',
+      periodLabel: periodChip,
+      endpoint: `/api/admin/${dataSlug}/dashboard/detail/charges?${detailQp()}`,
+      defaultParams: defaults,
+      filters,
+      columns: chargeColumns,
+      emptyText: 'No hay cuotas para los filtros seleccionados.',
+    })
+  }
+
+  function openAttendance(opts?: { present?: boolean; title?: string }) {
+    const base = `/api/admin/${dataSlug}/dashboard/detail/attendance?${detailQp(opts?.present !== undefined ? { present: String(opts.present) } : undefined)}`
+    openDetail({
+      title: opts?.title ?? 'Asistencia del período',
+      value: (attendanceDist.data?.segments ?? []).reduce((s, d) => s + d.count, 0),
+      valueLabel: 'registros',
+      periodLabel: periodChip,
+      endpoint: base,
+      defaultParams: opts?.present !== undefined ? { present: String(opts.present) } : undefined,
+      filters: [
+        { kind: 'search', param: 'search', label: 'Búsqueda' },
+        { kind: 'select', param: 'present', label: 'Situación', options: attendanceStatusOptions },
+      ],
+      columns: attendanceColumns,
+      emptyText: 'No hay asistencias registradas en el período.',
+    })
+  }
+
+  function openDocuments() {
+    openDetail({
+      title: 'Documentación',
+      value: `${k?.documentCompliance ?? 0}%`,
+      valueLabel: 'cumplimiento',
+      periodLabel: periodChip,
+      endpoint: `/api/admin/${dataSlug}/dashboard/detail/documents`,
+      filters: [
+        { kind: 'search', param: 'search', label: 'Búsqueda' },
+        { kind: 'select', param: 'status', label: 'Estado', options: docStatusOptions },
+      ],
+      columns: docColumns,
+      emptyText: 'No hay asignaciones documentales para los filtros seleccionados.',
+    })
+  }
+
+  function pointRange(period: string): { from: string; to: string } {
+    const isDaily = period.length === 10
+    if (isDaily) return { from: period, to: period }
+    const [y, m] = period.split('-').map(Number)
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+    return {
+      from: `${y}-${String(m).padStart(2, '0')}-01`,
+      to: `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`,
+    }
+  }
+
+  function openRevenuePoint(point: EvolutionPoint) {
+    const isCurrentMonth = point.period.startsWith(new Date().toISOString().slice(0, 7))
+    const { from, to } = pointRange(point.period)
+    openRevenue(isCurrentMonth ? dateFrom : from, isCurrentMonth ? dateTo : to, money(point.value))
+  }
+
+  function openEnrollmentsPoint(point: EvolutionPoint) {
+    const isCurrentMonth = point.period.startsWith(new Date().toISOString().slice(0, 7))
+    const { from, to } = pointRange(point.period)
+    openEnrollments(isCurrentMonth ? dateFrom : from, isCurrentMonth ? dateTo : to, point.value)
+  }
+
+  const CUOTA_SEGMENT_STATUS: Record<string, string> = {
+    Pagadas: 'Paid',
+    Pendientes: 'Pending',
+    Vencidas: 'Overdue',
+  }
+
   if (loading) return <DashboardSkeleton />
 
   const k = kpis.data
@@ -239,8 +568,10 @@ export function AdminDashboard() {
   const newInquiries = alertData.find(a => a.type === 'inquiry_new')?.count ?? 0
 
   const hasChargeData = (k?.pendingMonthlyCharges ?? 0) + (k?.overdueMonthlyCharges ?? 0) + (k?.approvedPaymentsThisMonth ?? 0) > 0
-  const hasAttendanceData = k?.averageAttendance !== null && k?.averageAttendance !== undefined
-  const hasDocumentData = k?.documentCompliance !== null && k?.documentCompliance !== undefined
+  // Visibilidad por configuración (no por ausencia de registros): si la empresa no
+  // configura tipos documentales o no tiene cursos/clases, la funcionalidad no aplica.
+  const hasAttendanceData = !!k?.hasAttendanceSetup
+  const hasDocumentData = !!k?.hasDocumentTypes
 
   // Contexto Group/Educativa nunca debe renderizar el Dashboard Deportivo.
   if (isWrongDashboardContext) return <Navigate to={resolveHomePath()} replace />
@@ -304,10 +635,19 @@ export function AdminDashboard() {
         hasAttendanceData={hasAttendanceData}
         hasDocumentData={hasDocumentData}
         isSport={isSport}
+        onIndicatorClick={(key) => {
+          if (key === 'collection') openCharges({ title: 'Cobranza', value: `${k?.collectionRate ?? 0}%`, valueLabel: 'cuotas pagadas sobre generadas' })
+          else if (key === 'documents') openDocuments()
+          else if (key === 'attendance') openAttendance()
+          else openCharges({ title: 'Cuotas vencidas', value: overdueCharges, valueLabel: 'cuotas vencidas', status: 'Overdue', scope: 'debt' })
+        }}
       />
 
-      {/* Fila 1: KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Avisos administrativos: Indumentaria y Cuotas */}
+      <ReviewBanners slug={dataSlug} vertical="deportivo" />
+
+      {/* Fila 1: KPIs (grilla dinámica: las cards no aplicables desaparecen y las restantes redistribuyen) */}
+      <div className={KPI_GRID[4 + (hasAttendanceData ? 1 : 0) + (hasDocumentData ? 1 : 0)]}>
         <KpiCard
           icon={isSport ? <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> : <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>}
           label="Alumnos activos"
@@ -315,7 +655,7 @@ export function AdminDashboard() {
           variation={studentVar}
           variationLabel="vs mes anterior"
           color="indigo"
-          navigateTo="/admin/students"
+          onClick={openStudents}
           tooltip="Total de alumnos activos en la institución"
           isSport={isSport}
         />
@@ -326,7 +666,7 @@ export function AdminDashboard() {
           variation={incomeVar}
           variationLabel="vs mes anterior"
           color="emerald"
-          navigateTo="/admin/payments"
+          onClick={() => openRevenue()}
           tooltip="Total cobrado en el mes actual"
           isSport={isSport}
         />
@@ -335,7 +675,7 @@ export function AdminDashboard() {
           label="Deuda pendiente"
           value={`$${(k?.totalDebt ?? 0).toLocaleString('es-AR')}`}
           color="rose"
-          navigateTo="/admin/payments"
+          onClick={() => openCharges({ title: 'Deuda pendiente', value: money(k?.totalDebt ?? 0), valueLabel: 'cuotas impagas', status: 'Unpaid', scope: 'debt' })}
           tooltip="Suma de cuotas pendientes y vencidas"
           isSport={isSport}
         />
@@ -344,28 +684,32 @@ export function AdminDashboard() {
           label="Cobranza"
           value={`${k?.collectionRate ?? 0}%`}
           color="blue"
-          navigateTo="/admin/payments"
+          onClick={() => openCharges({ title: 'Cobranza', value: `${k?.collectionRate ?? 0}%`, valueLabel: 'cuotas pagadas sobre generadas' })}
           tooltip="Porcentaje de cuotas pagadas sobre el total"
           isSport={isSport}
         />
-        <KpiCard
-          icon={isSport ? <BarChart3 className="h-5 w-5 text-violet-600 dark:text-violet-400" /> : <svg className="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
-          label="Asistencia"
-          value={`${k?.averageAttendance ?? 0}%`}
-          color="violet"
-          navigateTo="/admin/classes"
-          tooltip="Porcentaje de asistencia promedio"
-          isSport={isSport}
-        />
-        <KpiCard
-          icon={isSport ? <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" /> : <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
-          label="Documentación"
-          value={`${k?.documentCompliance ?? 0}%`}
-          color="amber"
-          navigateTo="/admin/records"
-          tooltip="Porcentaje de alumnos con toda la documentación obligatoria aprobada"
-          isSport={isSport}
-        />
+        {hasAttendanceData && (
+          <KpiCard
+            icon={isSport ? <BarChart3 className="h-5 w-5 text-violet-600 dark:text-violet-400" /> : <svg className="h-5 w-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+            label="Asistencia"
+            value={`${k?.averageAttendance ?? 0}%`}
+            color="violet"
+            onClick={() => openAttendance()}
+            tooltip="Porcentaje de asistencia promedio"
+            isSport={isSport}
+          />
+        )}
+        {hasDocumentData && (
+          <KpiCard
+            icon={isSport ? <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" /> : <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+            label="Documentación"
+            value={`${k?.documentCompliance ?? 0}%`}
+            color="amber"
+            onClick={openDocuments}
+            tooltip="Porcentaje de alumnos con toda la documentación obligatoria aprobada"
+            isSport={isSport}
+          />
+        )}
       </div>
 
       {/* Filters + Export */}
@@ -424,53 +768,58 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* Fila 2: Donuts */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <DonutChart data={studentsDist.data?.segments ?? []} title="Alumnos" centerLabel="activos" centerValue={k?.activeStudents} loading={studentsDist.isLoading}
+      {/* Indumentaria financiera: inmediatamente debajo de la barra de filtros de período */}
+      <ClothingFinancialDashboardCard slug={dataSlug} from={dateFrom} to={dateTo} />
+
+      {/* Fila 2: Donuts (grilla dinámica, mismo criterio) */}
+      <div className={DONUT_GRID[2 + (hasDocumentData ? 1 : 0) + (hasAttendanceData ? 1 : 0)]}>
+        <DonutChart data={studentsDist.data?.segments ?? []} title="Alumnos" centerLabel="activos" centerValue={k?.activeStudents} loading={studentsDist.isLoading} error={studentsDist.isError}
           rows={studentsDist.data?.byStatus ?? []}
-          onSeeAll={() => setSeeAll({ title: 'Alumnos', rows: studentsDist.data?.byStatus ?? [] })}
+          onGeneralClick={openStudents}
+          onSegmentClick={() => openStudents()}
+          onRowClick={() => openStudents()}
+          onSeeAll={openStudents}
           isSport={isSport} icon={isSport ? <Users className="h-[18px] w-[18px] text-emerald-600 dark:text-emerald-400" /> : undefined}
           sportColors={['#22c55e', '#f59e0b']} />
-        <DonutChart data={chargesDist.data?.segments ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading}
+        <DonutChart data={chargesDist.data?.segments ?? []} title="Cuotas" centerLabel="cuotas" loading={chargesDist.isLoading} error={chargesDist.isError}
           breakdown={chargesDist.data?.byType ?? []}
+          onGeneralClick={() => openCharges()}
+          onSegmentClick={(seg) => openCharges({ title: `Cuotas · ${seg.label}`, value: seg.count, status: CUOTA_SEGMENT_STATUS[seg.label] })}
           isSport={isSport} icon={isSport ? <CircleDollarSign className="h-[18px] w-[18px] text-amber-600 dark:text-amber-400" /> : undefined}
           sportColors={['#f59e0b', '#3b82f6']} />
-        <DonutChart data={docsDist.data?.segments ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading}
-          rows={docsDist.data?.byDocumentType ?? []}
-          onSeeAll={() => setSeeAll({ title: 'Cumplimiento por tipo documental', rows: docsDist.data?.byDocumentType ?? [] })}
-          isSport={isSport} icon={isSport ? <FileText className="h-[18px] w-[18px] text-blue-600 dark:text-blue-400" /> : undefined}
-          sportColors={['#3b82f6', '#64748b']} />
-        <DonutChart data={attendanceDist.data?.segments ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading}
-          rows={attendanceDist.data?.byCourse ?? []}
-          onSeeAll={() => setSeeAll({ title: 'Asistencia por curso', rows: attendanceDist.data?.byCourse ?? [] })}
-          isSport={isSport} icon={isSport ? <CalendarDays className="h-[18px] w-[18px] text-violet-600 dark:text-violet-400" /> : undefined}
-          sportColors={['#6366f1', '#94a3b8']}
-          emptyActionTo={isSport ? '/admin/attendance' : undefined} />
+        {hasDocumentData && (
+          <DonutChart data={docsDist.data?.segments ?? []} title="Requisitos documentales" centerLabel="requisitos" loading={docsDist.isLoading} error={docsDist.isError}
+            rows={docsDist.data?.byDocumentType ?? []}
+            onGeneralClick={openDocuments}
+            onSegmentClick={() => openDocuments()}
+            onRowClick={() => openDocuments()}
+            onSeeAll={openDocuments}
+            isSport={isSport} icon={isSport ? <FileText className="h-[18px] w-[18px] text-blue-600 dark:text-blue-400" /> : undefined}
+            sportColors={['#3b82f6', '#64748b']} />
+        )}
+        {hasAttendanceData && (
+          <DonutChart data={attendanceDist.data?.segments ?? []} title="Asistencia" centerLabel="registros" loading={attendanceDist.isLoading} error={attendanceDist.isError}
+            rows={attendanceDist.data?.byCourse ?? []}
+            onGeneralClick={() => openAttendance()}
+            onSegmentClick={(seg) => openAttendance({ present: seg.label === 'Presentes', title: `Asistencia · ${seg.label}` })}
+            onRowClick={() => openAttendance()}
+            onSeeAll={() => openAttendance()}
+            isSport={isSport} icon={isSport ? <CalendarDays className="h-[18px] w-[18px] text-violet-600 dark:text-violet-400" /> : undefined}
+            sportColors={['#6366f1', '#94a3b8']}
+            emptyActionTo={isSport ? '/admin/attendance' : undefined} />
+        )}
       </div>
-
-      {/* Modal Ver todos */}
-      <Modal open={!!seeAll} onClose={() => setSeeAll(null)} title={seeAll?.title}>
-        <div className="max-h-[70vh] space-y-1 overflow-y-auto p-5 sm:p-6">
-          {seeAll?.rows.map((r) => (
-            <div key={r.name} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm">
-              <span className="truncate text-slate-600 dark:text-slate-300">{r.name}</span>
-              <span className="flex shrink-0 items-center gap-3">
-                <span className="font-semibold text-slate-800 dark:text-slate-200">{r.value}</span>
-                <span className="w-12 text-right text-slate-400 dark:text-slate-500">{Math.round(r.percentage)}%</span>
-              </span>
-            </div>
-          ))}
-          {(!seeAll || seeAll.rows.length === 0) && (
-            <p className="py-6 text-center text-sm text-slate-400">Sin datos.</p>
-          )}
-        </div>
-      </Modal>
 
       {/* Fila 3: Líneas de evolución */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <LineChartWidget data={incomeEvo.data ?? []} title={hasCustomPeriod ? `Ingresos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Ingresos últimos 12 meses'} color="#10b981" format="currency" loading={incomeEvo.isLoading} isSport={isSport} />
-        <LineChartWidget data={studentsEvo.data ?? []} title={hasCustomPeriod ? `Altas de alumnos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Altas de alumnos últimos 12 meses'} color="#6366f1" format="number" loading={studentsEvo.isLoading} isSport={isSport} />
+        <LineChartWidget data={incomeEvo.data ?? []} title={hasCustomPeriod ? `Ingresos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Ingresos últimos 12 meses'} color="#10b981" format="currency" loading={incomeEvo.isLoading} error={incomeEvo.isError} isSport={isSport}
+          onGeneralClick={() => openRevenue()} onPointClick={openRevenuePoint} />
+        <LineChartWidget data={studentsEvo.data ?? []} title={hasCustomPeriod ? `Altas de alumnos del ${formatPeriodTitle(dateFrom, dateTo)}` : 'Altas de alumnos últimos 12 meses'} color="#6366f1" format="number" loading={studentsEvo.isLoading} error={studentsEvo.isError} isSport={isSport}
+          onGeneralClick={() => openEnrollments()} onPointClick={openEnrollmentsPoint} />
       </div>
+
+      {/* Fila 4: Indumentaria (Pedidos inmediatamente antes de Próximos vencimientos) */}
+      <ClothingOrdersDashboardCard slug={dataSlug} vertical="deportivo" />
 
       {/* Fila 5: Próximos vencimientos */}
       <UpcomingTable
@@ -481,6 +830,8 @@ export function AdminDashboard() {
         onPageChange={setUpcomingPage}
         isSport={isSport}
       />
+
+      <DashboardDetailModal open={detailOpen} onClose={() => setDetailOpen(false)} spec={detailSpec} />
     </div>
   )
 }

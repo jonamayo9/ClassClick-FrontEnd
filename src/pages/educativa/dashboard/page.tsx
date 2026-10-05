@@ -32,6 +32,9 @@ import { AsistenciaCard } from './components/AsistenciaCard'
 import { OcupacionCard } from './components/OcupacionCard'
 import { CertificacionesCard } from './components/CertificacionesCard'
 import { EduUpcomingTable } from './components/EduUpcomingTable'
+import { ReviewBanners } from '@/components/reviews/review-banners'
+import { ClothingOrdersDashboardCard } from '@/components/dashboard/clothing-orders-card'
+import { ClothingFinancialDashboardCard } from '@/components/dashboard/clothing-financial-card'
 import { cn } from '@/lib/utils'
 
 // ---- Período en hora Argentina (UTC-3) ----
@@ -129,6 +132,13 @@ const ATT_SEGMENT_STATUS: Record<string, string> = {
   Ausentes: 'Ausente',
   Tarde: 'Tarde',
   Justificados: 'Justificado',
+}
+
+// Grilla de "Actividad y certificaciones": si Asistencia no aplica (sin clases configuradas),
+// desaparece y las cards restantes redistribuyen el espacio (clases literales para Tailwind JIT).
+const ACTIVIDAD_GRID: Record<number, string> = {
+  2: 'grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1704px]:grid-cols-2',
+  3: 'grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1704px]:grid-cols-3',
 }
 
 export function EducativaDashboardPage() {
@@ -283,6 +293,12 @@ export function EducativaDashboardPage() {
     { key: 'amount', header: 'Capital', align: 'right', render: (r: any) => money(r.amount) },
     { key: 'mora', header: 'Mora', align: 'right', render: (r: any) => money(r.moraAmount ?? 0) },
     { key: 'total', header: 'Total', align: 'right', render: (r: any) => <span className="font-semibold">{money(r.totalToPay ?? r.amount)}</span> },
+    { key: 'currency', header: 'Moneda', render: (r: any) => <span className="text-xs text-slate-400">{r.currency || 'ARS'}</span> },
+    { key: 'balance', header: 'Saldo', align: 'right', render: (r: any) => (
+      <span className={`font-semibold ${r.status === 'Paid' || r.status === 'Cancelled' ? 'text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+        {r.status === 'Paid' || r.status === 'Cancelled' ? money(0) : money(r.totalToPay ?? r.amount)}
+      </span>
+    ) },
     { key: 'status', header: 'Estado', render: (r: any) => {
       const label = obligationStatusLabel[r.status] ?? r.status
       const cls = r.status === 'Overdue'
@@ -308,15 +324,24 @@ export function EducativaDashboardPage() {
     { key: 'method', header: 'Medio', render: (r: any) => paymentMethodLabel[r.paymentMethod] ?? r.paymentMethod },
     { key: 'date', header: 'Fecha', render: (r: any) => fmtDate(r.createdAtUtc) },
     { key: 'amount', header: 'Importe', align: 'right', render: (r: any) => <span className="font-semibold">{money(r.totalAmount)}</span> },
+    { key: 'currency', header: 'Moneda', render: (r: any) => <span className="text-xs text-slate-400">{r.currency || 'ARS'}</span> },
     { key: 'status', header: 'Estado', render: (r: any) => {
+      const label: Record<string, string> = {
+        Pending: 'Pendiente',
+        InReview: 'En revisión',
+        Approved: 'Aprobado',
+        Rejected: 'Rechazado',
+        Cancelled: 'Cancelado',
+        Refunded: 'Reembolsado',
+      }
       const cls = r.status === 'Approved'
         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-        : r.status === 'Rejected'
+        : r.status === 'Rejected' || r.status === 'Cancelled'
           ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-          : r.status === 'InReview'
+          : r.status === 'InReview' || r.status === 'Pending'
             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-      return <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${cls}`}>{r.status}</span>
+            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+      return <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${cls}`}>{label[r.status] ?? r.status}</span>
     } },
     { key: 'proof', header: 'Comprobante', render: (r: any) => {
       if (r.hasReceipt) return <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400"><ReceiptText className="h-3.5 w-3.5" /> Recibo</span>
@@ -777,9 +802,13 @@ export function EducativaDashboardPage() {
         hasOccupancyData={(d?.capacitySlots ?? 0) > 0}
         academicRate={academicPeriod.rate}
         hasAcademicRate={academicPeriod.hasData}
+        hasAttendanceSetup={!!d?.hasAttendanceSetup}
         attention={fin ? { overdue: fin.overdue, pending: fin.pending, pendingAmount: fin.pendingAmount, overdueAmount: fin.overdueAmount } : null}
         onVerDetalle={openGeneralState}
       />
+
+      {/* Avisos administrativos: Indumentaria y Cuotas */}
+      <ReviewBanners slug={slug} vertical="educativa" />
 
       {/* 2. Resumen ejecutivo + selector de período */}
       <EduSection
@@ -838,6 +867,15 @@ export function EducativaDashboardPage() {
           />
         </div>
       </EduSection>
+
+      {/* Indumentaria financiera: inmediatamente debajo del selector de período (hora Argentina) */}
+      <ClothingFinancialDashboardCard
+        slug={slug}
+        from={dateFrom}
+        to={dateTo}
+        fromUtc={argDayStartUtc(dateFrom)}
+        toUtc={argDayStartUtc(dateTo)}
+      />
 
       {/* 3. Operación académica */}
       <EduSection title="Operación académica" subtitle="Formaciones, comisiones, docentes y cursada.">
@@ -931,14 +969,16 @@ export function EducativaDashboardPage() {
 
       {/* 5. Actividad y certificaciones */}
       <EduSection title="Actividad y certificaciones" subtitle="Asistencias, ocupación y certificados del período.">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1704px]:grid-cols-3">
-          <AsistenciaCard
-            summary={attSummary}
-            loading={attQuery.isLoading}
-            onSegmentClick={openAttendance}
-            onGeneralClick={() => openAttendance()}
-            onIrAsistencia={() => navigate(`/educativa/${slug}/asistencias`)}
-          />
+        <div className={ACTIVIDAD_GRID[2 + (d?.hasAttendanceSetup ? 1 : 0)]}>
+          {d?.hasAttendanceSetup && (
+            <AsistenciaCard
+              summary={attSummary}
+              loading={attQuery.isLoading}
+              onSegmentClick={openAttendance}
+              onGeneralClick={() => openAttendance()}
+              onIrAsistencia={() => navigate(`/educativa/${slug}/asistencias`)}
+            />
+          )}
           <OcupacionCard
             dash={d}
             loading={dashQuery.isLoading}
@@ -957,7 +997,10 @@ export function EducativaDashboardPage() {
         </div>
       </EduSection>
 
-      {/* 6. Próximos vencimientos */}
+      {/* 6. Indumentaria (Pedidos inmediatamente antes de Próximos vencimientos) */}
+      <ClothingOrdersDashboardCard slug={slug} vertical="educativa" />
+
+      {/* 7. Próximos vencimientos */}
       <EduSection
         title="Próximos vencimientos"
         subtitle="Obligaciones que requieren acción económica."

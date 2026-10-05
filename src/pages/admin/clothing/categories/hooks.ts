@@ -2,12 +2,26 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/lib/api'
 import { slug, Category, unwrapList } from '../hooks'
 
+/** El backend devuelve un árbol (raíces con children anidados). Lo aplanamos a una
+ *  lista plana (raíces + subcategorías) porque el resto del frontend filtra por parentId. */
+function flattenCategories(tree: Category[]): Category[] {
+  const flat: Category[] = []
+  const walk = (nodes: Category[]) => {
+    for (const node of nodes) {
+      flat.push({ ...node, children: undefined })
+      if (node.children?.length) walk(node.children)
+    }
+  }
+  walk(tree)
+  return flat
+}
+
 export function useCategories() {
   return useQuery({
     queryKey: ['clothing', 'categories', slug()],
     queryFn: () => apiService.get<Category[]>(`/api/admin/${slug()}/clothing/categories`),
     enabled: !!slug(),
-    select: (data) => unwrapList<Category>(data),
+    select: (data) => flattenCategories(unwrapList<Category>(data)),
   })
 }
 

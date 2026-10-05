@@ -207,7 +207,10 @@ export function AppLayout() {
           { label: 'Config. pagos', path: `/educativa/${activeCompanySlug}/config-pagos`, icon: '⚙️', permission: 'institution-settings' },
           { label: 'Config. cuotas', path: `/educativa/${activeCompanySlug}/config-cuotas`, icon: '📋', permission: 'institution-settings' },
         ] },
-        { name: 'Extras', key: 'e-extras', items: [{ label: 'Novedades', path: `/educativa/${activeCompanySlug}/announcements`, icon: '📢', module: 'news', permission: 'news' }] },
+        { name: 'Extras', key: 'e-extras', items: [
+          { label: 'Tienda', path: `/educativa/${activeCompanySlug}/clothing`, icon: '🧥', module: 'clothing' },
+          { label: 'Novedades', path: `/educativa/${activeCompanySlug}/announcements`, icon: '📢', module: 'news', permission: 'news' },
+        ] },
         { name: 'Configuración', key: 'e-settings', items: [
           { label: 'Página pública', path: `/educativa/${activeCompanySlug}/public-page`, icon: '🌐', module: 'public_page', permission: 'institution-settings' },
           { label: 'Roles y Permisos', path: `/educativa/${activeCompanySlug}/permissions`, icon: '🔐', permission: 'admin-management' },
@@ -233,15 +236,16 @@ export function AppLayout() {
       ]
     : []
 
-  const studentEducativaItems: NavItem[] = isStudentEducativaContext
+  const studentEducativaItems: NavItem[] = (isStudentEducativaContext
     ? [
         { label: 'Inicio', path: '/estudiante', icon: '🏠' },
         { label: 'Mis formaciones', path: '/estudiante/formaciones', icon: '🎓' },
         { label: 'Pagos', path: '/estudiante/pagos', icon: '💳' },
         { label: 'Certificaciones', path: '/estudiante/certificaciones', icon: '🎖️' },
+        { label: 'Tienda', path: '/estudiante/tienda', icon: '🧥', module: 'clothing' },
         { label: 'Perfil', path: '/estudiante/perfil', icon: '👤' },
       ]
-    : []
+    : []).filter((i) => !i.module || moduleEnabled(i.module))
 
   const groups = showAdminArea ? getFilteredGroups(moduleEnabled) : []
   const studentItems = navMode === 'student' ? studentNav.filter((item) => moduleEnabled(item.module)) : []
@@ -656,8 +660,8 @@ export function AppLayout() {
         /* Floating pill nav for educativa student */
         <>
           <nav className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] md:hidden pointer-events-none">
-            <div className="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 bg-white/95 backdrop-blur-xl px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900/95">
-              <div className="grid grid-cols-4 items-end gap-1">
+            <div className="pointer-events-auto mx-auto w-full max-w-md rounded-[30px] border border-slate-200 bg-white/95 backdrop-blur-xl px-2 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900/95">
+              <div className="grid grid-cols-6 items-end gap-1">
                 {studentEducativaItems.map((item) => {
                   const active = location.pathname === item.path || (item.path !== '/estudiante' && location.pathname.startsWith(item.path))
                   return (

@@ -17,6 +17,16 @@ interface EstadoGeneralCardProps {
   hasDocumentData: boolean
   title?: string
   isSport?: boolean
+  onIndicatorClick?: (key: 'collection' | 'documents' | 'attendance' | 'overdue') => void
+}
+
+// Grilla de indicadores del Estado General: solo se muestran los factores aplicables y las
+// restantes redistribuyen el espacio (clases literales para el JIT de Tailwind).
+const INDICATOR_GRID: Record<number, string> = {
+  1: 'grid shrink-0 grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-1 lg:flex lg:items-stretch lg:gap-0',
+  2: 'grid shrink-0 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-2 lg:flex lg:items-stretch lg:gap-0',
+  3: 'grid shrink-0 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:flex lg:items-stretch lg:gap-0',
+  4: 'grid shrink-0 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 lg:flex lg:items-stretch lg:gap-0',
 }
 
 function calcScore(
@@ -65,15 +75,20 @@ function calcScore(
   return { score: Math.round(score), label: 'Se requieren acciones urgentes', color: '#ef4444', bg: 'bg-rose-50 dark:bg-rose-950/20', textColor: 'text-rose-700 dark:text-rose-300', summary }
 }
 
-function SportIndicator({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function SportIndicator({ label, value, icon, onClick }: { label: string; value: string; icon?: React.ReactNode; onClick?: () => void }) {
   return (
-    <div className="flex flex-col justify-center gap-1">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex flex-col justify-center gap-1 ${onClick ? 'cursor-pointer transition hover:opacity-70' : 'cursor-default'}`}
+    >
       <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
         {icon ?? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />}
         <span className="truncate">{label}</span>
       </span>
       <span className="text-[20px] font-extrabold leading-tight text-slate-900 tabular-nums dark:text-white">{value}</span>
-    </div>
+    </button>
   )
 }
 
@@ -96,11 +111,18 @@ export function EstadoGeneralCard({ title = 'Estado General del Club', isSport =
       ? (isDark ? '#e2e8f0' : '#0f172a')
       : color
     const indicators = [
-      <SportIndicator key="cobranza" label="Cobranza" value={`${props.collectionRate}%`} />,
-      <SportIndicator key="documentacion" label="Documentación" value={`${props.documentCompliance}%`} />,
-      <SportIndicator key="asistencia" label="Asistencia" value={`${props.averageAttendance}%`} />,
+      ...(props.hasChargeData
+        ? [<SportIndicator key="cobranza" label="Cobranza" value={`${props.collectionRate}%`} onClick={() => props.onIndicatorClick?.('collection')} />]
+        : []),
+      ...(props.hasDocumentData
+        ? [<SportIndicator key="documentacion" label="Documentación" value={`${props.documentCompliance}%`} onClick={() => props.onIndicatorClick?.('documents')} />]
+        : []),
+      ...(props.hasAttendanceData
+        ? [<SportIndicator key="asistencia" label="Asistencia" value={`${props.averageAttendance}%`} onClick={() => props.onIndicatorClick?.('attendance')} />]
+        : []),
       <SportIndicator key="vencidas" label="Cuotas vencidas" value={String(props.overdueCharges)}
-        icon={<TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />} />,
+        icon={<TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />}
+        onClick={() => props.onIndicatorClick?.('overdue')} />,
     ]
 
     return (
@@ -141,7 +163,7 @@ export function EstadoGeneralCard({ title = 'Estado General del Club', isSport =
           </div>
 
           {/* Indicadores */}
-          <div className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 lg:flex lg:items-stretch lg:gap-0">
+          <div className={INDICATOR_GRID[indicators.length]}>
             {indicators.map((ind, i) => (
               <div key={i} className={cn('flex', i > 0 && 'lg:ml-6 lg:border-l lg:border-slate-200 lg:pl-6 dark:lg:border-[rgba(148,163,184,0.15)]')}>
                 {ind}

@@ -14,7 +14,7 @@ import { Fingerprint, Ticket } from 'lucide-react'
 import { StudentCarnetModal } from './student-carnet'
 import {
   useStudentProfile, useStudentBilling, useStudentAnnouncements,
-  useStudentSponsors, useStudentCourses, useProfilePhotoUrl
+  useStudentSponsors, useStudentCourses
 } from './student.hooks'
 import {
   useStudentFeaturedEvents, useStudentMyTickets, isPastEvent,
@@ -77,7 +77,6 @@ export function StudentHome() {
   const { data: announcementsRaw } = useStudentAnnouncements()
   const { data: sponsorsRaw } = useStudentSponsors()
   const { data: courses = [] } = useStudentCourses()
-  const { data: photoView } = useProfilePhotoUrl()
   const { data: featuredEvents = [] } = useStudentFeaturedEvents()
   // Solo se consulta si el módulo Events está habilitado (el hook lo gatea internamente).
   const { data: myTickets = [] } = useStudentMyTickets()
@@ -146,7 +145,7 @@ export function StudentHome() {
   // const pastMatches = matches.filter((m: StudentMatch) => m.matchDateUtc ? new Date(m.matchDateUtc) < new Date() : false).sort((a, b) => { if (!b.matchDateUtc) return 1; if (!a.matchDateUtc) return -1; return new Date(b.matchDateUtc).getTime() - new Date(a.matchDateUtc).getTime() })
   const userDisplayName = profile?.fullName || profile?.firstName || user?.name || user?.email || 'Alumno'
   const initials = userDisplayName.split(' ').map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2) || 'AL'
-  const photoUrl = imgUrl(photoView?.url || profile?.profileImageUrl)
+  const photoUrl = imgUrl(profile?.profileImageUrl)
 
   if (isLoading) return <div className="flex items-center justify-center py-24"><Spinner className="h-8 w-8 text-violet-600" /></div>
 

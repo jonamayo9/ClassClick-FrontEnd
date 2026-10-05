@@ -11,11 +11,13 @@ interface DonutChartProps {
   centerLabel: string
   centerValue?: string | number
   loading?: boolean
+  error?: boolean
   breakdown?: ChargeTypeBreakdown[]
   rows?: DonutBreakdownRow[]
   onSeeAll?: () => void
   onGeneralClick?: () => void
   onSegmentClick?: (segment: DonutSegment) => void
+  onRowClick?: (row: DonutBreakdownRow) => void
   isSport?: boolean
   icon?: React.ReactNode
   sportColors?: string[]
@@ -42,7 +44,7 @@ function CustomTooltip({ active, payload }: any) {
   )
 }
 
-export function DonutChart({ data, title, centerLabel, centerValue, loading, breakdown, rows, onSeeAll, onGeneralClick, onSegmentClick, isSport = false, icon, sportColors, emptyTitle = 'Todavía no registraste asistencias este período.', emptyDescription = 'Comenzá a tomar asistencia para visualizar los datos acá.', emptyActionTo }: DonutChartProps) {
+export function DonutChart({ data, title, centerLabel, centerValue, loading, error, breakdown, rows, onSeeAll, onGeneralClick, onSegmentClick, onRowClick, isSport = false, icon, sportColors, emptyTitle = 'Todavía no registraste asistencias este período.', emptyDescription = 'Comenzá a tomar asistencia para visualizar los datos acá.', emptyActionTo }: DonutChartProps) {
   const navigate = useNavigate()
   const [hovered, setHovered] = useState<string | null>(null)
 
@@ -95,7 +97,11 @@ export function DonutChart({ data, title, centerLabel, centerValue, loading, bre
       )}>
         <h3 className={cn('text-sm font-bold text-slate-800 dark:text-slate-200', isSport && 'text-slate-900 dark:text-white')}>{title}</h3>
         <div className="flex h-48 items-center justify-center">
-          <p className="text-xs text-slate-400">Sin datos</p>
+          {error ? (
+            <p className="text-xs text-rose-500">No se pudieron cargar los datos.</p>
+          ) : (
+            <p className="text-xs text-slate-400">Sin datos</p>
+          )}
         </div>
       </div>
     )
@@ -188,8 +194,8 @@ export function DonutChart({ data, title, centerLabel, centerValue, loading, bre
             {rows.slice(0, 4).map((r) => (
               <div
                 key={r.name}
-                onClick={() => r.navigateTo && navigate(r.navigateTo)}
-                className={`flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[11px] ${r.navigateTo ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5' : ''}`}
+                onClick={() => { if (onRowClick) onRowClick(r); else if (r.navigateTo) navigate(r.navigateTo) }}
+                className={`flex items-center justify-between gap-2 rounded-md px-2 py-1 text-[11px] ${(onRowClick || r.navigateTo) ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5' : ''}`}
               >
                 <span className="truncate text-slate-500 dark:text-slate-400">{r.name}</span>
                 <span className="flex shrink-0 items-center gap-2">
@@ -279,8 +285,8 @@ export function DonutChart({ data, title, centerLabel, centerValue, loading, bre
           {rows.slice(0, 5).map((r) => (
             <div
               key={r.name}
-              onClick={() => r.navigateTo && navigate(r.navigateTo)}
-              className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs ${r.navigateTo ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
+              onClick={() => { if (onRowClick) onRowClick(r); else if (r.navigateTo) navigate(r.navigateTo) }}
+              className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-xs ${(onRowClick || r.navigateTo) ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
             >
               <span className="truncate text-slate-500 dark:text-slate-400">{r.name}</span>
               <span className="flex shrink-0 items-center gap-2">

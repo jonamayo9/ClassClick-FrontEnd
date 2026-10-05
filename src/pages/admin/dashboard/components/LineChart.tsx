@@ -9,6 +9,7 @@ interface LineChartProps {
   color?: string
   format?: 'currency' | 'number'
   loading?: boolean
+  error?: boolean
   onPointClick?: (point: EvolutionPoint) => void
   onGeneralClick?: () => void
   isSport?: boolean
@@ -53,7 +54,7 @@ function CustomDot({ cx, cy, r, payload, fill, onPointClick }: any) {
   )
 }
 
-export function LineChartWidget({ data, title, color = '#6366f1', format = 'number', loading, onPointClick, onGeneralClick, isSport = false }: LineChartProps) {
+export function LineChartWidget({ data, title, color = '#6366f1', format = 'number', loading, error, onPointClick, onGeneralClick, isSport = false }: LineChartProps) {
   const gradientId = `sport-grad-${color.replace('#', '')}`
   const resolved = useTheme((s) => s.resolved)
   const isDark = resolved === 'dark'
@@ -79,7 +80,11 @@ export function LineChartWidget({ data, title, color = '#6366f1', format = 'numb
         isSport && 'rounded-xl border-slate-200 bg-white dark:border-[rgba(120,150,200,0.25)] dark:bg-[#111C30]',
       )}>
         <h3 className={cn('text-sm font-bold text-slate-800 dark:text-slate-200', isSport && 'text-slate-900 dark:text-white')}>{title}</h3>
-        <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">Sin datos suficientes</p>
+        {error ? (
+          <p className="mt-8 text-center text-xs text-rose-500">No se pudieron cargar los datos.</p>
+        ) : (
+          <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">Sin datos suficientes</p>
+        )}
       </div>
     )
   }

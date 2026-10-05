@@ -7,6 +7,7 @@ interface CuotasEstadoData {
   paid: number
   pending: number
   overdue: number
+  cancelled: number
 }
 
 interface CuotasEstadoCardProps {
@@ -37,6 +38,7 @@ export function CuotasEstadoCard({ fin, loading, onSegmentClick, onGeneralClick 
         { label: 'Pagadas', count: fin.paid, color: '#22c55e' },
         { label: 'Pendientes', count: fin.pending, color: '#f59e0b' },
         { label: 'Vencidas', count: fin.overdue, color: '#ef4444' },
+        ...(fin.cancelled > 0 ? [{ label: 'Canceladas', count: fin.cancelled, color: '#94a3b8' }] : []),
       ]
     : []
 

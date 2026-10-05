@@ -130,15 +130,6 @@ export function useStudentProfile() {
   })
 }
 
-export function useProfilePhotoUrl() {
-  return useQuery({
-    queryKey: ['profile-photo-url', slug()],
-    queryFn: () => apiService.get<{ url?: string }>(`/api/profile/photo/view`),
-    enabled: !!slug(),
-    retry: false,
-  })
-}
-
 export function useStudentBilling() {
   return useQuery({
     queryKey: ['student-billing', slug()],

@@ -16,7 +16,11 @@ export function useApproveCancellation() {
   return useMutation({
     mutationFn: ({ id, note }: { id: string; note: string }) =>
       apiService.post(`/api/admin/${slug()}/clothing/cancellation-requests/${id}/approve`, { note }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['clothing', 'cancellations'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clothing', 'cancellations'] })
+      qc.invalidateQueries({ queryKey: ['clothing', 'orders'] })
+      qc.invalidateQueries({ queryKey: ['clothing', 'order'] })
+    },
   })
 }
 

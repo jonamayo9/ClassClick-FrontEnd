@@ -3,56 +3,34 @@ import { PageHero } from '@/components/ui/page-hero'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-const sections = [
-  {
-    path: 'categories',
-    icon: '🏷️',
-    title: 'Categorías',
-    description: 'Categorías y subcategorías para organizar los productos.',
-    color: 'from-emerald-500 to-teal-600',
-  },
+const primary = [
   {
     path: 'products',
     icon: '👕',
     title: 'Productos',
-    description: 'Catálogo de productos con variantes, imágenes y personalización.',
+    description: 'Catálogo con variantes, precios, política de pago y disponibilidad.',
     color: 'from-violet-500 to-purple-600',
-  },
-  {
-    path: 'stock',
-    icon: '📦',
-    title: 'Stock',
-    description: 'Gestión de stock por producto y variante.',
-    color: 'from-amber-500 to-orange-600',
   },
   {
     path: 'orders',
     icon: '🛒',
     title: 'Pedidos',
-    description: 'Revisar pedidos, comprobantes de pago y marcar entregas.',
+    description: 'Pagos, comprobantes, preparación y entregas.',
     color: 'from-sky-500 to-blue-600',
-  },
-  {
-    path: 'cancellations',
-    icon: '❌',
-    title: 'Cancelaciones',
-    description: 'Solicitudes de cancelación de pedidos pendientes de revisión.',
-    color: 'from-rose-500 to-pink-600',
-  },
-  {
-    path: 'payment-proofs',
-    icon: '🧾',
-    title: 'Comprobantes',
-    description: 'Listado de todos los comprobantes de pago subidos.',
-    color: 'from-fuchsia-500 to-purple-600',
   },
   {
     path: 'settings',
     icon: '⚙️',
     title: 'Configuración',
-    description: 'Alias y titular de pago que ven los alumnos.',
+    description: 'Medios de pago, Mercado Pago y tiempo de reserva.',
     color: 'from-slate-500 to-slate-700',
   },
+]
+
+const secondary = [
+  { path: 'stock', icon: '📦', title: 'Stock', color: 'from-amber-500 to-orange-600' },
+  { path: 'categories', icon: '🏷️', title: 'Categorías', color: 'from-emerald-500 to-teal-600' },
+  { path: 'delivery-zones', icon: '🚚', title: 'Zonas de envío', color: 'from-cyan-500 to-teal-600' },
 ]
 
 export default function ClothingPage() {
@@ -61,13 +39,13 @@ export default function ClothingPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
       <PageHero
-        label="Indumentaria"
-        title="Gestión de indumentaria"
-        description="Catálogo, pedidos, stock, variantes, comprobantes y gestión de productos."
+        label="Tienda"
+        title="Gestión de la tienda"
+        description="Productos, pedidos, pagos, entregas y configuración."
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {sections.map((s) => (
+        {primary.map((s) => (
           <Card
             key={s.path}
             onClick={() => navigate(s.path)}
@@ -87,6 +65,26 @@ export default function ClothingPage() {
             </div>
           </Card>
         ))}
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Gestión</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {secondary.map((s) => (
+            <Card
+              key={s.path}
+              onClick={() => navigate(s.path)}
+              className="group cursor-pointer p-4 transition-all hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-base shadow-sm', s.color)}>
+                  {s.icon}
+                </div>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">{s.title}</span>
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   )

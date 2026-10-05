@@ -44,19 +44,19 @@ export function useChargeDistribution(slug: string, dateFrom?: string, dateTo?: 
   })
 }
 
-export function useDocumentDistribution(slug: string, dateFrom?: string, dateTo?: string) {
+export function useDocumentDistribution(slug: string, dateFrom?: string, dateTo?: string, enabled = true) {
   return useQuery({
     queryKey: ['dashboard-distribution-documents', slug, dateFrom, dateTo],
     queryFn: () => apiService.get<DocumentDistribution>(`/api/admin/${slug}/dashboard/distribution/documents${queryParams(dateFrom, dateTo)}`),
-    enabled: !!slug,
+    enabled: !!slug && enabled,
   })
 }
 
-export function useAttendanceDistribution(slug: string, dateFrom?: string, dateTo?: string) {
+export function useAttendanceDistribution(slug: string, dateFrom?: string, dateTo?: string, enabled = true) {
   return useQuery({
     queryKey: ['dashboard-distribution-attendance', slug, dateFrom, dateTo],
     queryFn: () => apiService.get<AttendanceDistribution>(`/api/admin/${slug}/dashboard/distribution/attendance${queryParams(dateFrom, dateTo)}`),
-    enabled: !!slug,
+    enabled: !!slug && enabled,
   })
 }
 

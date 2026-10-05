@@ -10,6 +10,7 @@ import { IosPwaPrompt } from '@/components/ios-pwa-prompt'
 import { BiometricAppLock } from '@/components/biometric-app-lock'
 import { ModuleGuard } from '@/components/module-guard'
 import { PermissionGuard } from '@/components/permission-guard'
+import { ClothingSlugBinder } from '@/lib/clothing-context'
 import { RootLayout } from '@/components/layouts/root-layout'
 import { AppLayout } from '@/components/layouts/app-layout'
 import { LandingPage } from '@/pages/landing'
@@ -50,6 +51,9 @@ import OrdersPage from '@/pages/admin/clothing/orders/page'
 import PaymentProofsPage from '@/pages/admin/clothing/payment-proofs/page'
 import CancellationsPage from '@/pages/admin/clothing/cancellations/page'
 import SettingsPage from '@/pages/admin/clothing/settings/page'
+import DeliveryZonesPage from '@/pages/admin/clothing/delivery-zones/page'
+import PublicClothingStorePage from '@/pages/public/clothing-store/page'
+import PublicClothingOrderPage from '@/pages/public/clothing-store/order'
 import AttendancePage from '@/pages/admin/attendance/page'
 import AdminQrScanPage from '@/pages/admin/attendance/qr-scan'
 import StaffAttendancePage from '@/pages/admin/attendance/staff'
@@ -183,9 +187,34 @@ function CompanyContextGuard({ children }: { children: React.ReactNode }) {
 }
 
 function StudentVerticalGate({ children }: { children: React.ReactNode }) {
-  const { activeCompanySlug, companies } = useAuth()
+  const { activeCompanySlug, companies, token, user, activeRole } = useAuth()
   const company = (companies ?? []).find((c) => (c.slug ?? c.companySlug) === activeCompanySlug)
-  if (company?.vertical === 'Educativa') return <Navigate to="/estudiante" replace />
+  const role = (activeRole?.toLowerCase() ?? user?.systemRole?.toLowerCase() ?? '')
+
+  const isEducativa = company?.vertical === 'Educativa'
+
+  const statusQuery = useQuery({
+    queryKey: ['registration-status', activeCompanySlug],
+    queryFn: () => apiService.get<{ registrationCompleted?: boolean }>(
+      `/api/student/${activeCompanySlug}/registration/status`,
+    ),
+    enabled: !isEducativa && !!token && !!user && role === 'student' && !!activeCompanySlug,
+    retry: false,
+  })
+
+  if (isEducativa) return <Navigate to="/estudiante" replace />
+
+  // Registro obligatorio del alumno (Deportiva): fuera de /register no se accede a /student/*
+  // con el registro incompleto. El estado se comparte con RegistrationGate y StudentHome.
+  if (statusQuery.isLoading && !statusQuery.data) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-white text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+        Validando registro...
+      </div>
+    )
+  }
+  if (statusQuery.data?.registrationCompleted === false) return <Navigate to="/register" replace />
+
   return <>{children}</>
 }
 
@@ -250,6 +279,8 @@ export default function App() {
           <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="register" element={<RegistrationGate />} />
           <Route path="c/:companySlug" element={<PublicLandingPage />} />
+          <Route path="tienda/:companySlug" element={<PublicClothingStorePage />} />
+          <Route path="tienda/:companySlug/pedido/:publicToken" element={<PublicClothingOrderPage />} />
 
           <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><CompanyContextGuard><AppLayout /></CompanyContextGuard></RoleGuard>}>
             <Route index element={<AdminDashboard />} />
@@ -274,6 +305,7 @@ export default function App() {
               <Route path="orders" element={<OrdersPage />} />
               <Route path="payment-proofs" element={<PaymentProofsPage />} />
               <Route path="cancellations" element={<CancellationsPage />} />
+              <Route path="delivery-zones" element={<DeliveryZonesPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
@@ -321,6 +353,9 @@ export default function App() {
             <Route path="pagos/mercadopago/result" element={<EstudianteMercadoPagoResultPage />} />
             <Route path="certificaciones" element={<EstudianteCertificacionesPage />} />
             <Route path="perfil" element={<StudentProfilePage />} />
+            <Route path="tienda" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingCatalog /></ClothingSlugBinder></GuardedRoute>} />
+            <Route path="tienda/pedidos" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrders /></ClothingSlugBinder></GuardedRoute>} />
+            <Route path="tienda/pedido/:id" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrderDetail /></ClothingSlugBinder></GuardedRoute>} />
           </Route>
 
           <Route path="superadmin" element={<RoleGuard roles={['superadmin']}><AppLayout /></RoleGuard>}>
@@ -362,6 +397,17 @@ export default function App() {
             <Route path="public-page" element={<PermissionedRoute code="institution-settings"><PublicPageAdmin /></PermissionedRoute>} />
             <Route path="billing" element={<PermissionedRoute code="billing"><AdminBillingPage /></PermissionedRoute>} />
             <Route path="announcements" element={<PermissionedRoute code="news"><AnnouncementsPage /></PermissionedRoute>} />
+            <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><Outlet /></ClothingSlugBinder></GuardedRoute>}>
+              <Route index element={<ClothingPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="stock" element={<StockPage />} />
+              <Route path="orders" element={<OrdersPage />} />
+              <Route path="payment-proofs" element={<PaymentProofsPage />} />
+              <Route path="cancellations" element={<CancellationsPage />} />
+              <Route path="delivery-zones" element={<DeliveryZonesPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 

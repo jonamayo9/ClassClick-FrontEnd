@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/stores/auth'
 import { imgUrl } from '@/lib/media'
-import { useStudentProfile, useProfilePhotoUrl } from './student.hooks'
+import { useStudentProfile } from './student.hooks'
 import { useQrToken } from '@/hooks/useQrToken'
 import { hasModule } from '@/hooks/useModule'
 
@@ -68,7 +68,6 @@ function QrSection() {
 
 export function StudentCarnetModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: profile } = useStudentProfile()
-  const { data: photoView } = useProfilePhotoUrl()
   const user = useAuth((s) => s.user)
   const companies = useAuth((s) => s.companies)
   const slug = useAuth((s) => s.activeCompanySlug)
@@ -77,7 +76,7 @@ export function StudentCarnetModal({ open, onClose }: { open: boolean; onClose: 
 
   const name = profile?.fullName || `${profile?.firstName ?? ''} ${profile?.lastName ?? ''}`.trim() || user?.name || 'Alumno'
   const initials = name.split(' ').map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2) || 'AL'
-  const photoUrl = imgUrl(photoView?.url || profile?.profileImageUrl)
+  const photoUrl = imgUrl(profile?.profileImageUrl)
 
   if (!open) return null
 

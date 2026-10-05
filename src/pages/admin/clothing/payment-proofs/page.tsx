@@ -1,30 +1,24 @@
 import { useState, useMemo } from 'react'
-import { ToastProvider, useToast } from '@/components/ui/toast'
+import { ToastProvider } from '@/components/ui/toast'
 import { BackButton } from '@/components/ui/back-button'
 import { PageHero } from '@/components/ui/page-hero'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Modal } from '@/components/ui/modal'
-import { money, formatDateTime, proofStatusLabel, proofTypeLabel } from '../hooks'
+import { money, proofStatusLabel, proofTypeLabel, ProofStatus } from '../hooks'
 import type { PaymentProof } from '../hooks'
-import { usePaymentProofs, useApproveProof, useRejectProof } from './hooks'
+import { usePaymentProofs } from './hooks'
+import { ProofReviewModal } from '../orders/proof-review-modal'
 
+// Pantalla legacy de comprobantes (ya no está en la navegación principal). Toda la revisión
+// (Aprobar/Rechazar) vive EXCLUSIVAMENTE en el modal "Ver comprobante", igual que en Pedidos.
 function PaymentProofsPageInner() {
   const { data: proofs = [], isLoading } = usePaymentProofs()
-  const approveProof = useApproveProof()
-  const rejectProof = useRejectProof()
-  const toast = useToast()
-
   const [search, setSearch] = useState('')
-  const [selectedProof, setSelectedProof] = useState<PaymentProof | null>(null)
-  const [actionProof, setActionProof] = useState<PaymentProof | null>(null)
-  const [actionType, setActionType] = useState<'approve' | 'reject'>('approve')
-  const [reviewNote, setReviewNote] = useState('')
+  const [reviewProof, setReviewProof] = useState<PaymentProof | null>(null)
 
   const filtered = useMemo(() => {
     const text = search.trim().toLowerCase()
@@ -36,25 +30,8 @@ function PaymentProofsPageInner() {
 
   const stats = {
     total: proofs.length,
-    pending: proofs.filter((p) => p.status === 1).length,
-    approved: proofs.filter((p) => p.status === 2).length,
-  }
-
-  async function handleAction() {
-    if (!actionProof) return
-    try {
-      if (actionType === 'approve') {
-        await approveProof.mutateAsync({ proofId: actionProof.id, reviewNote })
-        toast('Comprobante aprobado.')
-      } else {
-        await rejectProof.mutateAsync({ proofId: actionProof.id, reviewNote })
-        toast('Comprobante rechazado.')
-      }
-      setActionProof(null)
-      setReviewNote('')
-    } catch {
-      toast('Error al procesar el comprobante.', 'error')
-    }
+    pending: proofs.filter((p) => p.status === ProofStatus.Pending).length,
+    approved: proofs.filter((p) => p.status === ProofStatus.Approved).length,
   }
 
   return (
@@ -63,7 +40,7 @@ function PaymentProofsPageInner() {
       <PageHero
         label="Comprobantes"
         title="Comprobantes de pago"
-        description="Revisá y aprobá todos los comprobantes subidos por los alumnos."
+        description="Revisá todos los comprobantes subidos por los alumnos desde el modal."
         stats={[
           { label: 'Total', value: stats.total },
           { label: 'Pendientes', value: stats.pending },
@@ -116,21 +93,9 @@ function PaymentProofsPageInner() {
                         <Badge variant={ps.variant}>{ps.label}</Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedProof(p)}>Ver</Button>
-                          {p.status === 1 && (
-                            <>
-                              <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700 text-[11px] px-2.5 py-1.5"
-                                onClick={() => { setActionProof(p); setActionType('approve'); setReviewNote('') }}>
-                                Aprobar
-                              </Button>
-                              <Button size="sm" className="bg-rose-600 text-white hover:bg-rose-700 text-[11px] px-2.5 py-1.5"
-                                onClick={() => { setActionProof(p); setActionType('reject'); setReviewNote('') }}>
-                                Rechazar
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setReviewProof(p)}>
+                          {p.fileUrl ? 'Ver comprobante' : 'Ver'}
+                        </Button>
                       </td>
                     </tr>
                   )
@@ -141,58 +106,7 @@ function PaymentProofsPageInner() {
         )}
       </Card>
 
-      {selectedProof && (
-        <Modal open={!!selectedProof} onClose={() => setSelectedProof(null)} title="Comprobante" description={`${proofTypeLabel(selectedProof.type)} - ${money(selectedProof.orderTotalAmount ?? 0)}`} className="sm:max-w-lg">
-          <div className="space-y-4 p-5">
-            {selectedProof.fileUrl && (
-              <div className="flex justify-center">
-                {selectedProof.isPdf ? (
-                  <iframe src={selectedProof.fileUrl} className="h-96 w-full rounded-xl border border-slate-200 dark:border-slate-700" title="Comprobante PDF" />
-                ) : (
-                  <img src={selectedProof.fileUrl} alt="Comprobante" className="max-h-96 rounded-xl border border-slate-200 object-contain dark:border-slate-700" />
-                )}
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="text-[10px] font-bold uppercase text-slate-400">Estado</p>
-                <Badge variant={proofStatusLabel(selectedProof.status).variant}>{proofStatusLabel(selectedProof.status).label}</Badge>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="text-[10px] font-bold uppercase text-slate-400">Subido</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{formatDateTime(selectedProof.uploadedAtUtc)}</p>
-              </div>
-            </div>
-            {selectedProof.reviewNote && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="text-[10px] font-bold uppercase text-slate-400">Nota de revisión</p>
-                <p className="mt-1 text-sm text-slate-900 dark:text-white">{selectedProof.reviewNote}</p>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {actionProof && (
-        <Modal open={!!actionProof} onClose={() => { setActionProof(null); setReviewNote('') }} title={actionType === 'approve' ? 'Aprobar comprobante' : 'Rechazar comprobante'} className="sm:max-w-md">
-          <div className="space-y-4 p-5">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nota para el alumno</label>
-              <Textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} rows={3} placeholder="Opcional..." />
-            </div>
-            <div className="flex gap-3">
-              <Button
-                loading={approveProof.isPending || rejectProof.isPending}
-                className={actionType === 'approve' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-rose-600 text-white hover:bg-rose-700'}
-                onClick={handleAction}
-              >
-                {actionType === 'approve' ? 'Aprobar' : 'Rechazar'}
-              </Button>
-              <Button variant="outline" onClick={() => { setActionProof(null); setReviewNote('') }}>Cancelar</Button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ProofReviewModal proof={reviewProof} open={!!reviewProof} onClose={() => setReviewProof(null)} />
     </div>
   )
 }

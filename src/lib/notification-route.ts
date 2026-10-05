@@ -108,6 +108,8 @@ export function resolveNotificationRoute({
   if (notificationType.includes('clothing')) {
     const orderId = data?.orderId ?? data?.OrderId
     if (!isAdmin && orderId) return `/student/clothing/order/${orderId}`
+    // Admin: abre directamente el detalle del pedido en "Pedidos de la tienda".
+    if (isAdmin && orderId) return `/admin/clothing/orders?order=${orderId}`
     return isAdmin ? '/admin/clothing/orders' : '/student/clothing/orders'
   }
 

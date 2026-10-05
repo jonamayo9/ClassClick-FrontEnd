@@ -8,20 +8,21 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
 import { PageHero } from '@/components/ui/page-hero'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
 import { imgUrl } from '@/lib/media'
-import { useAuth } from '@/stores/auth'
+import { clothingCompanySlug, studentClothingOrdersPath, studentClothingOrderPath } from '@/lib/clothing-context'
 
 const ARS = (n: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
-function slug() { return useAuth.getState().activeCompanySlug ?? '' }
+function slug() { return clothingCompanySlug() }
 
 interface Product {
   id: string; name: string; description?: string; price: number; isAvailable?: boolean
   hasVariants?: boolean; parentCategoryName?: string; categoryName?: string
   allowsPersonalization?: boolean; personalizationLabel?: string; personalizationMaxLength?: number
-  isReservation?: boolean; requiresDeposit?: boolean; depositAmount?: number
+  isReservation?: boolean; requiresDeposit?: boolean; depositAmount?: number; allowsFullPayment?: boolean
+  availableQuantity?: number | null
   images?: { imageUrl: string; isMain?: boolean }[]
-  variants?: { id: string; name: string; isAvailable?: boolean; tracksStock?: boolean; stockQuantity?: number }[]
+  variants?: { id: string; name: string; isAvailable?: boolean; tracksStock?: boolean; stockQuantity?: number; availableQuantity?: number | null }[]
 }
 
 interface CartItem {
@@ -29,6 +30,26 @@ interface CartItem {
   price: number; quantity: number; imageUrl: string; isReservation?: boolean
   requiresDeposit?: boolean; depositAmount?: number
   personalizationText: string; personalizationLabel?: string
+}
+
+interface BuyNowIntent {
+  product: Product
+  variantId: string | null
+  personalizationText: string
+}
+
+interface CheckoutPreview {
+  fullTotal: number
+  minimumInitialPayment: number
+  allowsFullCheckout: boolean
+  options: { concept: string; amount: number; available: boolean }[]
+  methods: { transferEnabled: boolean; transferCanPay: boolean; mercadoPagoEnabled: boolean; mercadoPagoConnected: boolean }
+}
+
+function paymentPolicyText(p: Product): string {
+  if (!p.requiresDeposit) return `Pago total: ${ARS(p.price)}`
+  if (p.allowsFullPayment !== false) return `Podés reservar con ${ARS(p.depositAmount ?? 0)} o pagar el total de ${ARS(p.price)}.`
+  return `Reservá con ${ARS(p.depositAmount ?? 0)}. El saldo se abona posteriormente.`
 }
 
 function getCartKey() { return `classclick_clothing_cart_${slug()}` }
@@ -39,10 +60,11 @@ function CatalogInner() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: products = [], isLoading, isError, error } = useQuery({
     queryKey: ['clothing-products', slug()],
     queryFn: () => apiService.get<Product[]>(`/api/student/${slug()}/clothing/products`),
     enabled: !!slug(),
+    retry: false,
     select: (d: unknown) => { if (Array.isArray(d)) return d as Product[]; const r = d as { items?: Product[]; data?: Product[] }; return r.items ?? r.data ?? [] },
   })
 
@@ -51,10 +73,47 @@ function CatalogInner() {
       apiService.post(`/api/student/${slug()}/clothing/orders`, body),
   })
 
+  const [cart, setCart] = useState<CartItem[]>(getCart)
+  const [buyNow, setBuyNow] = useState<BuyNowIntent | null>(null)
+  const [buyNowQty, setBuyNowQty] = useState(1)
+
+  const previewItems = useMemo<{ productId: string; variantId: string | null; quantity: number; personalizationText: string | null }[]>(() => {
+    if (buyNow) {
+      return [{ productId: buyNow.product.id, variantId: buyNow.variantId, quantity: buyNowQty, personalizationText: buyNow.personalizationText || null }]
+    }
+    return cart.map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity, personalizationText: i.personalizationText || null }))
+  }, [buyNow, buyNowQty, cart])
+
+  const buyNowLine = useMemo<CartItem | null>(() => {
+    if (!buyNow) return null
+    const variant = buyNow.product.variants?.find((v) => v.id === buyNow.variantId)
+    return {
+      key: `buynow_${buyNow.product.id}_${buyNow.variantId || 'no-variant'}`,
+      productId: buyNow.product.id,
+      variantId: buyNow.variantId,
+      name: buyNow.product.name,
+      variantName: variant?.name || null,
+      price: buyNow.product.price,
+      quantity: buyNowQty,
+      imageUrl: buyNow.product.images?.find((i) => i.isMain)?.imageUrl || buyNow.product.images?.[0]?.imageUrl || '',
+      isReservation: buyNow.product.isReservation,
+      requiresDeposit: buyNow.product.requiresDeposit,
+      depositAmount: buyNow.product.depositAmount,
+      personalizationText: buyNow.personalizationText,
+      personalizationLabel: buyNow.product.personalizationLabel,
+    }
+  }, [buyNow, buyNowQty])
+
+  const { data: preview, error: previewError, isFetching: previewLoading } = useQuery({
+    queryKey: ['clothing-checkout-preview', slug(), buyNow ? `buynow_${buyNow.product.id}_${buyNow.variantId || 'nv'}_${buyNowQty}` : cart],
+    queryFn: () => apiService.post<CheckoutPreview>(`/api/student/${slug()}/clothing/orders/checkout/preview`, previewItems),
+    enabled: (!!buyNow || cart.length > 0) && !!slug(),
+    retry: false,
+  })
+
   const [search, setSearch] = useState('')
   const [parentCat, setParentCat] = useState('')
   const [childCat, setChildCat] = useState('')
-  const [cart, setCart] = useState<CartItem[]>(getCart)
   const [cartOpen, setCartOpen] = useState(false)
   const [payOption, setPayOption] = useState<1 | 2>(1)
   const [detailProduct, setDetailProduct] = useState<Product | null>(null)
@@ -90,21 +149,15 @@ function CatalogInner() {
     })
   }, [products, parentCat, childCat, search])
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, Product[]>()
-    filtered.forEach((p) => {
-      const group = p.categoryName || p.parentCategoryName || 'General'
-      if (!map.has(group)) map.set(group, [])
-      map.get(group)!.push(p)
-    })
-    return [...map.entries()]
-  }, [filtered])
-
-  const cartTotal = useMemo(() => {
-    const items = cart.reduce((s, i) => s + i.price * i.quantity, 0)
-    const deposit = cart.filter((i) => i.requiresDeposit).reduce((s, i) => s + (i.depositAmount || 0) * i.quantity, 0)
-    return { items, deposit, full: items }
-  }, [cart])
+  const cartTotalItems = useMemo(() => cart.reduce((s, i) => s + i.price * i.quantity, 0), [cart])
+  const pendingTotalItems = buyNowLine ? buyNowLine.price * buyNowLine.quantity : cartTotalItems
+  const fullTotal = preview?.fullTotal ?? pendingTotalItems
+  const minInitial = preview?.minimumInitialPayment ?? pendingTotalItems
+  const allowsFull = preview?.allowsFullCheckout ?? true
+  const depositOption = preview?.options.find((o) => o.concept === 'Deposit' && o.available)
+  const fullOption = preview?.options.find((o) => o.concept === 'Full' && o.available)
+  const showChoice = !!depositOption && !!fullOption
+  const onlyDeposit = !!depositOption && !fullOption
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0)
 
@@ -127,22 +180,73 @@ function CatalogInner() {
     })
   }
 
+  function buyNowHandler(product: Product, variantId: string | null, personalizationText: string) {
+    setBuyNow({ product, variantId, personalizationText })
+    setBuyNowQty(1)
+    setPayOption(1)
+    setDetailProduct(null)
+    setCartOpen(true)
+  }
+
+  function cancelBuyNow() {
+    setBuyNow(null)
+    setBuyNowQty(1)
+  }
+
   async function checkout() {
-    if (cart.length === 0) { toast('El carrito está vacío.', 'error'); return }
-    const hasDeposit = cart.some((i) => i.requiresDeposit)
+    const items = previewItems
+    if (items.length === 0) { toast('El carrito está vacío.', 'error'); return }
+
+    // Nunca confirmar una compra sin cotización válida del backend.
+    if (!preview) {
+      toast(previewError ? 'No se pudo cotizar el pedido. Revisá tu carrito para continuar.' : 'Cotizá el pedido antes de continuar.', 'error')
+      return
+    }
+
+    const depositOption = preview.options.find((o) => o.concept === 'Deposit' && o.available)
+    const fullOption = preview.options.find((o) => o.concept === 'Full' && o.available)
+
+    // Respetar FullOnly / DepositOrFull / DepositOnly.
+    let paymentOption: 1 | 2
+    if (depositOption && fullOption) paymentOption = payOption
+    else if (depositOption) paymentOption = 1
+    else if (fullOption) paymentOption = 2
+    else { toast('No hay opciones de pago disponibles para este pedido.', 'error'); return }
+
     try {
-      const result = await createOrder.mutateAsync({
-        paymentOption: hasDeposit ? payOption : 2,
-        items: cart.map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity, personalizationText: i.personalizationText || null })),
-      }) as { id?: string; data?: { id?: string } }
+      const result = await createOrder.mutateAsync({ paymentOption, items }) as { id?: string; data?: { id?: string } }
       const orderId = result.id ?? result.data?.id ?? ''
       sessionStorage.setItem('lastClothingOrderId', orderId)
-      setCart([])
-      navigate(`/student/clothing/order/${orderId}`)
-    } catch { toast('Error al crear el pedido.', 'error') }
+      if (!buyNow) setCart([])
+      setBuyNow(null)
+      navigate(`${studentClothingOrderPath()}/${orderId}`)
+    } catch {
+      toast('La disponibilidad cambió. Revisá tu carrito para continuar.', 'error')
+    }
   }
 
   if (isLoading) return <div className="flex items-center justify-center py-24"><Spinner className="h-8 w-8 text-violet-600" /></div>
+
+  if (isError) {
+    const status = (error as { response?: { status?: number } })?.response?.status
+    const message = getApiError(error)
+    const moduleOff = status === 400 && /no está habilitado/i.test(message)
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-16 text-center">
+        <span className="text-5xl">🧥</span>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+          {moduleOff ? 'Indumentaria no disponible' : status === 403 ? 'Acceso no permitido' : 'No se pudo cargar la tienda'}
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {moduleOff
+            ? 'La tienda de indumentaria no está habilitada para esta empresa.'
+            : status === 403
+              ? 'No tenés acceso a la tienda de indumentaria.'
+              : 'Ocurrió un error al cargar los productos. Volvé a intentarlo en unos minutos.'}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5 pb-44">
@@ -162,7 +266,7 @@ function CatalogInner() {
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscá producto, categoría o talle..." className="pl-9" />
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/student/clothing/orders')} className="whitespace-nowrap gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => navigate(studentClothingOrdersPath())} className="whitespace-nowrap gap-1.5">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
           Mis pedidos
         </Button>
@@ -202,50 +306,45 @@ function CatalogInner() {
       {filtered.length === 0 ? (
         <EmptyState icon="👕" title="Sin resultados" description="No hay productos que coincidan con tu búsqueda." />
       ) : (
-        grouped.map(([group, items]) => (
-          <section key={group}>
-            <div className="flex items-baseline justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">{group}</h2>
-              <span className="text-xs text-slate-400">{items.length} artículo{items.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              {items.map((p) => {
-                const img = p.images?.find((i) => i.isMain)?.imageUrl || p.images?.[0]?.imageUrl
-                const available = p.hasVariants ? p.variants?.some((v) => v.isAvailable) : p.isAvailable
-                return (
-                  <button key={p.id} onClick={() => { setDetailProduct(p); setDetailVariant(''); setDetailPersonalization('') }}
-                    className="group flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                    <div className="aspect-[4/3] bg-slate-50 overflow-hidden dark:bg-slate-800">
-                      {img ? (
-                        <img src={imgUrl(img) ?? ''} alt={p.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
-                          <svg className="h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                        </div>
-                      )}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((p) => {
+            const img = p.images?.find((i) => i.isMain)?.imageUrl || p.images?.[0]?.imageUrl
+            const available = p.hasVariants ? p.variants?.some((v) => v.isAvailable) : p.isAvailable
+            return (
+              <button key={p.id} onClick={() => { setDetailProduct(p); setDetailVariant(''); setDetailPersonalization('') }}
+                className="group flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <div className="aspect-[4/3] bg-slate-50 overflow-hidden dark:bg-slate-800">
+                  {img ? (
+                    <img src={imgUrl(img) ?? ''} alt={p.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <svg className="h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                     </div>
-                    <div className="flex flex-col gap-1.5 p-3 text-left">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight min-h-[2em]">{p.name}</p>
-                      <p className="text-base font-black text-violet-600 dark:text-violet-300">{ARS(p.price)}</p>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {available ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Disponible
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Sin stock
-                          </span>
-                        )}
-                        {p.hasVariants && <span className="text-[10px] text-slate-400">{p.variants?.length} var.</span>}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        ))
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5 p-3 text-left">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight min-h-[2em]">{p.name}</p>
+                  <p className="text-base font-black text-violet-600 dark:text-violet-300">{ARS(p.price)}</p>
+                  {p.requiresDeposit && p.depositAmount != null && (
+                    <p className="text-[10px] font-semibold text-amber-600">Reservá desde {ARS(p.depositAmount)}</p>
+                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {available ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Disponible
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Sin stock
+                      </span>
+                    )}
+                    {p.hasVariants && <span className="text-[10px] text-slate-400">{p.variants?.length} var.</span>}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
       )}
 
       {/* Product detail modal */}
@@ -270,11 +369,17 @@ function CatalogInner() {
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">{detailProduct.name}</h3>
                 {detailProduct.description && <p className="text-sm text-slate-500 mt-1">{detailProduct.description}</p>}
               </div>
-              {detailProduct.isAvailable !== false ? (
-                <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Disponible</span>
-              ) : (
-                <span className="shrink-0 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">Sin stock</span>
-              )}
+              {(() => {
+                const selectedVariant = detailProduct.variants?.find((v) => v.id === detailVariant)
+                const available = detailProduct.hasVariants
+                  ? !!selectedVariant && selectedVariant.isAvailable !== false
+                  : detailProduct.isAvailable !== false
+                return available ? (
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Disponible</span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">Sin stock</span>
+                )
+              })()}
             </div>
 
             <p className="text-3xl font-black text-violet-600 dark:text-violet-300">{ARS(detailProduct.price)}</p>
@@ -311,14 +416,20 @@ function CatalogInner() {
               </div>
             )}
 
-            {/* Deposit info */}
+            {/* Payment policy */}
             {detailProduct.requiresDeposit && detailProduct.depositAmount != null && (
               <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 dark:from-amber-950/30 dark:to-orange-950/30 dark:border-amber-900/50">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🔒</span>
                   <div>
-                    <p className="text-sm font-bold text-amber-800 dark:text-amber-200">Requiere seña</p>
-                    <p className="text-xs text-amber-700 dark:text-amber-300">Seña de {ARS(detailProduct.depositAmount)}. El resto se abona al retirar.</p>
+                    <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                      {detailProduct.allowsFullPayment !== false ? 'Podés reservar' : 'Reserva obligatoria'}
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      {detailProduct.allowsFullPayment !== false
+                        ? `Reservá con ${ARS(detailProduct.depositAmount)} o pagá el total de ${ARS(detailProduct.price)}.`
+                        : `Reservá con ${ARS(detailProduct.depositAmount)}. El saldo se abona posteriormente.`}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -330,7 +441,7 @@ function CatalogInner() {
                 className="flex-1 bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-500/20">
                 Agregar al carrito
               </Button>
-              <Button onClick={() => { addToCart(detailProduct, detailVariant || null, detailPersonalization); setDetailProduct(null); setCartOpen(true) }}
+              <Button onClick={() => buyNowHandler(detailProduct, detailVariant || null, detailPersonalization)}
                 disabled={detailProduct.hasVariants && !detailVariant}
                 className="flex-1 bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
                 Comprar ahora
@@ -352,28 +463,54 @@ function CatalogInner() {
             <p className="text-sm font-bold">Ver carrito</p>
             <p className="text-xs opacity-70">{cartCount} producto{cartCount !== 1 ? 's' : ''}</p>
           </div>
-          <p className="text-sm font-black">{ARS(cartTotal.items)}</p>
+          <p className="text-sm font-black">{ARS(fullTotal)}</p>
         </button>
       )}
 
       {/* Cart drawer */}
       {cartOpen && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setCartOpen(false); cancelBuyNow() }} />
           <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl dark:bg-slate-900 flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
               <div>
-                <p className="text-base font-bold text-slate-900 dark:text-white">Carrito de compras</p>
-                <p className="text-xs text-slate-400">{cartCount} producto{cartCount !== 1 ? 's' : ''}</p>
+                <p className="text-base font-bold text-slate-900 dark:text-white">{buyNow ? 'Comprar ahora' : 'Carrito de compras'}</p>
+                <p className="text-xs text-slate-400">
+                  {buyNow ? buyNow.product.name : `${cartCount} producto${cartCount !== 1 ? 's' : ''}`}
+                </p>
               </div>
-              <button onClick={() => setCartOpen(false)}
+              <button onClick={() => { setCartOpen(false); cancelBuyNow() }}
                 className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-3">
-              {cart.length === 0 ? (
+              {buyNowLine ? (
+                <div className="flex gap-3 rounded-xl border border-violet-300 bg-violet-50/40 p-3 dark:border-violet-700 dark:bg-violet-950/20">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                    {buyNowLine.imageUrl ? <img src={imgUrl(buyNowLine.imageUrl) ?? ''} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-xl text-slate-300">👕</div>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{buyNowLine.name}</p>
+                    {buyNowLine.variantName && <p className="text-xs text-slate-400">{buyNowLine.variantName}</p>}
+                    {buyNowLine.personalizationText && <p className="text-xs text-violet-600 truncate">📝 {buyNowLine.personalizationLabel || 'Personalización'}: {buyNowLine.personalizationText}</p>}
+                    {buyNowLine.requiresDeposit && <p className="text-xs text-amber-600">🔒 Seña: {ARS(buyNowLine.depositAmount || 0)}</p>}
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <div className="flex items-center gap-0.5 border border-slate-200 rounded-lg overflow-hidden dark:border-slate-600">
+                        <button onClick={() => setBuyNowQty((q) => Math.max(1, q - 1))} className="flex h-7 w-7 items-center justify-center text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">−</button>
+                        <span className="flex h-7 w-8 items-center justify-center text-xs font-bold text-slate-900 dark:text-white border-x border-slate-200 dark:border-slate-600">{buyNowLine.quantity}</span>
+                        <button onClick={() => setBuyNowQty((q) => q + 1)} className="flex h-7 w-7 items-center justify-center text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">+</button>
+                      </div>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">{ARS(buyNowLine.price * buyNowLine.quantity)}</p>
+                    </div>
+                  </div>
+                  <button onClick={cancelBuyNow}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:text-red-500 transition">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ) : cart.length === 0 ? (
                 <div className="py-12 text-center text-sm text-slate-400">El carrito está vacío.</div>
               ) : cart.map((item) => (
                 <div key={item.key} className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -402,38 +539,62 @@ function CatalogInner() {
               ))}
             </div>
 
-            {cart.length > 0 && (
+            {(buyNowLine || cart.length > 0) && (
               <div className="border-t border-slate-200 px-5 py-4 space-y-3 dark:border-slate-700">
-                {cart.some((i) => i.requiresDeposit) && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => setPayOption(1)}
-                      className={`rounded-xl border-2 px-3 py-2.5 text-center transition ${payOption === 1 ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-400 dark:bg-violet-950/30 dark:text-violet-300' : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700'}`}>
-                      <p className="text-xs font-bold">Seña</p>
-                      <p className="text-sm font-black">{ARS(cartTotal.deposit)}</p>
-                    </button>
-                    <button onClick={() => setPayOption(2)}
-                      className={`rounded-xl border-2 px-3 py-2.5 text-center transition ${payOption === 2 ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-400 dark:bg-violet-950/30 dark:text-violet-300' : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700'}`}>
-                      <p className="text-xs font-bold">Total</p>
-                      <p className="text-sm font-black">{ARS(cartTotal.full)}</p>
-                    </button>
+                {previewError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+                    La disponibilidad cambió. Revisá tu carrito para continuar.
+                  </div>
+                )}
+
+                {(showChoice || onlyDeposit) && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">¿Cuánto querés pagar ahora?</p>
+                    {showChoice ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => setPayOption(1)}
+                          className={`rounded-xl border-2 px-3 py-2.5 text-left transition ${payOption === 1 ? 'border-violet-500 bg-violet-50 dark:border-violet-400 dark:bg-violet-950/30' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700'}`}>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">Pago inicial</p>
+                          <p className="text-sm font-black text-violet-600 dark:text-violet-300">{ARS(minInitial)}</p>
+                          <p className="text-[10px] text-slate-400">El resto quedará pendiente para abonarlo después.</p>
+                        </button>
+                        <button onClick={() => setPayOption(2)}
+                          className={`rounded-xl border-2 px-3 py-2.5 text-left transition ${payOption === 2 ? 'border-violet-500 bg-violet-50 dark:border-violet-400 dark:bg-violet-950/30' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700'}`}>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">Pago total</p>
+                          <p className="text-sm font-black text-violet-600 dark:text-violet-300">{ARS(fullTotal)}</p>
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setPayOption(1)}
+                        className={`w-full rounded-xl border-2 px-3 py-2.5 text-left transition ${payOption === 1 ? 'border-violet-500 bg-violet-50 dark:border-violet-400 dark:bg-violet-950/30' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700'}`}>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">Pago inicial</p>
+                        <p className="text-sm font-black text-violet-600 dark:text-violet-300">{ARS(minInitial)}</p>
+                        <p className="text-[10px] text-slate-400">El resto quedará pendiente para abonarlo después.</p>
+                      </button>
+                    )}
                   </div>
                 )}
 
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>Subtotal</span><span className="font-bold text-slate-900 dark:text-white">{ARS(cartTotal.items)}</span>
+                    <span>Total</span><span className="font-bold text-slate-900 dark:text-white">{ARS(fullTotal)}</span>
                   </div>
-                  {payOption === 1 && cart.some((i) => i.requiresDeposit) && (
+                  {payOption === 1 && (showChoice || onlyDeposit) && (
                     <>
-                      <div className="flex justify-between text-violet-600"><span>Pagás ahora</span><span className="font-bold">{ARS(cartTotal.deposit)}</span></div>
-                      <div className="flex justify-between text-slate-400"><span>Restante</span><span className="font-bold">{ARS(cartTotal.full - cartTotal.deposit)}</span></div>
+                      <div className="flex justify-between text-violet-600"><span>Pagás ahora</span><span className="font-bold">{ARS(minInitial)}</span></div>
+                      <div className="flex justify-between text-slate-400"><span>Saldo después del pago</span><span className="font-bold">{ARS(fullTotal - minInitial)}</span></div>
                     </>
                   )}
                 </div>
 
+                {buyNowLine && (
+                  <p className="text-[11px] text-slate-400">Estás comprando solo este producto. Tu carrito guardado no se modifica.</p>
+                )}
+
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => { setCart([]); toast('Carrito vaciado.') }} size="sm">Vaciar</Button>
-                  <Button onClick={checkout} loading={createOrder.isPending} className="flex-1 bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-500/20">
+                  {!buyNowLine && <Button variant="outline" onClick={() => { setCart([]); toast('Carrito vaciado.') }} size="sm">Vaciar</Button>}
+                  {buyNowLine && <Button variant="outline" onClick={cancelBuyNow} size="sm">Cancelar</Button>}
+                  <Button onClick={checkout} loading={createOrder.isPending || previewLoading} disabled={!!previewError} className="flex-1 bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-500/20">
                     Confirmar pedido
                   </Button>
                 </div>

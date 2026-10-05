@@ -21,6 +21,8 @@ export interface AdminDashboardDto {
   collectionRate: number
   averageAttendance: number
   documentCompliance: number
+  hasDocumentTypes: boolean
+  hasAttendanceSetup: boolean
   previousStudents?: number | null
   previousIncome?: number | null
 }

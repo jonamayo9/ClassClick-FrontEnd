@@ -649,6 +649,8 @@ export interface EducativaDashboard {
   occupiedSlots: number
   capacitySlots: number
   occupancyPercent: number
+  /** La empresa tiene clases recurrentes configuradas y activas (usa Asistencia). */
+  hasAttendanceSetup: boolean
 }
 
 export interface EducativaDashboardTrainingRow {

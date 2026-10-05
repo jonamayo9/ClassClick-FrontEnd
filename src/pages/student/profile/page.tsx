@@ -22,7 +22,7 @@ import { createWhatsAppUrl } from '@/lib/whatsapp'
 import { useAuth } from '@/stores/auth'
 import { useTheme } from '@/stores/theme'
 import { BiometricToggle } from '@/components/biometric-toggle'
-import { useStudentProfile, useProfilePhotoUrl } from '../student.hooks'
+import { useStudentProfile } from '../student.hooks'
 import type { ThemeMode } from '@/types/auth'
 
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
@@ -41,7 +41,6 @@ function ProfilePageInner() {
   const toast = useToast()
   const qc = useQueryClient()
   const { data: profile, isLoading } = useStudentProfile()
-  const { data: photoView } = useProfilePhotoUrl()
   const { mode, setMode } = useTheme()
   const user = useAuth((s) => s.user)
 
@@ -174,7 +173,7 @@ function ProfilePageInner() {
     } catch { toast('Error al guardar.', 'error') }
   }
 
-  const photoUrl = imgUrl(photoView?.url || profile?.profileImageUrl)
+  const photoUrl = imgUrl(profile?.profileImageUrl)
   const name = profile?.fullName || `${firstName} ${lastName}`.trim() || user?.name || 'Alumno'
   const initials = name.split(' ').map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2) || 'AL'
 

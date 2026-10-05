@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { BackButton } from '@/components/ui/back-button'
 import { PageHero } from '@/components/ui/page-hero'
@@ -42,8 +43,7 @@ interface ProductFormState {
   name: string
   description: string
   price: string
-  isReservation: boolean
-  requiresDeposit: boolean
+  paymentPolicy: 'full' | 'deposit-or-full' | 'deposit-only'
   depositAmount: string
   tracksStock: boolean
   stockQuantity: string
@@ -62,8 +62,7 @@ function emptyForm(): ProductFormState {
     name: '',
     description: '',
     price: '',
-    isReservation: false,
-    requiresDeposit: false,
+    paymentPolicy: 'full',
     depositAmount: '',
     tracksStock: true,
     stockQuantity: '0',
@@ -87,8 +86,7 @@ function formFromProduct(product: Product, categories: Category[]): ProductFormS
     name: product.name ?? '',
     description: product.description ?? '',
     price: String(product.price ?? ''),
-    isReservation: !!product.isReservation,
-    requiresDeposit: !!product.requiresDeposit,
+    paymentPolicy: !product.requiresDeposit ? 'full' : product.allowsFullPayment ? 'deposit-or-full' : 'deposit-only',
     depositAmount: product.depositAmount == null ? '' : String(product.depositAmount),
     tracksStock: !!product.tracksStock,
     stockQuantity: product.stockQuantity == null ? '0' : String(product.stockQuantity),
@@ -110,7 +108,8 @@ function formFromProduct(product: Product, categories: Category[]): ProductFormS
 function buildPayload(form: ProductFormState): Record<string, unknown> {
   const hasVariants = form.hasVariants
   const allowsPersonalization = form.allowsPersonalization
-  const requiresDeposit = form.requiresDeposit
+  const requiresDeposit = form.paymentPolicy !== 'full'
+  const allowsFullPayment = form.paymentPolicy !== 'deposit-only'
   const tracksStock = hasVariants ? false : form.tracksStock
 
   return {
@@ -118,12 +117,12 @@ function buildPayload(form: ProductFormState): Record<string, unknown> {
     name: form.name.trim(),
     description: form.description.trim() || null,
     price: Number(form.price),
-    isReservation: form.isReservation,
+    isReservation: requiresDeposit,
     requiresDeposit,
     depositAmount: requiresDeposit ? Number(form.depositAmount || 0) : null,
     tracksStock,
     stockQuantity: tracksStock ? Number(form.stockQuantity || 0) : null,
-    allowsFullPayment: true,
+    allowsFullPayment,
     hasVariants,
     isActive: form.isActive,
     allowsPersonalization,
@@ -143,6 +142,12 @@ function buildPayload(form: ProductFormState): Record<string, unknown> {
   }
 }
 
+const paymentPolicies = [
+  { value: 'full', title: 'Pago total', description: 'El alumno debe pagar el importe completo.' },
+  { value: 'deposit-or-full', title: 'Adelanto o pago total', description: 'Puede reservar pagando un adelanto o pagar el importe completo.' },
+  { value: 'deposit-only', title: 'Adelanto obligatorio', description: 'Primero debe pagar el adelanto y luego completar el saldo.' },
+] as const
+
 function getCreatedProductId(response: unknown): string | null {
   const data = response as { id?: string; data?: { id?: string }; item?: { id?: string } }
   return data?.id ?? data?.data?.id ?? data?.item?.id ?? null
@@ -161,6 +166,7 @@ function categoryLabel(product: Product, categories: Category[]): string {
 }
 
 function ProductsPageInner() {
+  const navigate = useNavigate()
   const { data: products = [], isLoading: loadingProducts } = useProducts()
   const { data: categories = [], isLoading: loadingCategories } = useCategories()
   const createMutation = useCreateProduct()
@@ -239,6 +245,15 @@ function ProductsPageInner() {
     }
   }
 
+  async function handleToggleActive(product: Product) {
+    try {
+      await updateMutation.mutateAsync({ id: product.id, isActive: !product.isActive })
+      toast(product.isActive ? 'Producto desactivado.' : 'Producto activado.')
+    } catch {
+      toast('No se pudo cambiar el estado del producto.', 'error')
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
       <BackButton to="/admin/clothing" label="Volver a Indumentaria" />
@@ -294,6 +309,8 @@ function ProductsPageInner() {
                     category={categoryLabel(product, categories)}
                     onEdit={() => setEditingProduct(product)}
                     onDelete={() => setDeletingProduct(product)}
+                    onToggleActive={() => handleToggleActive(product)}
+                    onManageStock={() => navigate('/admin/clothing/stock')}
                   />
                 ))}
               </div>
@@ -405,7 +422,11 @@ function ProductForm({
     if (!form.parentCategoryId && !form.categoryId) return 'La categoría es obligatoria.'
     if (!form.name.trim()) return 'El nombre es obligatorio.'
     if (Number(form.price) <= 0) return 'El precio debe ser mayor a cero.'
-    if (form.requiresDeposit && Number(form.depositAmount) <= 0) return 'La seña debe ser mayor a cero.'
+    if (form.paymentPolicy !== 'full') {
+      const deposit = Number(form.depositAmount)
+      if (deposit <= 0) return 'El importe del adelanto debe ser mayor a cero.'
+      if (deposit >= Number(form.price)) return 'El adelanto debe ser menor al precio del producto.'
+    }
     if (form.allowsPersonalization) {
       const max = Number(form.personalizationMaxLength)
       if (max < 1 || max > 50) return 'El máximo de personalización debe estar entre 1 y 50.'
@@ -493,17 +514,41 @@ function ProductForm({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Toggle label="Producto activo" checked={form.isActive} onChange={(v) => patch('isActive', v)} />
-        <Toggle label="Es reserva" checked={form.isReservation} onChange={(v) => patch('isReservation', v)} />
-        <Toggle label="Requiere seña" checked={form.requiresDeposit} onChange={(v) => patch('requiresDeposit', v)} />
         <Toggle label="Tiene variantes" checked={form.hasVariants} onChange={(v) => patch('hasVariants', v)} />
         <Toggle label="Permite personalización" checked={form.allowsPersonalization} onChange={(v) => patch('allowsPersonalization', v)} />
         {!form.hasVariants && <Toggle label="Controlar stock" checked={form.tracksStock} onChange={(v) => patch('tracksStock', v)} />}
       </div>
 
-      {form.requiresDeposit && (
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Forma de pago</label>
+        <div className="space-y-2">
+          {paymentPolicies.map((policy) => (
+            <label
+              key={policy.value}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 dark:border-slate-700"
+              style={form.paymentPolicy === policy.value ? { borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.06)' } : undefined}
+            >
+              <input
+                type="radio"
+                name="paymentPolicy"
+                checked={form.paymentPolicy === policy.value}
+                onChange={() => patch('paymentPolicy', policy.value)}
+                className="mt-0.5 h-4 w-4 text-violet-600 focus:ring-violet-500"
+              />
+              <div>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{policy.title}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{policy.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {form.paymentPolicy !== 'full' && (
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Monto de seña</label>
-          <Input type="number" min="0" step="0.01" value={form.depositAmount} onChange={(e) => patch('depositAmount', e.target.value)} />
+          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Importe del adelanto</label>
+          <Input type="number" min="0" step="0.01" value={form.depositAmount} onChange={(e) => patch('depositAmount', e.target.value)} placeholder="Ej: 15000" />
+          <p className="mt-1 text-xs text-slate-400">Debe ser menor al precio del producto ({money(Number(form.price) || 0)}).</p>
         </div>
       )}
 
@@ -630,16 +675,27 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   )
 }
 
-function ProductCard({ product, category, onEdit, onDelete }: {
+function ProductCard({ product, category, onEdit, onDelete, onToggleActive, onManageStock }: {
   product: Product
   category: string
   onEdit: () => void
   onDelete: () => void
+  onToggleActive: () => void
+  onManageStock: () => void
 }) {
   const image = mainImage(product)
   const stockLabel = product.hasVariants
     ? `${product.variants?.length ?? 0} variantes`
-    : product.tracksStock ? `${product.stockQuantity ?? 0} en stock` : 'Siempre disponible'
+    : !product.tracksStock
+      ? 'Siempre disponible'
+      : product.availableQuantity != null
+        ? `${product.availableQuantity} disponibles${product.reservedQuantity > 0 ? ` · ${product.reservedQuantity} reservados` : ''}`
+        : `${product.stockQuantity ?? 0} en stock`
+  const policyLabel = !product.requiresDeposit
+    ? 'Pago total'
+    : product.allowsFullPayment
+      ? 'Adelanto o pago total'
+      : 'Adelanto obligatorio'
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -659,13 +715,17 @@ function ProductCard({ product, category, onEdit, onDelete }: {
           <div className="mt-3 flex flex-wrap gap-1.5">
             <Badge variant={product.isActive ? 'success' : 'default'}>{product.isActive ? 'Activo' : 'Inactivo'}</Badge>
             <Badge variant="info">{stockLabel}</Badge>
-            {product.requiresDeposit && <Badge variant="warning">Seña {money(product.depositAmount ?? 0)}</Badge>}
-            {product.allowsPersonalization && <Badge variant="violet">Personalizable</Badge>}
+            <Badge variant="violet">{policyLabel}</Badge>
+            {product.allowsPersonalization && <Badge variant="default">Personalizable</Badge>}
           </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
         <Button variant="outline" size="sm" onClick={onEdit}>Editar</Button>
+        <Button variant="outline" size="sm" onClick={onManageStock}>Gestionar stock</Button>
+        <Button variant="outline" size="sm" onClick={onToggleActive}>
+          {product.isActive ? 'Desactivar' : 'Activar'}
+        </Button>
         <Button variant="outline" size="sm" className="border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30" onClick={onDelete}>
           Eliminar
         </Button>
