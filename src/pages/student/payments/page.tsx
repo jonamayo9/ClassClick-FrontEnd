@@ -234,6 +234,16 @@ function PaymentPageInner() {
     const result = new Map<string, StudentBilling>()
     for (const current of billing) {
       const ownerKey = current.studentId || current.studentFullName || ''
+      // La dependencia económica "primero el período más antiguo" sólo aplica a la
+      // MISMA obligación real: mismo curso/inscripción y mismo concepto (tipo de
+      // cuota). Cuotas de otro curso o de otro concepto son independientes.
+      const currentCourseKey = current.courseId || current.courseName || ''
+      const currentTypeKey = `${current.chargeTypeId || ''}|${current.isCustom ? 'custom' : ''}`
+      const isSameObligation = (candidate: StudentBilling) => {
+        const candidateCourseKey = candidate.courseId || candidate.courseName || ''
+        const candidateTypeKey = `${candidate.chargeTypeId || ''}|${candidate.isCustom ? 'custom' : ''}`
+        return candidateCourseKey === currentCourseKey && candidateTypeKey === currentTypeKey
+      }
       const isEarlierPeriod = (candidate: StudentBilling) =>
         candidate.year < current.year ||
         (candidate.year === current.year && candidate.month < current.month)
@@ -244,8 +254,10 @@ function PaymentPageInner() {
           const paymentStatus = normalizePaymentStatus(candidate.paymentStatus)
           return candidate.chargeId !== current.chargeId &&
             candidateOwnerKey === ownerKey &&
+            isSameObligation(candidate) &&
             (status === 'pending' || status === 'overdue') &&
             paymentStatus !== 'approved' &&
+            Number(candidate.finalAmount) > 0 &&
             isEarlierPeriod(candidate)
         })
         .sort((a, b) =>
@@ -415,7 +427,10 @@ function StudentChargeCard({
   const refundable = chargeStatus === 'refundpending'
   const financingPending = financingRequest?.status === 1
   const financingApproved = financingRequest?.status === 2
-  const payable = !paid && !cancelled && !refundable && !financingPending
+  // Una cuota sin saldo (totalmente cubierta por un beneficio/descuento) no
+  // exige pago ni bloquea otras cuotas.
+  const fullyCovered = !paid && !cancelled && !refundable && Number(charge.finalAmount) <= 0
+  const payable = !paid && !cancelled && !refundable && !financingPending && !fullyCovered
   const paymentBlockedByDebt = payable && Boolean(earlierDebt)
   const canFinance = Boolean(
     payable &&
@@ -533,6 +548,11 @@ function StudentChargeCard({
         {paymentBlockedByDebt && earlierDebt && (
           <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
             Primero resolvé la deuda del período {String(earlierDebt.month).padStart(2, '0')}/{earlierDebt.year}.
+          </p>
+        )}
+        {fullyCovered && (
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            Cuota cubierta por un beneficio. No tenés saldo a pagar en esta cuota.
           </p>
         )}
       </div>

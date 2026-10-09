@@ -31,6 +31,7 @@ export interface StudentBilling {
   studentId?: string
   studentFullName?: string
   isOwnCharge?: boolean
+  courseId?: string
   courseName: string
   month: number
   year: number
