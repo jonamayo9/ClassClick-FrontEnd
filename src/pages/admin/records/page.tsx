@@ -7,19 +7,25 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
 import { DocumentReviewDialog } from '@/components/ui/document-review-dialog'
+import { Pagination } from '@/components/ui/pagination'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
+import { usePermission } from '@/hooks/usePermission'
 import { config } from '@/lib/config'
 import {
-  useCourses, useDocumentTypes, useStudents, useStudentDetail,
-  useCreateDocumentRequest, usePreviewFile, useDownloadFile,
-  useApproveDocument, useRejectDocument, useAllDocuments,
+  Bell, Plus, Search, RotateCcw, Eye, ChevronRight,
+  Users, CheckCircle2, Clock3, AlertCircle,
+} from 'lucide-react'
+import {
+  useCourses, useDocumentTypes, useStudents, useStudentsAll, useRecordsSummary,
+  useStudentDetail, useStudentCourses, useStudentEconomic, useStudentLegajo,
+  useCreateDocumentRequest, useAllDocuments, useDownloadFile,
   useDeleteAssignment,
-  formatDate, formatDateOnly, getStatusLabel, getStatusBadgeClass,
+  formatDateOnly, getStatusLabel, getStatusBadgeClass,
 } from './hooks'
-import type { Student, StudentDocument } from './hooks'
+import type { Student, StudentDocument, RecordsSummary } from './hooks'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 function slug() { return useAuth.getState().activeCompanySlug ?? '' }
 
 /** "Curso" es del vertical Deportivo; en Educativa se oculta el filtro y no se consulta. */
@@ -49,32 +55,44 @@ function initials(name: string) {
   return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toUpperCase()).join('') || '?'
 }
 
-function isImage(m: string | null) { return String(m || '').toLowerCase().startsWith('image/') }
-function isPdf(m: string | null) { return String(m || '').toLowerCase() === 'application/pdf' }
-
 export default function RecordsPage() {
   const qc = useQueryClient()
   const isEducativa = isEducativaContext()
+  const canEconomic = usePermission(isEducativa ? 'cuotas' : undefined)
   const [pageTab, setPageTab] = useState<'records' | 'documents'>('records')
-  const [draft, setDraft] = useState({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
-  const [applied, setApplied] = useState({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
-  const { data: students = [], isLoading, error } = useStudents(applied)
+
+  // Filtros server-side (Legajos)
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [courseId, setCourseId] = useState('')
+  const [activeFilter, setActiveFilter] = useState('')
+  const [documentStatus, setDocumentStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE)
+  const searchTimer = useRef<number | undefined>(undefined)
+
+  function onSearchChange(v: string) {
+    setSearchInput(v)
+    clearTimeout(searchTimer.current)
+    searchTimer.current = window.setTimeout(() => { setSearch(v); setPage(1) }, 300)
+  }
+  function resetFilters() {
+    clearTimeout(searchTimer.current)
+    setSearchInput(''); setSearch(''); setCourseId(''); setActiveFilter(''); setDocumentStatus(''); setPage(1)
+  }
+
+  const filters = { search, courseId, isActive: activeFilter, documentStatus, page, pageSize }
+  const { data: studentsData, isLoading, error } = useStudents(filters)
+  const students = studentsData?.items ?? []
+  const totalCount = studentsData?.totalCount ?? 0
+  const { data: summary } = useRecordsSummary()
   const { data: courses = [] } = useCourses()
   const { data: documentTypes = [] } = useDocumentTypes()
 
-  const [page, setPage] = useState(1)
-  const [showFilters, setShowFilters] = useState(false)
-
-  const notifyPendingMutation = useMutation({
-    mutationFn: () => apiService.post(`/api/admin/${slug()}/student-files/notify-pending`),
-    onSuccess: (data: unknown) => { toast(`Notificaciones enviadas a ${(data as Record<string, unknown>)?.notified ?? 0} alumnos.`) },
-    onError: () => toast('Error al notificar.', 'error'),
-  })
-  function handleNotifyPending() { notifyPendingMutation.mutate() }
-
   const [showRequestModal, setShowRequestModal] = useState(false)
+  const { data: allStudents = [] } = useStudentsAll(showRequestModal)
+
   const [showDetailId, setShowDetailId] = useState<string | null>(null)
-  const [showPreview, setShowPreview] = useState<{ fileId: string; url: string; fileName: string; mimeType: string } | null>(null)
   const [reviewDoc, setReviewDoc] = useState<StudentDocument | null>(null)
   const [deleteConfirmAssignmentId, setDeleteConfirmAssignmentId] = useState<{ id: string; name: string; fileCount: number } | null>(null)
   const deleteAssignment = useDeleteAssignment()
@@ -87,273 +105,185 @@ export default function RecordsPage() {
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 3500)
   }, [])
 
+  const notifyPendingMutation = useMutation({
+    mutationFn: () => apiService.post(`/api/admin/${slug()}/student-files/notify-pending`),
+    onSuccess: (data: unknown) => {
+      const notified = (data as Record<string, unknown>)?.notified ?? 0
+      toast(`Notificaciones enviadas a ${notified} alumno(s).`)
+      qc.invalidateQueries({ queryKey: ['records-summary'] })
+    },
+    onError: () => toast('Error al notificar.', 'error'),
+  })
+  function handleNotifyPending() { notifyPendingMutation.mutate() }
+
   const { data: detail, isLoading: detailLoading } = useStudentDetail(showDetailId)
   const createRequest = useCreateDocumentRequest()
-  const previewFile = usePreviewFile()
-  const downloadFile = useDownloadFile()
-  const approveDoc = useApproveDocument()
-  const rejectDoc = useRejectDocument()
 
-  const filtered = students.filter((s) => {
-    const q = draft.search.toLowerCase().trim()
-    if (q) {
-      const name = (s.fullName || '').toLowerCase()
-      if (!name.includes(q) && !(s.email || '').toLowerCase().includes(q) &&
-          !String(s.dni || '').toLowerCase().includes(q) && !String(s.memberNumber || '').toLowerCase().includes(q))
-        return false
-    }
-    if (draft.courseId && s.courseId !== draft.courseId) return false
-    if (draft.status === 'active' && !s.isActive) return false
-    if (draft.status === 'inactive' && s.isActive) return false
-    const total = s.pendingCount + s.submittedCount + s.approvedCount + s.rejectedCount + s.expiredCount
-    if (draft.documentStatus === 'pending' && !s.pendingCount) return false
-    if (draft.documentStatus === 'submitted' && !s.submittedCount) return false
-    if (draft.documentStatus === 'approved' && !s.approvedCount) return false
-    if (draft.documentStatus === 'rejected' && !s.rejectedCount) return false
-    if (draft.documentStatus === 'expired' && !s.expiredCount) return false
-    if (draft.documentStatus === 'none' && total > 0) return false
-
-    // Document status quick filters — backend handles the OR logic via EXISTS subqueries.
-    // No additional in-memory filtering needed here; rely on backend response.
-    return true
-  })
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * PAGE_SIZE
-  const end = start + PAGE_SIZE
-  const pageItems = filtered.slice(start, end)
-
-  function applyFilters() { setApplied({ ...draft }); setPage(1) }
-  function clearFilters() {
-    setDraft({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
-    setApplied({ search: '', courseId: '', status: '', documentStatus: '', hasPendingDocuments: false, hasExpiringDocuments: false, hasExpiredDocuments: false })
-    setPage(1); setShowFilters(false)
-  }
-
-  const hasFilters = !!(draft.search || draft.courseId || draft.status || draft.documentStatus || draft.hasPendingDocuments || draft.hasExpiringDocuments || draft.hasExpiredDocuments)
+  const requiredDocCount = Math.max(1, documentTypes.filter((d) => d.isRequired).length || documentTypes.length)
 
   function renderRecordsContent() {
     return (
-      <>
-      <Card className="p-4 sm:p-5">
-        <button className="flex w-full items-center justify-between sm:hidden" onClick={() => setShowFilters((p) => !p)}>
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Filtros</span>
-            {hasFilters && (
-              <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">Activos</span>
-            )}
-          </div>
-          <svg className={`h-4 w-4 text-slate-400 transition ${showFilters ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        <div className={`${showFilters || 'hidden'} mt-4 sm:mt-0 sm:block`}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Buscar</label>
-              <Input placeholder="Nombre, email, DNI o legajo" value={draft.search}
-                onChange={(e) => setDraft((p) => ({ ...p, search: e.target.value }))}
-                onKeyDown={(e) => e.key === 'Enter' && applyFilters()} />
+      <div className="space-y-4">
+        {/* Filtros */}
+        <Card className="p-4 sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input className="pl-10" placeholder="Buscar alumno por nombre, apellido, DNI o email..."
+                value={searchInput} onChange={(e) => onSearchChange(e.target.value)} />
             </div>
             {!isEducativa && (
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Curso</label>
-                <FilterSelect value={draft.courseId} onChange={(v) => setDraft((p) => ({ ...p, courseId: v }))}>
+              <div className="lg:w-48">
+                <Select value={courseId} onChange={(e) => { setCourseId(e.target.value); setPage(1) }}>
                   <option value="">Todos los cursos</option>
                   {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </FilterSelect>
+                </Select>
               </div>
             )}
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Alumno</label>
-              <FilterSelect value={draft.status} onChange={(v) => setDraft((p) => ({ ...p, status: v }))}>
-                <option value="">Todos</option>
-                <option value="active">Activos</option>
-                <option value="inactive">Inactivos</option>
-              </FilterSelect>
+            <div className="lg:w-40">
+              <Select value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1) }}>
+                <option value="">Todos los alumnos</option>
+                <option value="true">Activos</option>
+                <option value="false">Inactivos</option>
+              </Select>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Documentación</label>
-              <FilterSelect value={draft.documentStatus} onChange={(v) => setDraft((p) => ({ ...p, documentStatus: v }))}>
-                <option value="">Todos</option>
+            <div className="lg:w-52">
+              <Select value={documentStatus} onChange={(e) => { setDocumentStatus(e.target.value); setPage(1) }}>
+                <option value="">Toda la documentación</option>
+                <option value="ontime">Al día</option>
                 <option value="pending">Pendientes</option>
-                <option value="submitted">En revisión</option>
-                <option value="approved">Aprobados</option>
-                <option value="rejected">Rechazados</option>
+                <option value="expiring">Próximos a vencer</option>
                 <option value="expired">Vencidos</option>
+                <option value="rejected">Rechazados</option>
                 <option value="none">Sin documentos</option>
-              </FilterSelect>
+              </Select>
             </div>
-            <div className="flex items-end gap-2">
-              <Button size="sm" onClick={applyFilters} className="flex-1">Aplicar</Button>
-              <Button size="sm" variant="ghost" onClick={clearFilters}>Limpiar</Button>
-            </div>
+            <Button variant="outline" className="h-11 shrink-0" onClick={resetFilters}>
+              <RotateCcw className="h-4 w-4" /> Limpiar
+            </Button>
           </div>
-        </div>
-      </Card>
 
-      {/* Quick document filters — always visible */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => { const next = !draft.hasPendingDocuments; setDraft((p) => ({ ...p, hasPendingDocuments: next })); setApplied((p) => ({ ...p, hasPendingDocuments: next })); setPage(1) }}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-            draft.hasPendingDocuments
-              ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-300'
-              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-          }`}
-        >Pendientes</button>
-        <button
-          type="button"
-          onClick={() => { const next = !draft.hasExpiringDocuments; setDraft((p) => ({ ...p, hasExpiringDocuments: next })); setApplied((p) => ({ ...p, hasExpiringDocuments: next })); setPage(1) }}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-            draft.hasExpiringDocuments
-              ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:bg-blue-900/40 dark:text-blue-300'
-              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-          }`}
-        >Próximos a vencer</button>
-        <button
-          type="button"
-          onClick={() => { const next = !draft.hasExpiredDocuments; setDraft((p) => ({ ...p, hasExpiredDocuments: next })); setApplied((p) => ({ ...p, hasExpiredDocuments: next })); setPage(1) }}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-            draft.hasExpiredDocuments
-              ? 'bg-red-100 text-red-700 ring-2 ring-red-300 dark:bg-red-900/40 dark:text-red-300'
-              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-          }`}
-        >Vencidos</button>
-      </div>
-
-      {/* LOADING */}
-      {isLoading && (
-        <Card className="p-8">
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* ERROR */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 dark:border-red-900/50 dark:bg-red-950/30">
-          <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div className="text-sm text-red-800 dark:text-red-200">
-            <p className="font-semibold">Error al cargar</p>
-            <p className="mt-0.5 text-red-600 dark:text-red-400">{error instanceof Error ? error.message : 'Intentalo de nuevo.'}</p>
-          </div>
-        </div>
-      )}
-
-      {/* LISTA */}
-      {!isLoading && !error && (
-        <Card className="overflow-hidden p-0">
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-4 py-16">
-              <svg className="h-10 w-10 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No hay alumnos</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500">Probá cambiando los filtros o limpiálos.</p>
-            </div>
-          ) : (
-            <>
-
-      {/* MOBILE CARDS */}
-      <div className="sm:hidden">
-        {pageItems.map((s) => (
-          <div key={s.studentId} className="border-b border-slate-100 px-4 py-4 last:border-b-0 dark:border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                {initials(s.fullName)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
-                <p className="truncate text-xs text-slate-400 dark:text-slate-500">{s.memberNumber || s.dni || 'Sin legajo'}</p>
-              </div>
-              <ActiveBadge active={s.isActive} />
-            </div>
-            <div className="ml-11 mt-1.5 flex items-center justify-between">
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-                <span className="truncate max-w-[120px]">{s.email}</span>
-                <span className="text-slate-300 dark:text-slate-600">·</span>
-                <span className="truncate max-w-[100px]">{s.courseName}</span>
-              </div>
-            </div>
-            <div className="ml-11 mt-2 flex items-center justify-between">
-              <DocBadges student={s} />
-              <button onClick={() => setShowDetailId(s.studentId)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm active:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:active:bg-slate-700">
-                Ver legajo
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* DESKTOP TABLE */}
-      <div className="hidden sm:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
-              <th className="px-3 py-3.5">Alumno</th>
-              <th className="hidden px-3 py-3.5 lg:table-cell">Email</th>
-              <th className="hidden px-3 py-3.5 xl:table-cell">Curso</th>
-              <th className="px-3 py-3.5">Documentación</th>
-              <th className="w-24 px-3 py-3.5">Estado</th>
-              <th className="w-28 px-3 py-3.5 text-right">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {pageItems.map((s, i) => {
-              const bg = i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/30 dark:bg-slate-800/20'
+          {/* Chips rápidos (sincronizados con el filtro de estado documental) */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {([
+              { key: 'pending', label: 'Pendientes', active: 'bg-amber-100 text-amber-700 ring-2 ring-amber-300 dark:bg-amber-500/20 dark:text-amber-300' },
+              { key: 'expiring', label: 'Próximos a vencer', active: 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:bg-blue-500/20 dark:text-blue-300' },
+              { key: 'expired', label: 'Vencidos', active: 'bg-rose-100 text-rose-700 ring-2 ring-rose-300 dark:bg-rose-500/20 dark:text-rose-300' },
+            ] as const).map((chip) => {
+              const isActive = documentStatus === chip.key
               return (
-                <tr key={s.studentId} className={`${bg} transition-colors hover:bg-teal-50/40 dark:hover:bg-teal-950/30`}>
-                  <td className="px-3 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                        {initials(s.fullName)}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">{s.memberNumber || s.dni || 'Sin legajo'}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="hidden px-3 py-3.5 text-slate-500 dark:text-slate-400 lg:table-cell">{s.email || '-'}</td>
-                  <td className="hidden px-3 py-3.5 text-slate-500 dark:text-slate-400 xl:table-cell">{s.courseName || '-'}</td>
-                  <td className="px-3 py-3.5"><DocBadges student={s} /></td>
-                  <td className="px-3 py-3.5"><ActiveBadge active={s.isActive} /></td>
-                  <td className="px-3 py-3.5 text-right">
-                    <Button variant="outline" size="sm" onClick={() => setShowDetailId(s.studentId)}>Ver legajo</Button>
-                  </td>
-                </tr>
+                <button key={chip.key} type="button"
+                  onClick={() => { setDocumentStatus(isActive ? '' : chip.key); setPage(1) }}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${isActive ? chip.active : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'}`}>
+                  {chip.label}
+                </button>
               )
             })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PAGINATION */}
-      <div className="flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row sm:justify-between sm:px-6 dark:border-slate-700 dark:bg-slate-800/50">
-        <p className="text-xs text-slate-500 dark:text-slate-400">{start + 1}–{Math.min(end, filtered.length)} de {filtered.length}</p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>← Anterior</Button>
-          <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente →</Button>
-        </div>
-      </div>
-            </>
-          )}
+          </div>
         </Card>
-      )}
-      </>
+
+        {isLoading ? (
+          <Card className="p-6"><div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div></Card>
+        ) : error ? (
+          <Card className="p-6 text-center text-sm text-rose-600 dark:text-rose-400">No se pudieron cargar los legajos. Intentá nuevamente.</Card>
+        ) : students.length === 0 ? (
+          <Card className="p-12 text-center">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Sin resultados</p>
+            <p className="mt-1 text-xs text-slate-400">Probá cambiando los filtros o limpialos.</p>
+          </Card>
+        ) : (
+          <Card className="overflow-hidden p-0">
+            {/* Desktop */}
+            <div className="hidden md:block">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-[0.4px] text-slate-400 dark:border-slate-800">
+                    <th className="px-4 py-3">Alumno</th>
+                    <th className="px-4 py-3">{isEducativa ? 'Formación' : 'Curso'}</th>
+                    <th className="px-4 py-3">Documentación</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {students.map((s) => {
+                    const st = studentDocStatus(s)
+                    const pct = Math.min(100, Math.round((s.approvedCount / requiredDocCount) * 100))
+                    return (
+                      <tr key={s.studentId} onClick={() => setShowDetailId(s.studentId)}
+                        className="cursor-pointer transition-colors duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{initials(s.fullName)}</div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
+                              <p className="truncate text-xs text-slate-400">{s.memberNumber || s.dni || s.email || '-'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[13px] text-slate-500 dark:text-slate-400">{s.courseName || '-'}</td>
+                        <td className="px-4 py-3">
+                          <div className="w-40">
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                              <span>{s.approvedCount} de {requiredDocCount}</span>
+                              <span>{pct}%</span>
+                            </div>
+                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${st.cls}`}>{st.label}</span></td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end">
+                            <IconButton label="Ver legajo" onClick={() => setShowDetailId(s.studentId)}><Eye className="h-4 w-4" /></IconButton>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile */}
+            <div className="divide-y divide-slate-100 md:hidden dark:divide-slate-800">
+              {students.map((s) => {
+                const st = studentDocStatus(s)
+                const pct = Math.min(100, Math.round((s.approvedCount / requiredDocCount) * 100))
+                return (
+                  <div key={s.studentId} role="button" tabIndex={0}
+                    onClick={() => setShowDetailId(s.studentId)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowDetailId(s.studentId) } }}
+                    className="cursor-pointer p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{initials(s.fullName)}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.fullName || '-'}</p>
+                        <p className="truncate text-xs text-slate-400">{s.memberNumber || s.dni || s.email || '-'}</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600" />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${st.cls}`}>{st.label}</span>
+                      {s.courseName && <span className="truncate text-[11px] text-slate-400">{s.courseName}</span>}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
+                      <span className="text-[11px] text-slate-400">{s.approvedCount}/{requiredDocCount}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="border-t border-slate-200 px-4 py-3 dark:border-slate-800">
+              <Pagination page={page} pageSize={pageSize} totalCount={totalCount} onPageChange={setPage} loading={isLoading}
+                showPageNumbers pageSizeOptions={[10, 20, 50]} onPageSizeChange={(n) => { setPageSize(n); setPage(1) }} />
+            </div>
+          </Card>
+        )}
+      </div>
     )
   }
 
@@ -370,35 +300,34 @@ export default function RecordsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
-      {/* HERO */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-teal-700 to-teal-800 px-5 py-6 text-white shadow-lg sm:px-8 sm:py-8">
-        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full bg-teal-400/10 blur-2xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-4xl">Legajos</h1>
-            <p className="mt-1 text-sm text-teal-200 sm:mt-1.5 sm:text-base">Administrá la documentación de los alumnos</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" className="shadow-lg" onClick={handleNotifyPending} loading={notifyPendingMutation.isPending}>
-              Notificar pendientes
-            </Button>
-            <Button variant="secondary" size="sm" className="shadow-lg" onClick={() => setShowRequestModal(true)}>
-              + Solicitar documentos
-            </Button>
-          </div>
+    <div className="space-y-5 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[22px] font-bold tracking-tight text-slate-900 dark:text-white sm:text-[26px]">Legajos</h1>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 sm:text-[13px]">Gestioná la documentación y el estado de los legajos de tus alumnos.</p>
         </div>
-      </section>
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          <Button variant="outline" className="h-11 w-full sm:h-10 sm:w-auto" onClick={handleNotifyPending} loading={notifyPendingMutation.isPending}>
+            <Bell className="h-4 w-4" /> Notificar pendientes
+          </Button>
+          <Button className="h-11 w-full bg-blue-600 text-white hover:bg-blue-500 sm:h-10 sm:w-auto" onClick={() => setShowRequestModal(true)}>
+            <Plus className="h-4 w-4" /> Solicitar documentos
+          </Button>
+        </div>
+      </div>
 
-      {/* NAV INTERNO */}
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+      {/* KPIs */}
+      <RecordsKpis summary={summary} />
+
+      {/* Tabs */}
+      <div className="flex gap-6 border-b border-slate-200 dark:border-slate-800">
         <button onClick={() => setPageTab('records')}
-          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'records' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          className={`-mb-px border-b-2 pb-2.5 text-sm font-semibold transition ${pageTab === 'records' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
           Legajos
         </button>
         <button onClick={() => setPageTab('documents')}
-          className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${pageTab === 'documents' ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          className={`-mb-px border-b-2 pb-2.5 text-sm font-semibold transition ${pageTab === 'documents' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
           Documentos
         </button>
       </div>
@@ -407,10 +336,8 @@ export default function RecordsPage() {
       {pageTab === 'documents' && renderDocumentsContent()}
 
       {/* MODALS / DRAWERS */}
-
-      {/* MODALS / DRAWERS */}
       {showRequestModal && (
-        <RequestModal documentTypes={documentTypes} students={students}
+        <RequestModal documentTypes={documentTypes} students={allStudents}
           isSubmitting={createRequest.isPending} serverError={createRequest.error}
           onSubmit={async (data) => {
             try {
@@ -430,25 +357,11 @@ export default function RecordsPage() {
       {showDetailId && (
         <DetailDrawer detail={detail ?? null} isLoading={detailLoading}
           documentTypes={documentTypes}
+          isEducativa={isEducativa}
+          canEconomic={canEconomic}
           onClose={() => setShowDetailId(null)}
-          onDownload={async (assignmentId) => { try {
-            const res = await apiService.get<{ url?: string | null; isCanonical: boolean; files?: { id: string; fileName: string; mimeType: string }[] }>(`/api/admin/${slug()}/student-files/assignments/${assignmentId}/view-canonical`)
-            if (res?.isCanonical && res.url) { downloadBlob(res.url, 'documento.pdf') }
-            else if (res?.files && res.files.length === 1) { const r = await downloadFile.mutateAsync(res.files[0].id); downloadBlob(r.url, res.files[0].fileName) }
-            else if (res?.files && res.files.length > 1) { toast('Varios archivos. Descargá desde la lista principal.', 'error') }
-          } catch { toast('Error al descargar.', 'error') } }}
           onReview={(doc) => setReviewDoc(doc)}
-          onViewAssignment={async (assignmentId, docName) => { try {
-            const r = await apiService.get<{ url?: string | null; isCanonical: boolean; files?: { id: string; fileName: string; mimeType: string }[] }>(`/api/admin/${slug()}/student-files/assignments/${assignmentId}/view-canonical`)
-            if (r?.isCanonical && r.url) { setShowPreview({ fileId: assignmentId, url: r.url, fileName: `${docName}.pdf`, mimeType: 'application/pdf' }) }
-            else if (r?.files && r.files.length > 0) { setShowPreview({ fileId: r.files[0].id, url: r.files[0].id, fileName: r.files[0].fileName, mimeType: r.files[0].mimeType }) }
-          } catch { toast('Error al cargar.', 'error') } }}
           onDeleteAssignmentRequest={(assignmentId, docName, fileCount) => setDeleteConfirmAssignmentId({ id: assignmentId, name: docName, fileCount })} />
-      )}
-
-      {showPreview && (
-        <PreviewModal url={showPreview.url} fileName={showPreview.fileName} mimeType={showPreview.mimeType}
-          onClose={() => setShowPreview(null)} />
       )}
 
       <DocumentReviewDialog doc={reviewDoc} slug={slug()} studentName={detail?.fullName}
@@ -507,48 +420,109 @@ export default function RecordsPage() {
    SUB-COMPONENTES
    ════════════════════════════════════ */
 
+function RecordsKpis({ summary }: { summary: RecordsSummary | undefined }) {
+  const total = summary?.totalStudents ?? 0
+  const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
+
+  const tones: Record<string, { icon: string; bar: string }> = {
+    violet: { icon: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', bar: 'bg-violet-500' },
+    green: { icon: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', bar: 'bg-emerald-500' },
+    amber: { icon: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400', bar: 'bg-amber-500' },
+    red: { icon: 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400', bar: 'bg-rose-500' },
+  }
+
+  if (!summary) {
+    return (
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3.5">
+        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[104px] animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />)}
+      </div>
+    )
+  }
+
+  const items = [
+    { key: 'total', icon: Users, tone: 'violet', label: 'Total alumnos', value: total, desc: 'Alumnos registrados', percent: null as number | null },
+    { key: 'ontime', icon: CheckCircle2, tone: 'green', label: 'Al día', value: summary.upToDate, desc: 'Documentación completa', percent: pct(summary.upToDate) },
+    { key: 'pending', icon: Clock3, tone: 'amber', label: 'Pendientes', value: summary.pending, desc: 'Requieren atención', percent: pct(summary.pending) },
+    { key: 'expired', icon: AlertCircle, tone: 'red', label: 'Vencidos', value: summary.expired, desc: 'Documentación vencida', percent: pct(summary.expired) },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3.5">
+      {items.map((it) => {
+        const t = tones[it.tone]
+        const Icon = it.icon
+        return (
+          <div key={it.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full ${t.icon}`}><Icon className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <p className="truncate text-[12px] font-medium text-slate-500 dark:text-slate-400">{it.label}</p>
+                <p className="text-2xl font-bold leading-tight text-slate-900 dark:text-white">{it.value}</p>
+              </div>
+            </div>
+            <p className="mt-2 truncate text-[11px] text-slate-400">{it.desc}{it.percent != null ? ` · ${it.percent}%` : ''}</p>
+            {it.percent != null && (
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${it.percent}%` }} />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function EconTile({ label, value, tone }: { label: string; value: string; tone: 'rose' | 'emerald' | 'amber' | 'blue' }) {
+  const tones: Record<string, string> = {
+    rose: 'text-rose-600 dark:text-rose-400',
+    emerald: 'text-emerald-600 dark:text-emerald-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+    blue: 'text-blue-600 dark:text-blue-400',
+  }
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <p className={`mt-1 text-base font-bold tabular-nums ${tones[tone]}`}>{value}</p>
+    </div>
+  )
+}
+
+function MiniStat({ label, value, cls }: { label: string; value: number; cls: string }) {
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{label} {value}</span>
+}
+
+function fmtMoney(value: number, currency: string | null) {
+  try {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: currency || 'ARS', maximumFractionDigits: 0 }).format(value)
+  } catch {
+    return `$${Math.round(value)}`
+  }
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" title={label} aria-label={label} onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+      {children}
+    </button>
+  )
+}
+
+function studentDocStatus(s: Student): { key: string; label: string; cls: string } {
+  if (s.expiredCount > 0) return { key: 'expired', label: 'Vencido', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400' }
+  if (s.rejectedCount > 0) return { key: 'rejected', label: 'Rechazado', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400' }
+  if (s.pendingCount > 0 || s.submittedCount > 0) return { key: 'pending', label: 'Pendiente', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400' }
+  if (s.approvedCount > 0) return { key: 'ontime', label: 'Al día', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' }
+  return { key: 'none', label: 'Sin documentos', cls: 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400' }
+}
+
 function FilterSelect({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
       {children}
     </Select>
-  )
-}
-
-function ActiveBadge({ active }: { active: boolean }) {
-  return active ? (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-      Activo
-    </span>
-  ) : (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-      <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
-      Inactivo
-    </span>
-  )
-}
-
-const BADGE_META: { key: string; label: string; cls: string; dark: string; getCount: (s: Student) => number }[] = [
-  { key: 'pending', label: 'Pend.', cls: 'bg-amber-100 text-amber-700', dark: 'dark:bg-amber-900/50 dark:text-amber-300', getCount: (s) => s.pendingCount },
-  { key: 'submitted', label: 'Revisión', cls: 'bg-blue-100 text-blue-700', dark: 'dark:bg-blue-900/50 dark:text-blue-300', getCount: (s) => s.submittedCount },
-  { key: 'approved', label: 'Aprob.', cls: 'bg-emerald-100 text-emerald-700', dark: 'dark:bg-emerald-900/50 dark:text-emerald-300', getCount: (s) => s.approvedCount },
-  { key: 'rejected', label: 'Rech.', cls: 'bg-rose-100 text-rose-700', dark: 'dark:bg-rose-900/50 dark:text-rose-300', getCount: (s) => s.rejectedCount },
-  { key: 'expired', label: 'Venc.', cls: 'bg-slate-200 text-slate-600', dark: 'dark:bg-slate-700 dark:text-slate-300', getCount: (s) => s.expiredCount },
-]
-
-function DocBadges({ student }: { student: Student }) {
-  const total = BADGE_META.reduce((sum, m) => sum + m.getCount(student), 0)
-  if (!total) return <span className="text-xs text-slate-400 dark:text-slate-500">Sin documentos</span>
-  return (
-    <div className="flex flex-wrap gap-1">
-      {BADGE_META.filter((m) => m.getCount(student) > 0).map((m) => (
-        <span key={m.key} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${m.cls} ${m.dark}`}>
-          {m.getCount(student)} {m.label}
-        </span>
-      ))}
-    </div>
   )
 }
 
@@ -743,15 +717,18 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
   toast: (msg: string, type?: 'success' | 'error') => void
 }) {
   const isEducativa = isEducativaContext()
-  const PAGE_SIZE = 20
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [search, setSearch] = useState('')
   const [filterCourse, setFilterCourse] = useState('')
   const [filterDocType, setFilterDocType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [scope, setScope] = useState('current')
 
-  const filters = { search, courseId: filterCourse, documentTypeId: filterDocType, status: filterStatus }
-  const { data: documents = [], isLoading } = useAllDocuments(filters)
+  const filters = { search, courseId: filterCourse, documentTypeId: filterDocType, status: filterStatus, scope, page, pageSize }
+  const { data, isLoading } = useAllDocuments(filters)
+  const documents = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
 
   const [viewFileData, setViewFileData] = useState<{ url: string; fileName: string; isImage: boolean; isPdf: boolean } | null>(null)
   const [viewFileLoading, setViewFileLoading] = useState(false)
@@ -760,16 +737,19 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
 
   function formatDateSafe(v: string | null) { return v ? formatDateOnly(v) : '-' }
 
+  async function handleDownloadFileRow(fileId: string, fileName: string) {
+    try {
+      const r = await apiService.get<{ url: string }>(`/api/admin/${slug()}/student-files/files/${fileId}/download`)
+      if (r?.url) downloadBlob(r.url, fileName)
+    } catch { toast('Error al descargar.', 'error') }
+  }
+
   function getBestDate(d: import('./hooks').AdminDocumentItem): string {
     return d.submittedAtUtc || d.dueDateUtc || ''
   }
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(documents.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * PAGE_SIZE
-  const end = start + PAGE_SIZE
-  const pageItems = documents.slice(start, end)
+  // Paginación server-side: el endpoint ya devuelve la página solicitada.
+  const pageItems = documents
 
   async function handleViewFile(fileId: string, fileName: string, mimeType: string) {
     setViewFileLoading(true)
@@ -839,16 +819,22 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold">Documentos</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{documents.length} documento{documents.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{totalCount} documento{totalCount !== 1 ? 's' : ''}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDownloadZip} loading={zipLoading} disabled={documents.length === 0}>
+        <Button variant="outline" size="sm" onClick={handleDownloadZip} loading={zipLoading} disabled={totalCount === 0}>
           Descargar todos los documentos
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
         <Input placeholder="Buscar alumno o documento..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+        <select value={scope} onChange={(e) => { setScope(e.target.value); setPage(1) }}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="current">Documentos actuales</option>
+          <option value="historical">Documentos históricos</option>
+          <option value="all">Todos los documentos</option>
+        </select>
         {!isEducativa && (
           <select value={filterCourse} onChange={(e) => { setFilterCourse(e.target.value); setPage(1) }}
             className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
@@ -928,17 +914,21 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {pageItems.map((d) => {
-                  const statusLabel = normalizeStatus(d.status)
-                  const statusClass = getStatusBadgeClass(d.status)
+                  const statusLabel = d.isHistorical ? 'Histórico' : normalizeStatus(d.status)
+                  const statusClass = d.isHistorical ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300' : getStatusBadgeClass(d.status)
                   const bestDate = getBestDate(d)
+                  const rowKey = `${d.assignmentId}-${d.version ?? 'cur'}-${d.submittedAtUtc ?? ''}`
                   return (
-                    <tr key={d.assignmentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <tr key={rowKey} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                       <td className="px-3 py-3 w-[30%] min-w-[220px]">
                         <p className="font-semibold text-slate-900 dark:text-white whitespace-nowrap truncate">{d.studentName}</p>
                         <p className="text-xs text-slate-400">{d.dni || d.courseName || '-'}</p>
                       </td>
                       <td className="px-3 py-3 w-[18%] min-w-[140px] max-w-[220px]">
-                        <p className="font-semibold text-slate-900 dark:text-white truncate" title={d.documentTypeName}>{d.documentTypeName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-slate-900 dark:text-white truncate" title={d.documentTypeName}>{d.documentTypeName}</p>
+                          {d.version != null && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">v{d.version}</span>}
+                        </div>
                         {d.fileName && <p className="text-xs text-slate-400 truncate max-w-[200px]" title={d.fileName}>{d.fileName}</p>}
                       </td>
                       <td className="px-3 py-3 w-[14%]">
@@ -948,11 +938,15 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
                       <td className="px-3 py-3 w-[18%] text-right">
                         {d.fileId || d.sourceFileCount > 0 ? (
                           <div className="flex justify-end gap-1.5">
-                            <button onClick={() => handleViewAssignment(d.assignmentId, d.documentTypeName)}
+                            <button onClick={() => d.isHistorical && d.fileId
+                              ? handleViewFile(d.fileId, d.fileName || 'Documento', d.fileMimeType || '')
+                              : handleViewAssignment(d.assignmentId, d.documentTypeName)}
                               className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                               Ver
                             </button>
-                            <button onClick={() => handleDownloadAssignment(d.assignmentId, d.documentTypeName)}
+                            <button onClick={() => d.isHistorical && d.fileId
+                              ? handleDownloadFileRow(d.fileId, d.fileName || 'documento')
+                              : handleDownloadAssignment(d.assignmentId, d.documentTypeName)}
                               className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                               Descargar
                             </button>
@@ -968,13 +962,18 @@ function MainDocumentsView({ courses, documentTypes, onOpenDetail, onReview, toa
             </table>
           </div>
 
-          {/* Pagination */}
-          <div className="flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row sm:justify-between sm:px-6 dark:border-slate-700 dark:bg-slate-800/50">
-            <p className="text-xs text-slate-500 dark:text-slate-400">{start + 1}–{Math.min(end, documents.length)} de {documents.length}</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>← Anterior</Button>
-              <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente →</Button>
-            </div>
+          {/* Paginación server-side */}
+          <div className="border-t border-slate-200 px-4 py-3 sm:px-6 dark:border-slate-700">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              loading={isLoading}
+              showPageNumbers
+              pageSizeOptions={[10, 20, 50]}
+              onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+            />
           </div>
         </>
       )}
@@ -1292,199 +1291,518 @@ function DocumentosTab({ detail, documentTypes, toast }: {
 }
 
 /* ─── DetailDrawer ─── */
-function DetailDrawer({ detail, isLoading, documentTypes, onClose, onDownload, onReview, onDeleteAssignmentRequest, onViewAssignment }: {
+function DetailDrawer({ detail, isLoading, documentTypes, isEducativa, canEconomic, onClose, onReview, onDeleteAssignmentRequest }: {
   detail: import('./hooks').StudentDetail | null; isLoading: boolean
-  documentTypes: { id: string; name: string }[]
+  documentTypes: { id: string; name: string; isRequired?: boolean; hasExpiration?: boolean }[]
+  isEducativa: boolean
+  canEconomic: boolean
   onClose: () => void
-  onDownload: (fileId: string) => void
   onReview: (doc: import('./hooks').StudentDocument) => void
   onDeleteAssignmentRequest?: (assignmentId: string, docName: string, fileCount: number) => void
-  onViewAssignment?: (assignmentId: string, docName: string) => void
 }) {
   const [visible, setVisible] = useState(false)
-  const [activeTab, setActiveTab] = useState<'legajo' | 'documentos'>('legajo')
+  const [tab, setTab] = useState<'summary' | 'docs' | 'courses' | 'economic'>('summary')
+  const [filesView, setFilesView] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadDocType, setUploadDocType] = useState('')
+  const [uploadExpiration, setUploadExpiration] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [zipLoading, setZipLoading] = useState(false)
+  const [historyDoc, setHistoryDoc] = useState<StudentDocument | null>(null)
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const qc = useQueryClient()
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
-  useEffect(() => { setActiveTab('legajo') }, [detail?.studentId])
+  useEffect(() => { setTab('summary'); setFilesView(false); setUploadFile(null); setUploadDocType(''); setUploadExpiration('') }, [detail?.studentId])
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { setVisible(false); setTimeout(onClose, 200) } }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   function handleClose() { setVisible(false); setTimeout(onClose, 200) }
-
   function showToast(text: string, type: 'success' | 'error' = 'success') {
     setToastMsg({ text, type })
     setTimeout(() => setToastMsg(null), 3500)
   }
 
+  const coursesQ = useStudentCourses(detail && !isEducativa ? detail.studentId : null)
+  const economicQ = useStudentEconomic(detail && !isEducativa ? detail.studentId : null, canEconomic && !isEducativa && !!detail)
+  const legajoQ = useStudentLegajo(detail && isEducativa ? detail.studentId : null)
+
+  // Situación económica normalizada para ambas divisiones (Deportiva: account-status;
+  // Educativa: inscripciones del legajo, con montos solo si el backend confirmó `cuotas`).
+  const econ = (() => {
+    if (isEducativa) {
+      const enrs = legajoQ.data?.enrollments ?? []
+      const visible = legajoQ.data?.economicVisible === true
+      const groups = enrs.map((e) => ({
+        label: e.trainingName || e.commissionName || 'Inscripción',
+        debt: Number(e.balanceDue ?? 0),
+        paid: Number(e.totalPaid ?? 0),
+        overdue: Number(e.overdueCount ?? 0),
+        nextDueDate: e.nextDueDateUtc ?? null,
+        currency: e.snapshotCurrency ?? null,
+      }))
+      const currencies = Array.from(new Set(groups.map((g) => g.currency).filter((c): c is string => !!c)))
+      const single = currencies.length <= 1
+      return {
+        isLoading: legajoQ.isLoading,
+        isError: legajoQ.isError,
+        visible,
+        totalDebt: single ? groups.reduce((a, g) => a + g.debt, 0) : 0,
+        totalPaid: single ? groups.reduce((a, g) => a + g.paid, 0) : 0,
+        pendingCharges: 0,
+        overdueCharges: single ? groups.reduce((a, g) => a + g.overdue, 0) : 0,
+        currency: single ? (currencies[0] ?? null) : null,
+        groups,
+      }
+    }
+    const d = economicQ.data
+    return {
+      isLoading: economicQ.isLoading,
+      isError: economicQ.isError,
+      visible: true,
+      totalDebt: d?.totalDebt ?? 0,
+      totalPaid: d?.totalPaid ?? 0,
+      pendingCharges: d?.pendingCharges ?? 0,
+      overdueCharges: d?.overdueCharges ?? 0,
+      currency: d?.currency ?? null,
+      groups: d?.groups ?? [],
+    }
+  })()
+
+  const selectedUploadType = documentTypes.find((dt) => dt.id === uploadDocType)
+  const uploadNeedsExpiration = !!selectedUploadType?.hasExpiration
+
   async function handleUpload() {
     if (!detail || !uploadFile) return
+    if (uploadNeedsExpiration && !uploadExpiration) { showToast('Indicá la fecha de vencimiento.', 'error'); return }
     setUploading(true)
     try {
       const fd = new FormData()
       fd.append('file', uploadFile)
       if (uploadDocType) fd.append('documentTypeId', uploadDocType)
+      if (uploadNeedsExpiration && uploadExpiration) fd.append('expirationDate', uploadExpiration)
       await apiService.postForm(`/api/admin/${slug()}/student-files/students/${detail.studentId}/upload`, fd)
       showToast('Documento subido correctamente.')
       setUploadFile(null)
-      onClose()
+      setUploadExpiration('')
+      // Refrescar el legajo para reflejar la nueva versión actual + el historial.
+      qc.invalidateQueries({ queryKey: ['records-student-detail'] })
+      qc.invalidateQueries({ queryKey: ['records-students'] })
+      qc.invalidateQueries({ queryKey: ['records-summary'] })
+      qc.invalidateQueries({ queryKey: ['records-all-documents'] })
     } catch {
       showToast('Error al subir el documento.', 'error')
     }
     setUploading(false)
   }
 
+  async function handleDownloadFile(fileId: string, fileName: string) {
+    try {
+      const r = await apiService.get<{ url: string }>(`/api/admin/${slug()}/student-files/files/${fileId}/download`)
+      if (r?.url) downloadBlob(r.url, fileName)
+    } catch { showToast('Error al descargar el archivo.', 'error') }
+  }
+
+  async function handleDownloadAll() {
+    if (!detail) return
+    setZipLoading(true)
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/admin/${slug()}/student-files/students/${detail.studentId}/documents/download-zip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuth.getState().token}` },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = `documentos_${detail.fullName.replace(/\s+/g, '_')}.zip`; a.click()
+      URL.revokeObjectURL(url)
+      showToast('Descarga iniciada.')
+    } catch { showToast('Error al descargar el ZIP.', 'error') } finally { setZipLoading(false) }
+  }
+
+  const docs = detail?.documents ?? []
+  const aggStatus = (() => {
+    const expired = docs.filter((d) => normalizeStatus(d.status) === 'Vencido').length
+    const rejected = docs.filter((d) => normalizeStatus(d.status) === 'Rechazado').length
+    const pending = docs.filter((d) => ['Pendiente', 'En revisión'].includes(normalizeStatus(d.status))).length
+    const approved = docs.filter((d) => normalizeStatus(d.status) === 'Aprobado').length
+    if (expired > 0) return { label: 'Vencido', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400' }
+    if (rejected > 0) return { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400' }
+    if (pending > 0) return { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400' }
+    if (approved > 0) return { label: 'Al día', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' }
+    return { label: 'Sin documentos', cls: 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400' }
+  })()
+
+  // Conteos reales para el Resumen (sobre la versión vigente de cada documento).
+  const docCounts = (() => {
+    const c = { approved: 0, pending: 0, rejected: 0, expired: 0, expiring: 0 }
+    const today = Date.now()
+    const limit = today + 30 * 86400000
+    for (const d of docs) {
+      const s = normalizeStatus(d.status)
+      if (s === 'Aprobado') c.approved++
+      else if (s === 'Pendiente' || s === 'En revisión') c.pending++
+      else if (s === 'Rechazado') c.rejected++
+      else if (s === 'Vencido') c.expired++
+      const exp = d.expirationDateUtc ? new Date(d.expirationDateUtc).getTime() : null
+      if (exp && exp >= today && exp <= limit && s !== 'Vencido') c.expiring++
+    }
+    return c
+  })()
+  const requiredTotal = Math.max(documentTypes.filter((d) => d.isRequired).length, 1)
+  const coursesCount = isEducativa ? (legajoQ.data?.enrollments?.length ?? 0) : (coursesQ.data?.length ?? 0)
+
+  const tabs: { key: 'summary' | 'docs' | 'courses' | 'economic'; label: string }[] = [
+    { key: 'summary', label: 'Resumen' },
+    { key: 'docs', label: 'Documentación' },
+    { key: 'courses', label: 'Cursos' },
+  ]
+  if (canEconomic) tabs.push({ key: 'economic', label: 'Situación económica' })
+
   return (
     <div className="fixed inset-0 z-[55]">
       <div className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`} onClick={handleClose} />
-      <div className={`absolute inset-x-0 bottom-0 top-16 flex flex-col bg-white shadow-2xl transition-transform duration-300 sm:top-0 sm:left-auto sm:right-0 sm:w-full sm:max-w-2xl lg:max-w-3xl dark:bg-slate-900 ${
-        visible ? 'translate-y-0 sm:translate-x-0' : 'translate-y-full sm:translate-y-0 sm:translate-x-full'}`}>
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6 dark:border-slate-700">
-          <div className="min-w-0">
-            <h3 className="text-base font-bold text-slate-900 sm:text-lg dark:text-white">Legajo del alumno</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Documentación y revisión</p>
-          </div>
-          <button onClick={handleClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-500 dark:hover:bg-slate-800">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Tabs */}
-        {detail && (
-          <div className="flex gap-1 border-b border-slate-200 px-5 py-2 dark:border-slate-700">
-            <button onClick={() => setActiveTab('legajo')}
-              className={`flex-1 rounded-lg py-2 text-sm font-bold transition ${activeTab === 'legajo' ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-              Legajo
-            </button>
-            <button onClick={() => setActiveTab('documentos')}
-              className={`flex-1 rounded-lg py-2 text-sm font-bold transition ${activeTab === 'documentos' ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-              Documentos
+      <div className={`absolute inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl transition-transform duration-300 sm:max-w-[540px] dark:bg-slate-900 ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
+        {/* Header fijo */}
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6 dark:border-slate-800">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              {detail?.profileImageUrl ? (
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><img src={detail.profileImageUrl} alt="" className="h-full w-full object-cover" /></div>
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{initials(detail?.fullName || '?')}</div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-[19px] font-bold text-slate-900 dark:text-white">{detail?.fullName || 'Legajo del alumno'}</p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">{detail?.dni ? `DNI ${detail.dni}` : detail?.email || (isLoading ? 'Cargando…' : '')}</p>
+              </div>
+            </div>
+            <button onClick={handleClose} aria-label="Cerrar"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
-          {activeTab === 'documentos' ? (
-            <DocumentosTab detail={detail} documentTypes={documentTypes} toast={showToast} />
-          ) : (
-            <>
-          {isLoading && (
-            <div className="space-y-4 py-8">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+          {detail && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${aggStatus.cls}`}>{aggStatus.label}</span>
+              <span className="text-[11px] text-slate-400">{docs.filter((d) => normalizeStatus(d.status) === 'Aprobado').length} aprobado(s) · {docs.length} en total</span>
+            </div>
+          )}
+          {detail && (
+            <div className="mt-3 flex gap-5 overflow-x-auto scrollbar-hide">
+              {tabs.map((t) => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`whitespace-nowrap border-b-2 pb-2 text-xs font-semibold transition ${tab === t.key ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+                  {t.label}
+                </button>
               ))}
             </div>
           )}
-          {!isLoading && !detail && (
-            <p className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">Seleccioná un alumno para ver su legajo.</p>
-          )}
-          {!isLoading && detail && (
-            <div className="space-y-5">
-              {/* Perfil */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800/50">
-                <div className="flex items-center gap-4">
-                  {detail.profileImageUrl ? (
-                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-700">
-                      <img src={detail.profileImageUrl} alt="" className="h-full w-full object-cover" />
-                    </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+          {isLoading && (<div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div>)}
+          {!isLoading && !detail && <p className="py-12 text-center text-sm text-slate-400">Seleccioná un alumno para ver su legajo.</p>}
+
+          {!isLoading && detail && tab === 'summary' && (
+            <div className="space-y-3">
+              {/* Datos personales */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Datos personales</p>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${detail.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}`}>{detail.isActive ? 'Activo' : 'Inactivo'}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">DNI: <b className="font-semibold text-slate-700 dark:text-slate-200">{detail.dni || '-'}</b></span>
+                  <span className="text-slate-500 dark:text-slate-400">Legajo: <b className="font-semibold text-slate-700 dark:text-slate-200">{detail.memberNumber || '-'}</b></span>
+                  <span className="col-span-2 truncate text-slate-500 dark:text-slate-400">Email: <b className="font-semibold text-slate-700 dark:text-slate-200">{detail.email || '-'}</b></span>
+                  <span className="col-span-2 text-slate-500 dark:text-slate-400">Obra social: <b className="font-semibold text-slate-700 dark:text-slate-200">{detail.hasHealthInsurance ? (detail.healthInsuranceName || 'Sí') : 'No'}</b></span>
+                </div>
+              </div>
+
+              {/* Documentación */}
+              <button type="button" onClick={() => setTab('docs')}
+                className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Documentación</p>
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Requeridos: <b className="text-slate-700 dark:text-slate-200">{requiredTotal}</b> · Aprobados: <b className="text-emerald-600 dark:text-emerald-400">{docCounts.approved}</b></p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <MiniStat label="Pendientes" value={docCounts.pending} cls="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400" />
+                  <MiniStat label="Rechazados" value={docCounts.rejected} cls="bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400" />
+                  <MiniStat label="Vencidos" value={docCounts.expired} cls="bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400" />
+                  <MiniStat label="Por vencer" value={docCounts.expiring} cls="bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400" />
+                </div>
+              </button>
+
+              {/* Cursos */}
+              <button type="button" onClick={() => setTab('courses')}
+                className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{isEducativa ? 'Formaciones' : 'Cursos e inscripciones'}</p>
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Cantidad: <b className="text-slate-700 dark:text-slate-200">{coursesCount}</b></p>
+              </button>
+
+              {/* Situación económica (permiso-gated) */}
+              {canEconomic && (
+                <button type="button" onClick={() => setTab('economic')}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Situación económica</p>
+                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                  </div>
+                  {econ.isLoading ? (
+                    <div className="h-5 w-32 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                  ) : econ.isError || (isEducativa && !econ.visible) ? (
+                    <p className="text-xs text-slate-400">No disponible.</p>
                   ) : (
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-teal-100 text-base font-bold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                      {initials(detail.fullName)}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                      <span>Deuda: <b className="text-rose-600 dark:text-rose-400">{fmtMoney(econ.totalDebt, econ.currency)}</b></span>
+                      <span>Pagado: <b className="text-emerald-600 dark:text-emerald-400">{fmtMoney(econ.totalPaid, econ.currency)}</b></span>
+                      <span>Cuotas pendientes: <b className="text-slate-700 dark:text-slate-200">{econ.pendingCharges}</b></span>
+                      <span>Cuotas vencidas: <b className="text-rose-600 dark:text-rose-400">{econ.overdueCharges}</b></span>
                     </div>
                   )}
-                  <div className="min-w-0">
-                    <h4 className="text-lg font-bold text-slate-900 dark:text-white">{detail.fullName || '-'}</h4>
-                    <div className="mt-2 grid grid-cols-2 gap-x-5 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                      <span><b className="text-slate-700 dark:text-slate-300">Email:</b> {detail.email || '-'}</span>
-                      <span><b className="text-slate-700 dark:text-slate-300">DNI:</b> {detail.dni || '-'}</span>
-                      <span><b className="text-slate-700 dark:text-slate-300">Legajo:</b> {detail.memberNumber || '-'}</span>
-                      <span><b className="text-slate-700 dark:text-slate-300">Curso:</b> {detail.courseName || '-'}</span>
-                      <span className="col-span-2"><b className="text-slate-700 dark:text-slate-300">Obra social:</b> {detail.hasHealthInsurance ? `Sí${detail.healthInsuranceName ? ` (${detail.healthInsuranceName})` : ''}` : 'No'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Documentos */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">Documentación</h4>
-                  <span className="text-sm text-slate-400 dark:text-slate-500">{detail.documents.length} documento{detail.documents.length !== 1 ? 's' : ''}</span>
-                </div>
-                {detail.documents.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-600 dark:bg-slate-800/30 dark:text-slate-500">
-                    Sin documentación solicitada.
-                  </div>
-                ) : (
-                  detail.documents.map((doc) => (
-                    <DocumentCard key={doc.assignmentId} doc={doc}
-                      onReview={() => onReview(doc)}
-                      onDelete={() => onDeleteAssignmentRequest?.(doc.assignmentId, doc.documentTypeName, doc.files?.length ?? 0)} />
-                  ))
-                )}
-              </div>
-
-              {/* Upload directo */}
-              <div className="rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 p-5 dark:border-violet-900/50 dark:bg-violet-950/20">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-lg dark:bg-violet-900/40">📎</span>
-                  <div>
-                    <p className="text-sm font-bold text-violet-800 dark:text-violet-200">Subir documento</p>
-                    <p className="text-xs text-violet-600 dark:text-violet-400">Se agregará directamente al legajo, sin solicitud previa.</p>
-                  </div>
-                </div>
-                {documentTypes.length > 0 && (
-                  <div className="mb-3">
-                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo documental</label>
-                    <Select value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)}>
-                      <option value="">Seleccionar tipo...</option>
-                      {documentTypes.map((dt) => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
-                    </Select>
-                  </div>
-                )}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <div className="flex-1">
-                    <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                      className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-violet-700 shadow-sm border border-slate-200 rounded-xl px-3 py-2 hover:file:bg-violet-50 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-violet-300 dark:border-slate-600" />
-                  </div>
-                  <Button size="sm" onClick={handleUpload}
-                    disabled={!uploadFile || (!isEducativaContext() && !uploadDocType)} loading={uploading}
-                    className="bg-violet-600 text-white hover:bg-violet-700 shadow-lg shadow-violet-500/20 shrink-0 sm:w-auto w-full">Subir</Button>
-                </div>
-                {uploadFile && (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    Archivo: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
-                  </p>
-                )}
-                {toastMsg && (
-                  <p className={`mt-2 text-xs font-medium ${toastMsg.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {toastMsg.text}
-                  </p>
-                )}
-              </div>
+                </button>
+              )}
             </div>
           )}
-            </>
+
+          {!isLoading && detail && tab === 'docs' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Documentación</p>
+                <div className="flex items-center gap-2">
+                  {filesView ? (
+                    <Button variant="outline" size="sm" onClick={() => setFilesView(false)}>Volver</Button>
+                  ) : (
+                    <>
+                      {docs.some((d) => d.currentFileId) && (
+                        <Button variant="outline" size="sm" onClick={handleDownloadAll} loading={zipLoading}>Descargar todo</Button>
+                      )}
+                      {docs.some((d) => d.currentFileId) && (
+                        <Button variant="outline" size="sm" onClick={() => setFilesView(true)}>Seleccionar</Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {filesView ? (
+                <DocumentosTab detail={detail} documentTypes={documentTypes} toast={showToast} />
+              ) : (
+                <>
+                  {docs.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800/30">Sin documentación asignada.</div>
+                  ) : docs.map((doc) => (
+                    <DocumentCard key={doc.assignmentId} doc={doc} onReview={() => onReview(doc)}
+                      onHistory={() => setHistoryDoc(doc)}
+                      onDelete={() => onDeleteAssignmentRequest?.(doc.assignmentId, doc.documentTypeName, doc.files?.length ?? 0)} />
+                  ))}
+
+                  {/* Upload directo */}
+                  <div className="rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                    <div className="mb-3 flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-lg dark:bg-blue-900/40">📎</span>
+                      <div>
+                        <p className="text-sm font-bold text-blue-800 dark:text-blue-200">Subir documento</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400">Se agrega directamente al legajo, sin solicitud previa.</p>
+                      </div>
+                    </div>
+                    {documentTypes.length > 0 && (
+                      <div className="mb-3">
+                        <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo documental</label>
+                        <Select value={uploadDocType} onChange={(e) => { setUploadDocType(e.target.value); setUploadExpiration('') }}>
+                          <option value="">Seleccionar tipo...</option>
+                          {documentTypes.map((dt) => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
+                        </Select>
+                      </div>
+                    )}
+                    {uploadNeedsExpiration && (
+                      <div className="mb-3">
+                        <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento *</label>
+                        <DatePicker value={uploadExpiration} onChange={setUploadExpiration} placeholder="Seleccionar fecha" title="Vencimiento" />
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                        className="block w-full flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-blue-300" />
+                      <Button onClick={handleUpload} disabled={!uploadFile || (!isEducativa && !uploadDocType) || (uploadNeedsExpiration && !uploadExpiration)} loading={uploading}
+                        className="h-11 shrink-0 bg-blue-600 text-white hover:bg-blue-500 sm:h-10">Subir</Button>
+                    </div>
+                    {uploadFile && <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Archivo: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)</p>}
+                    {toastMsg && <p className={`mt-2 text-xs font-medium ${toastMsg.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>{toastMsg.text}</p>}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {!isLoading && detail && tab === 'courses' && (
+            <div className="space-y-3">
+              {isEducativa ? (
+                legajoQ.isLoading ? (
+                  <div className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+                ) : (legajoQ.data?.enrollments?.length ?? 0) === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800/30">Sin formaciones asociadas.</div>
+                ) : legajoQ.data!.enrollments.map((e) => (
+                  <div key={e.id} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/40">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{e.trainingName || e.commissionName}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{e.commissionName}{e.categoryName ? ` · ${e.categoryName}` : ''}</p>
+                        <p className="mt-1 text-[11px] text-slate-400">Inscripción: {formatDateOnly(e.enrolledAtUtc)}</p>
+                      </div>
+                      {e.academicSituation && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-slate-700/60 dark:text-slate-300">{e.academicSituation}</span>}
+                    </div>
+                  </div>
+                ))
+              ) : coursesQ.isLoading ? (
+                <div className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+              ) : (coursesQ.data?.length ?? 0) === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800/30">Sin cursos asociados.</div>
+              ) : coursesQ.data!.map((c) => (
+                <div key={c.courseId} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{c.courseName}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{c.teacherName ? `Prof. ${c.teacherName}` : 'Sin profesor asignado'} · {c.classesPerWeek} clase(s)/semana</p>
+                      <p className="mt-1 text-[11px] text-slate-400">Inscripción: {formatDateOnly(c.enrolledAtUtc)}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${c.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}`}>{c.isActive ? 'Activo' : 'Inactivo'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!isLoading && detail && tab === 'economic' && canEconomic && (
+            <div className="space-y-3">
+              {econ.isLoading ? (
+                <div className="space-y-2">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}</div>
+              ) : econ.isError || (isEducativa && !econ.visible) ? (
+                <p className="text-xs text-slate-400">No se pudo cargar la situación económica.</p>
+              ) : (
+                <>
+                  {econ.currency !== null && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <EconTile label="Deuda pendiente" value={fmtMoney(econ.totalDebt, econ.currency)} tone="rose" />
+                      <EconTile label="Total pagado" value={fmtMoney(econ.totalPaid, econ.currency)} tone="emerald" />
+                      <EconTile label="Cuotas pendientes" value={String(econ.pendingCharges)} tone="amber" />
+                      <EconTile label="Cuotas vencidas" value={String(econ.overdueCharges)} tone="rose" />
+                    </div>
+                  )}
+                  {econ.groups.length > 0 && (
+                    <div className="space-y-2">
+                      {econ.groups.map((g, i) => (
+                        <div key={i} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/40">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{g.label}</p>
+                            <span className="shrink-0 text-xs font-semibold tabular-nums text-rose-600 dark:text-rose-400">{fmtMoney(g.debt, g.currency)}</span>
+                          </div>
+                          {g.nextDueDate && <p className="mt-1 text-[11px] text-slate-400">Próximo vencimiento: {formatDateOnly(g.nextDueDate)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {econ.currency !== null && econ.totalDebt === 0 && econ.totalPaid === 0 && econ.groups.length === 0 && (
+                    <p className="text-xs text-slate-400">Sin obligaciones económicas.</p>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
+
+        {/* Historial documental */}
+        {historyDoc && (
+          <div className="absolute inset-0 z-[10] flex items-end justify-center sm:items-center sm:p-4" onClick={() => setHistoryDoc(null)}>
+            <div className="absolute inset-0 bg-black/50" />
+            <div className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{historyDoc.documentTypeName}</p>
+                  <p className="text-xs text-slate-400">Historial de versiones</p>
+                </div>
+                <button onClick={() => setHistoryDoc(null)} aria-label="Cerrar"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                {(() => {
+                  type HFile = { id: string; fileName: string; uploadedAtUtc: string }
+                  const all: HFile[] = [
+                    ...(historyDoc.files ?? []).map((f) => ({ id: f.id, fileName: f.fileName, uploadedAtUtc: f.uploadedAtUtc })),
+                    ...(historyDoc.historicalFiles ?? []).map((f) => ({ id: f.id, fileName: f.fileName, uploadedAtUtc: f.uploadedAtUtc })),
+                  ]
+                  // Agrupamos por fecha de carga: los archivos de una misma presentación comparten timestamp.
+                  const groups = new Map<string, HFile[]>()
+                  for (const f of all) {
+                    const key = f.uploadedAtUtc || 'sin-fecha'
+                    if (!groups.has(key)) groups.set(key, [])
+                    groups.get(key)!.push(f)
+                  }
+                  const presentations = Array.from(groups.entries())
+                    .map(([at, files]) => ({ at, files }))
+                    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+                  const lastIdx = presentations.length - 1
+
+                  if (presentations.length === 0) {
+                    return <p className="text-xs text-slate-400">Sin presentaciones registradas.</p>
+                  }
+
+                  return presentations.map((p, i) => {
+                    const isCurrent = i === lastIdx
+                    return (
+                      <div key={p.at} className={`rounded-xl border p-3 ${isCurrent ? 'border-blue-300 bg-blue-50/40 dark:border-blue-700 dark:bg-blue-950/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Versión {i + 1}{isCurrent ? ' · vigente' : ''}</span>
+                          <span className="text-[11px] text-slate-400">Cargado: {formatDateOnly(p.at)}</span>
+                        </div>
+                        {isCurrent && (
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${getStatusBadgeClass(historyDoc.status)}`}>{normalizeStatus(historyDoc.status)}</span>
+                            <span className="text-[11px] text-slate-400">Enviado: {formatDateOnly(historyDoc.submittedAtUtc)} · Revisado: {formatDateOnly(historyDoc.reviewedAtUtc)} · Vence: {formatDateOnly(historyDoc.expirationDateUtc)}</span>
+                          </div>
+                        )}
+                        {p.files.map((f) => (
+                          <div key={f.id} className="mt-1 flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate text-xs text-slate-600 dark:text-slate-300">{f.fileName}</span>
+                            <button type="button" onClick={() => handleDownloadFile(f.id, f.fileName)} className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300">Descargar</button>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   )
 }
 
 /* ─── DocumentCard ─── */
-function DocumentCard({ doc, onReview, onDelete }: {
-  doc: StudentDocument; onReview?: () => void; onDelete?: () => void
+function DocumentCard({ doc, onReview, onHistory, onDelete }: {
+  doc: StudentDocument; onReview?: () => void; onHistory?: () => void; onDelete?: () => void
 }) {
   const status = normalizeStatus(doc.status)
   const isInReview = status === 'En revisión'
   const isApproved = status === 'Aprobado'
   const isRejected = status === 'Rechazado'
   const fileCount = doc.files?.length ?? 0
+  // Cantidad de presentaciones anteriores (agrupadas por fecha de carga).
+  const historyCount = new Set((doc.historicalFiles ?? []).map((f) => f.uploadedAtUtc)).size
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-700 dark:bg-slate-800/30">
@@ -1535,6 +1853,9 @@ function DocumentCard({ doc, onReview, onDelete }: {
           {!isInReview && !isApproved && !isRejected && onReview && (
             <DocActionBtn onClick={onReview}>Ver solicitud</DocActionBtn>
           )}
+          {onHistory && historyCount > 0 && (
+            <DocActionBtn onClick={onHistory}>Ver historial ({historyCount})</DocActionBtn>
+          )}
         </div>
       </div>
     </div>
@@ -1568,103 +1889,4 @@ function normalizeStatus(status: number | string | undefined): string {
   return String(status ?? '')
 }
 
-/* ─── PreviewModal ─── */
-function PreviewModal({ url, fileName, mimeType, onClose }: {
-  url: string; fileName: string; mimeType: string; onClose: () => void
-}) {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
-  function handleClose() { setVisible(false); setTimeout(onClose, 200) }
-
-  return (
-    <div className="fixed inset-0 z-[65] flex items-end sm:items-center sm:justify-center sm:p-4">
-      <div className={`absolute inset-0 bg-black/70 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`} onClick={handleClose} />
-      <div className={`relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 sm:max-w-4xl sm:rounded-2xl dark:bg-slate-900 ${
-        visible ? 'translate-y-0' : 'translate-y-full sm:translate-y-4 sm:opacity-0'}`}>
-        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-          <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-900 sm:text-base dark:text-white">{fileName}</h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">{mimeType}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button onClick={handleClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-500 dark:hover:bg-slate-800">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-auto p-4 sm:p-5">
-          {isPdf(mimeType) ? (
-            <iframe src={url} className="h-[60vh] w-full rounded-xl border border-slate-200 dark:border-slate-700" title={fileName} />
-          ) : isImage(mimeType) ? (
-            <div className="flex max-h-[60vh] items-center justify-center overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-              <img src={url} alt={fileName} className="max-h-[55vh] w-auto max-w-full object-contain" />
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-              No se puede previsualizar. Usá el botón descargar.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── ReviewModal ─── */
-function ReviewModal({ action, documentName, isPending, serverError, onSubmit, onClose }: {
-  action: 'approve' | 'reject'; documentName: string
-  isPending: boolean; serverError: Error | null
-  onSubmit: (d: { reviewNote: string | null; expirationDateUtc: string | null }) => void
-  onClose: () => void
-}) {
-  const isApprove = action === 'approve'
-  const [note, setNote] = useState('')
-  const [expirationDate, setExpirationDate] = useState('')
-  const [formError, setFormError] = useState('')
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setFormError('')
-    if (!isApprove && !note.trim()) { setFormError('Indicá el motivo del rechazo.'); return }
-    onSubmit({ reviewNote: note.trim() || null, expirationDateUtc: expirationDate ? `${expirationDate}T00:00:00Z` : null })
-  }
-
-  return (
-    <ModalShell onClose={onClose} title={isApprove ? 'Aprobar documento' : 'Rechazar documento'}
-      subtitle={isApprove ? 'Fecha de vencimiento y observación opcional' : 'Indicá el motivo del rechazo'}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-800">
-          <span className="font-bold text-slate-600 dark:text-slate-400">Documento: </span>
-          <span className="font-semibold text-slate-900 dark:text-white">{documentName}</span>
-        </div>
-        {isApprove && (
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento (opcional)</label>
-            <DatePicker value={expirationDate} onChange={setExpirationDate} placeholder="Sin vencimiento" />
-          </div>
-        )}
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Observación</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3}
-            placeholder={isApprove ? 'Opcional' : 'Motivo del rechazo'}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
-        </div>
-        {(formError || serverError) && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-            {formError || serverError?.message}
-          </div>
-        )}
-        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isPending}>Cancelar</Button>
-          <Button type="submit" size="sm" loading={isPending}
-            className={isApprove ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-rose-600 text-white hover:bg-rose-700'}>
-            {isApprove ? 'Aprobar' : 'Rechazar'}
-          </Button>
-        </div>
-      </form>
-    </ModalShell>
-  )
-}

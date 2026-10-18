@@ -23,6 +23,7 @@ import { SelectField } from '@/components/ui/select-field'
 import { DatePicker, MonthYearPicker } from '@/components/ui/date-picker'
 import { Modal as SharedModal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { Pagination } from '@/components/ui/pagination'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import type { Charge, Payment } from '@/types/payments'
 import { HelpCircle, Download, ChevronDown, FileText, FileSpreadsheet } from 'lucide-react'
@@ -353,18 +354,16 @@ function ChargesTab({ ctx, chargeTypes, exportOpen, setExportOpen, exporting, on
             ))}
           </div>
 
-          {ctx.chargeTotalPages > 1 && (
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              <span>{(ctx.chargePage - 1) * 25 + 1}–{Math.min(ctx.chargePage * 25, ctx.chargeTotalCount)} de {ctx.chargeTotalCount}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={ctx.chargePage <= 1}
-                  onClick={() => ctx.setChargePage(ctx.chargePage - 1)}>Anterior</Button>
-                <span className="flex items-center text-xs">Pág {ctx.chargePage} de {ctx.chargeTotalPages}</span>
-                <Button variant="outline" size="sm" disabled={ctx.chargePage >= ctx.chargeTotalPages}
-                  onClick={() => ctx.setChargePage(ctx.chargePage + 1)}>Siguiente</Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            page={ctx.chargePage}
+            pageSize={ctx.chargePageSize}
+            totalCount={ctx.chargeTotalCount}
+            onPageChange={ctx.setChargePage}
+            loading={ctx.loadingCharges}
+            showPageNumbers
+            pageSizeOptions={[10, 20, 50]}
+            onPageSizeChange={(n) => { ctx.setChargePageSize(n); ctx.setChargePage(1) }}
+          />
         </>
       )}
     </div>
@@ -657,6 +656,17 @@ function PaymentsTab({ ctx, onViewDetail, onExport }: {
               <PaymentCard key={p.id} payment={p} onViewDetail={() => onViewDetail(p)} />
             ))}
           </div>
+
+          <Pagination
+            page={ctx.payPage}
+            pageSize={ctx.payPageSize}
+            totalCount={ctx.payTotalCount}
+            onPageChange={ctx.setPayPage}
+            loading={ctx.loadingPayments}
+            showPageNumbers
+            pageSizeOptions={[10, 20, 50]}
+            onPageSizeChange={(n) => { ctx.setPayPageSize(n); ctx.setPayPage(1) }}
+          />
         </>
       )}
     </div>

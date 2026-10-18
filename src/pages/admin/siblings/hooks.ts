@@ -115,6 +115,46 @@ export interface SiblingRequest {
   note: string | null
   documentsRequestNote: string | null
   adminReviewNote: string | null
+  familyGroupId?: string | null
+}
+
+export interface FamilyGroupListItem {
+  familyGroupId: string
+  shareCharges: boolean
+  memberCount: number
+  memberNames: string[]
+  members?: FamilyMember[]
+}
+
+export interface FamilyGroupsPagedResponse {
+  items: FamilyGroupListItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export interface SiblingRequestsPagedResponse {
+  items: SiblingRequest[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export interface SiblingsSummary {
+  familyGroups: number
+  linkedStudents: number
+  pendingRequests: number
+  approvedRequests: number
+}
+
+function invalidateSiblings(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
+  qc.invalidateQueries({ queryKey: ['siblings-family-groups-paged'] })
+  qc.invalidateQueries({ queryKey: ['siblings-family-group-detail'] })
+  qc.invalidateQueries({ queryKey: ['siblings-requests'] })
+  qc.invalidateQueries({ queryKey: ['siblings-requests-paged'] })
+  qc.invalidateQueries({ queryKey: ['siblings-request-detail'] })
+  qc.invalidateQueries({ queryKey: ['siblings-summary'] })
 }
 
 export interface RequestDocument {
@@ -159,6 +199,90 @@ export function useFamilyGroups(studentId?: string | null) {
     },
     enabled: !!companySlug,
     select: (data) => data?.groups ?? [],
+  })
+}
+
+export function useFamilyGroupsPaged(params: {
+  search?: string
+  shareCharges?: string
+  page: number
+  pageSize: number
+}) {
+  const companySlug = useCompanySlug()
+  return useQuery({
+    queryKey: [
+      'siblings-family-groups-paged',
+      companySlug,
+      params.search ?? '',
+      params.shareCharges ?? '',
+      params.page,
+      params.pageSize,
+    ],
+    queryFn: () => {
+      const qs = new URLSearchParams()
+      if (params.search) qs.set('search', params.search)
+      if (params.shareCharges) qs.set('shareCharges', params.shareCharges)
+      qs.set('page', String(params.page))
+      qs.set('pageSize', String(params.pageSize))
+      return apiService.get<FamilyGroupsPagedResponse>(
+        `/api/admin/${companySlug}/students/sibling-links/family-groups/paged?${qs.toString()}`
+      )
+    },
+    enabled: !!companySlug,
+    placeholderData: (prev) => prev,
+  })
+}
+
+export function useFamilyGroupDetail(familyGroupId: string | null) {
+  const companySlug = useCompanySlug()
+  return useQuery({
+    queryKey: ['siblings-family-group-detail', companySlug, familyGroupId],
+    queryFn: () => apiService.get<FamilyGroup>(
+      `/api/admin/${companySlug}/students/sibling-links/family-groups/${familyGroupId}`
+    ),
+    enabled: !!companySlug && !!familyGroupId,
+  })
+}
+
+export function useSiblingRequestsPaged(params: {
+  search?: string
+  status?: string
+  page: number
+  pageSize: number
+}) {
+  const companySlug = useCompanySlug()
+  return useQuery({
+    queryKey: [
+      'siblings-requests-paged',
+      companySlug,
+      params.search ?? '',
+      params.status ?? '',
+      params.page,
+      params.pageSize,
+    ],
+    queryFn: () => {
+      const qs = new URLSearchParams()
+      if (params.search) qs.set('search', params.search)
+      if (params.status) qs.set('status', params.status)
+      qs.set('page', String(params.page))
+      qs.set('pageSize', String(params.pageSize))
+      return apiService.get<SiblingRequestsPagedResponse>(
+        `/api/admin/${companySlug}/students/sibling-links/requests/paged?${qs.toString()}`
+      )
+    },
+    enabled: !!companySlug,
+    placeholderData: (prev) => prev,
+  })
+}
+
+export function useSiblingsSummary() {
+  const companySlug = useCompanySlug()
+  return useQuery({
+    queryKey: ['siblings-summary', companySlug],
+    queryFn: () => apiService.get<SiblingsSummary>(
+      `/api/admin/${companySlug}/students/sibling-links/summary`
+    ),
+    enabled: !!companySlug,
   })
 }
 
@@ -216,10 +340,7 @@ export function useLinkStudents() {
   return useMutation({
     mutationFn: (body: { studentId: string; siblingStudentId: string }) =>
       apiService.post(`/api/admin/${companySlug}/students/sibling-links/link`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
-      qc.invalidateQueries({ queryKey: ['siblings-requests'] })
-    },
+    onSuccess: () => invalidateSiblings(qc),
   })
 }
 
@@ -229,10 +350,7 @@ export function useUnlinkStudent() {
   return useMutation({
     mutationFn: (studentId: string) =>
       apiService.post(`/api/admin/${companySlug}/students/sibling-links/student/unlink`, { studentId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
-      qc.invalidateQueries({ queryKey: ['siblings-requests'] })
-    },
+    onSuccess: () => invalidateSiblings(qc),
   })
 }
 
@@ -242,10 +360,7 @@ export function useBreakFamilyGroup() {
   return useMutation({
     mutationFn: (studentId: string) =>
       apiService.post(`/api/admin/${companySlug}/students/sibling-links/family-group/break`, { studentId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
-      qc.invalidateQueries({ queryKey: ['siblings-requests'] })
-    },
+    onSuccess: () => invalidateSiblings(qc),
   })
 }
 
@@ -259,7 +374,7 @@ export function useUpdateFamilyGroupBilling() {
         { shareCharges },
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
+      invalidateSiblings(qc)
       qc.invalidateQueries({ queryKey: ['student-billing'] })
     },
   })
@@ -271,11 +386,7 @@ export function useRequestDocumentsAction() {
   return useMutation({
     mutationFn: ({ requestId, note }: { requestId: string; note: string }) =>
       apiService.post(`/api/admin/${companySlug}/students/sibling-links/requests/${requestId}/request-documents`, { note }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-requests'] })
-      qc.invalidateQueries({ queryKey: ['siblings-request-detail'] })
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
-    },
+    onSuccess: () => invalidateSiblings(qc),
   })
 }
 
@@ -285,11 +396,7 @@ export function useApproveSiblingRequest() {
   return useMutation({
     mutationFn: ({ requestId, note }: { requestId: string; note: string | null }) =>
       apiService.post(`/api/admin/${companySlug}/students/sibling-links/requests/${requestId}/approve`, { note }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-requests'] })
-      qc.invalidateQueries({ queryKey: ['siblings-request-detail'] })
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
-    },
+    onSuccess: () => invalidateSiblings(qc),
   })
 }
 
@@ -299,10 +406,6 @@ export function useRejectSiblingRequest() {
   return useMutation({
     mutationFn: ({ requestId, note }: { requestId: string; note: string | null }) =>
       apiService.post(`/api/admin/${companySlug}/students/sibling-links/requests/${requestId}/reject`, { note }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['siblings-requests'] })
-      qc.invalidateQueries({ queryKey: ['siblings-request-detail'] })
-      qc.invalidateQueries({ queryKey: ['siblings-family-groups'] })
-    },
+    onSuccess: () => invalidateSiblings(qc),
   })
 }

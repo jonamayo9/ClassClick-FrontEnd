@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { SelectField } from '@/components/ui/select-field'
+import { Pagination } from '@/components/ui/pagination'
 import { DelegateDocumentsModal } from './documents-modal'
 import { RequestDocumentModal } from './request-modal'
 import type { DocRow, DocType } from './types'
@@ -30,11 +31,15 @@ export default function DelegateDocumentsPage() {
   const [docStatus, setDocStatus] = useState('')
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [requestOpen, setRequestOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => {
     const t = setTimeout(() => setTerm(search.trim()), 350)
     return () => clearTimeout(t)
   }, [search])
+
+  useEffect(() => { setPage(1) }, [term, courseId, docStatus])
 
   const { data: courses = [] } = useQuery({
     queryKey: ['delegate-courses', slug],
@@ -48,18 +53,24 @@ export default function DelegateDocumentsPage() {
     enabled: !!slug,
   })
 
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ['delegate-documents', slug, term, courseId, docStatus],
-    queryFn: () => {
+  const { data: pageData, isLoading } = useQuery({
+    queryKey: ['delegate-documents', slug, term, courseId, docStatus, page, pageSize],
+    queryFn: async (): Promise<{ items: DocRow[]; totalCount: number }> => {
       const p = new URLSearchParams()
       if (term) p.set('search', term)
       if (courseId) p.set('courseId', courseId)
       if (docStatus) p.set('status', docStatus)
-      const q = p.toString()
-      return apiService.get<DocRow[]>(`/api/delegate/${slug}/documents${q ? `?${q}` : ''}`)
+      p.set('page', String(page))
+      p.set('pageSize', String(pageSize))
+      const data = await apiService.get<DocRow[] | { items: DocRow[]; totalCount: number }>(`/api/delegate/${slug}/documents?${p.toString()}`)
+      if (Array.isArray(data)) return { items: data, totalCount: data.length }
+      return { items: data.items ?? [], totalCount: data.totalCount ?? (data.items?.length ?? 0) }
     },
     enabled: !!slug,
+    placeholderData: (prev) => prev,
   })
+  const rows = pageData?.items ?? []
+  const totalCount = pageData?.totalCount ?? 0
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['delegate-documents'] })
 
@@ -123,6 +134,11 @@ export default function DelegateDocumentsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {!isLoading && rows.length > 0 && (
+        <Pagination page={page} pageSize={pageSize} totalCount={totalCount} onPageChange={setPage} loading={isLoading}
+          showPageNumbers pageSizeOptions={[10, 20, 50]} onPageSizeChange={(n) => { setPageSize(n); setPage(1) }} />
       )}
 
       {selectedStudentId && (

@@ -15,6 +15,9 @@ export interface AdminNews {
   // Update | Important | Maintenance | NewFeature (o número por compatibilidad).
   type?: string | number
   publishedAtUtc: string
+  // Versión de la asociación novedad→empresa (CompanyAdminNewsTarget.CreatedAtUtc).
+  // Cambia cuando la empresa es quitada y vuelta a agregar.
+  targetCreatedAtUtc?: string | null
   isDismissed: boolean
 }
 
@@ -22,7 +25,13 @@ function fmtDate(value: string | null | undefined) {
   if (!value) return '-'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+  return d.toLocaleString('es-AR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // Icono conceptual por tipo. Update no lleva icono (diseño aprobado).

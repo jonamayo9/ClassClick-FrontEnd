@@ -41,7 +41,7 @@ function calcScore(
   if (hasDoc) { metrics.push({ value: docCompliance, weight: 35, label: 'Documentación' }); totalWeight += 35 }
   if (hasAtt) { metrics.push({ value: attendance, weight: 25, label: 'Asistencia' }); totalWeight += 25 }
 
-  if (metrics.length < 2) return { score: 0, label: 'Datos insuficientes', color: '#94a3b8', bg: 'bg-slate-50 dark:bg-slate-800/50', textColor: 'text-slate-400', summary: ['No hay suficientes datos para calcular el estado general.'] }
+  if (metrics.length < 1) return { score: 0, label: 'Datos insuficientes', color: '#94a3b8', bg: 'bg-slate-50 dark:bg-slate-800/50', textColor: 'text-slate-400', summary: ['No hay suficientes datos para calcular el estado general.'] }
 
   // Normalize: redistribute weights proportionally when some metrics are missing
   const normalizer = 100 / totalWeight
@@ -102,7 +102,9 @@ export function EstadoGeneralCard({ title = 'Estado General del Club', isSport =
     props.expiredDocs, props.overdueCharges, props.pendingReviews, props.newInquiries
   )
 
-  const isInsufficient = summary.length === 1 && summary[0].includes('No hay suficientes datos')
+  const applicableCount = (props.hasChargeData ? 1 : 0) + (props.hasDocumentData ? 1 : 0) + (props.hasAttendanceData ? 1 : 0)
+  const isInsufficient = applicableCount === 0
+  const isPartial = applicableCount === 1
 
   if (isSport) {
     const needsAction = !isInsufficient && label !== 'Todo funcionando correctamente'
@@ -151,8 +153,13 @@ export function EstadoGeneralCard({ title = 'Estado General del Club', isSport =
           {/* Información */}
           <div className="min-w-0 flex-1">
             <h2 className="text-[20px] font-extrabold leading-tight text-slate-900 sm:text-[22px] dark:text-white">{title}</h2>
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-              Índice de salud · {isInsufficient ? '—' : `${score}/100`}
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span>Índice de salud · {isInsufficient ? '—' : `${score}/100`}</span>
+              {isPartial && (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-700/60 dark:text-slate-300">
+                  Índice parcial
+                </span>
+              )}
             </p>
             <p className={cn(
               'mt-1 text-[13px] font-semibold',
@@ -192,7 +199,14 @@ export function EstadoGeneralCard({ title = 'Estado General del Club', isSport =
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">{title}</h2>
-            <p className={`mt-0.5 text-xs font-medium ${textColor}`}>{label}</p>
+            <p className={`mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium ${textColor}`}>
+              <span>{label}</span>
+              {isPartial && (
+                <span className="inline-flex items-center rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-700/60 dark:text-slate-300">
+                  Índice parcial
+                </span>
+              )}
+            </p>
           </div>
         </div>
         {!isInsufficient && (

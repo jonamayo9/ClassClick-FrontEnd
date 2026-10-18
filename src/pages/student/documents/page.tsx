@@ -156,17 +156,21 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
   const sourceFileCount = Math.max(Number(pick(raw, ['sourceFileCount', 'SourceFileCount'])) || 0, 0)
   const uploadedCount = sourceFileCount > 0 ? sourceFileCount : effectiveFiles.length
   const remaining = Math.max(0, maxFiles - uploadedCount)
+  const isRenewal = label === 'vencido'
   const canUpload = !!assignmentId && (
     (label === 'pendiente' && remaining > 0) ||
-    (label === 'rechazado')
+    (label === 'rechazado') ||
+    isRenewal
   )
 
-  // En rechazo la nueva presentación reemplaza a la anterior: el lote puede tener hasta maxFiles.
-  const maxSelectable = label === 'rechazado' ? maxFiles : remaining
+  // En rechazo/renovación la nueva presentación reemplaza a la anterior: el lote puede tener hasta maxFiles.
+  const maxSelectable = (label === 'rechazado' || isRenewal) ? maxFiles : remaining
 
   let uploadLabel = 'Subir documento'
   if (label === 'rechazado') {
     uploadLabel = 'Volver a subir documento'
+  } else if (isRenewal) {
+    uploadLabel = 'Renovar documento'
   } else if (uploadedCount > 0 && uploadedCount < maxFiles) {
     uploadLabel = 'Agregar documento'
   }
@@ -181,7 +185,8 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
     rejectionReason,
     assignedAt,
     dueDate,
-    expirationDateUtc,
+    // En renovación se exige una nueva fecha: no se precarga la vencida.
+    expirationDateUtc: isRenewal ? '' : expirationDateUtc,
     hasExpiration: pickBool(raw, ['hasExpiration', 'HasExpiration']),
     maxValidityDays: pick<number>(raw, ['maxValidityDays', 'MaxValidityDays']) ?? null,
     files: effectiveFiles,

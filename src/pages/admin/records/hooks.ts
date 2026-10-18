@@ -100,6 +100,7 @@ export interface StudentDocument {
   requestNote: string | null
   reviewNote: string | null
   files: StudentFile[]
+  historicalFiles?: StudentFile[]
 }
 
 export interface Course {
@@ -111,6 +112,8 @@ export interface DocumentType {
   id: string
   name: string
   isActive: boolean
+  isRequired?: boolean
+  hasExpiration?: boolean
 }
 
 export function useCourses() {
@@ -138,31 +141,161 @@ export function useDocumentTypes() {
   })
 }
 
-export function useStudents(filters: {
-  search: string; courseId: string; status: string; documentStatus: string
-  hasPendingDocuments?: boolean
-  hasExpiringDocuments?: boolean
-  hasExpiredDocuments?: boolean
-}) {
+export interface RecordsStudentFilters {
+  search: string
+  courseId: string
+  isActive: string       // '' | 'true' | 'false'
+  documentStatus: string // '' | 'ontime' | 'pending' | 'expiring' | 'expired' | 'rejected' | 'none'
+  page?: number
+  pageSize?: number
+}
+
+export function useStudents(filters: RecordsStudentFilters) {
   return useQuery({
     queryKey: ['records-students', slug(), filters],
-    queryFn: () => {
+    queryFn: async (): Promise<PagedResult<Student>> => {
       const params = new URLSearchParams()
       if (filters.search) params.set('search', filters.search)
       if (filters.courseId) params.set('courseId', filters.courseId)
-      if (filters.status) params.set('status', filters.status)
+      if (filters.isActive) params.set('isActive', filters.isActive)
       if (filters.documentStatus) params.set('documentStatus', filters.documentStatus)
-      if (filters.hasPendingDocuments) params.set('hasPendingDocuments', 'true')
-      if (filters.hasExpiringDocuments) params.set('hasExpiringDocuments', 'true')
-      if (filters.hasExpiredDocuments) params.set('hasExpiredDocuments', 'true')
+      if (filters.page) params.set('page', String(filters.page))
+      if (filters.pageSize) params.set('pageSize', String(filters.pageSize))
       const qs = params.toString()
       const url = qs
         ? `/api/admin/${slug()}/student-files/students?${qs}`
         : `/api/admin/${slug()}/student-files/students`
-      return apiService.get<Student[]>(url)
+      const data = await apiService.get<Student[] | PagedResult<Student>>(url)
+      if (Array.isArray(data)) return { items: data, totalCount: data.length }
+      return { items: data.items ?? [], totalCount: data.totalCount ?? (data.items?.length ?? 0) }
     },
     enabled: !!slug(),
-    select: (data) => (Array.isArray(data) ? data : []),
+    placeholderData: (prev) => prev,
+  })
+}
+
+/** Lista completa (sin paginar) para selectores como "solicitar a alumnos". */
+export function useStudentsAll(enabled = true) {
+  return useQuery({
+    queryKey: ['records-students-all', slug()],
+    queryFn: async () => {
+      const data = await apiService.get<Student[]>(`/api/admin/${slug()}/student-files/students`)
+      return Array.isArray(data) ? data : []
+    },
+    enabled: !!slug() && enabled,
+  })
+}
+
+export interface RecordsSummary {
+  totalStudents: number
+  upToDate: number
+  pending: number
+  expired: number
+  expiring: number
+}
+
+export function useRecordsSummary() {
+  return useQuery({
+    queryKey: ['records-summary', slug()],
+    queryFn: () => apiService.get<RecordsSummary>(`/api/admin/${slug()}/student-files/students/summary`),
+    enabled: !!slug(),
+  })
+}
+
+export interface StudentCourse {
+  courseId: string
+  courseName: string
+  teacherName: string | null
+  isActive: boolean
+  classesPerWeek: number
+  enrolledAtUtc: string
+}
+
+export function useStudentCourses(studentId: string | null) {
+  return useQuery({
+    queryKey: ['records-student-courses', slug(), studentId],
+    queryFn: () => apiService.get<StudentCourse[]>(`/api/admin/${slug()}/students/${studentId}/courses`),
+    enabled: !!slug() && !!studentId,
+  })
+}
+
+export interface RecordEconomicSummary {
+  totalDebt: number
+  totalPaid: number
+  pendingCharges: number
+  overdueCharges: number
+  currency: string | null
+  groups: { label: string; debt: number; paid: number; overdue: number; nextDueDate: string | null; currency: string | null }[]
+}
+
+/** Situación económica (Deportiva): account-status del alumno. */
+export function useStudentEconomic(studentId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['records-student-economic', slug(), studentId],
+    queryFn: async (): Promise<RecordEconomicSummary> => {
+      const account = await apiService.get<{
+        totalDebt: number; totalPaid: number; pendingCharges: number; overdueCharges: number
+        charges: { courseId: string; courseName: string; finalAmount: number; status: string | number }[]
+      }>(`/api/admin/${slug()}/monthly-charges/student/${studentId}/account-status`)
+
+      const byCourse = new Map<string, { label: string; debt: number; paid: number; overdue: number }>()
+      for (const c of account.charges ?? []) {
+        const isPaid = String(c.status).toLowerCase() === 'paid'
+        const g = byCourse.get(c.courseId) ?? { label: c.courseName || 'Curso', debt: 0, paid: 0, overdue: 0 }
+        if (!isPaid) g.debt += Number(c.finalAmount ?? 0)
+        if (isPaid) g.paid += Number(c.finalAmount ?? 0)
+        byCourse.set(c.courseId, g)
+      }
+
+      return {
+        totalDebt: Number(account.totalDebt ?? 0),
+        totalPaid: Number(account.totalPaid ?? 0),
+        pendingCharges: Number(account.pendingCharges ?? 0),
+        overdueCharges: Number(account.overdueCharges ?? 0),
+        currency: 'ARS',
+        groups: Array.from(byCourse.values()).map((g) => ({ ...g, nextDueDate: null, currency: 'ARS' })),
+      }
+    },
+    enabled: !!slug() && !!studentId && enabled,
+    retry: false,
+  })
+}
+
+export interface StudentEnrollmentRecord {
+  id: string
+  trainingName: string
+  categoryName: string
+  commissionName: string
+  status: string | number
+  academicSituation: string
+  enrolledAtUtc: string
+  snapshotCurrency: string | null
+  totalPaid: number | null
+  balanceDue: number | null
+  overdueCount: number | null
+  nextDueDateUtc: string | null
+}
+
+export interface StudentLegajo {
+  userId: string
+  fullName: string
+  dni: string | null
+  email: string | null
+  economicVisible: boolean
+  enrollments: StudentEnrollmentRecord[]
+}
+
+/**
+ * Legajo Educativa (endpoint propio con permiso `records`): devuelve SIEMPRE lo académico y
+ * los datos económicos SOLO si el backend confirma el permiso de Cuotas (economicVisible).
+ * No usa el endpoint `detail` para evitar exponer montos a usuarios sin permiso de Pagos.
+ */
+export function useStudentLegajo(studentId: string | null) {
+  return useQuery({
+    queryKey: ['records-student-legajo', slug(), studentId],
+    queryFn: () => apiService.get<StudentLegajo>(`/api/educativa/${slug()}/students/${studentId}/legajo`),
+    enabled: !!slug() && !!studentId,
+    retry: false,
   })
 }
 
@@ -266,6 +399,8 @@ export interface AdminDocumentItem {
   fileMimeType: string | null
   sourceFileCount: number
   maxFiles: number
+  isHistorical?: boolean
+  version?: number | null
 }
 
 export interface AssignmentViewResult {
@@ -274,27 +409,37 @@ export interface AssignmentViewResult {
   files?: { id: string; fileName: string; mimeType: string }[]
 }
 
+export interface PagedResult<T> { items: T[]; totalCount: number }
+
 export function useAllDocuments(filters: {
   search: string
   courseId: string
   documentTypeId: string
   status: string
+  scope?: string
+  page?: number
+  pageSize?: number
 }) {
   return useQuery({
     queryKey: ['records-all-documents', slug(), filters],
-    queryFn: () => {
+    queryFn: async (): Promise<PagedResult<AdminDocumentItem>> => {
       const params = new URLSearchParams()
       if (filters.search) params.set('search', filters.search)
       if (filters.courseId) params.set('courseId', filters.courseId)
       if (filters.documentTypeId) params.set('documentTypeId', filters.documentTypeId)
       if (filters.status) params.set('status', filters.status)
+      if (filters.scope) params.set('scope', filters.scope)
+      if (filters.page) params.set('page', String(filters.page))
+      if (filters.pageSize) params.set('pageSize', String(filters.pageSize))
       const qs = params.toString()
       const url = qs
         ? `/api/admin/${slug()}/student-files/documents?${qs}`
         : `/api/admin/${slug()}/student-files/documents`
-      return apiService.get<AdminDocumentItem[]>(url)
+      const data = await apiService.get<AdminDocumentItem[] | PagedResult<AdminDocumentItem>>(url)
+      if (Array.isArray(data)) return { items: data, totalCount: data.length }
+      return { items: data.items ?? [], totalCount: data.totalCount ?? (data.items?.length ?? 0) }
     },
     enabled: !!slug(),
-    select: (data) => (Array.isArray(data) ? data : []),
+    placeholderData: (prev) => prev,
   })
 }

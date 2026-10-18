@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ToastProvider, useToast } from '@/components/ui/toast'
-import { apiService } from '@/lib/api'
+import { apiService, getApiError } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,20 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Select } from '@/components/ui/select'
+import { ActionMenu } from '@/components/ui/action-menu'
+import { Pagination } from '@/components/ui/pagination'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { CoursePanel, CourseThumb } from './course-panel'
+import {
+  BookOpen, CheckCircle2, GraduationCap, Users, Plus, Search, RotateCcw,
+  Pencil, Clock, UserRound, Eye, ExternalLink,
+} from 'lucide-react'
+
+export interface CourseScheduleItem {
+  day: string
+  startTime: string
+  endTime: string
+}
 
 export interface Course {
   id: string
@@ -20,8 +34,28 @@ export interface Course {
   teacherId?: string
   teacherName?: string
   isActive: boolean
+  isPubliclyVisible?: boolean
+  publicCoverImageUrl?: string | null
   studentCount?: number
+  teacherCount?: number
   classesPerWeekOptions?: number[]
+  schedule?: CourseScheduleItem[]
+  createdAtUtc?: string
+}
+
+interface CourseListResponse {
+  items: Course[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+interface CoursesSummary {
+  totalCourses: number
+  activeCourses: number
+  assignedTeachers: number
+  enrolledStudents: number
+  totalStudents: number
 }
 
 interface Teacher {
@@ -47,7 +81,19 @@ interface ImportResult {
 }
 
 type CoursesTab = 'courses' | 'assignments'
+
 const STUDENTS_PAGE_SIZE = 12
+
+const DAY_LABELS: Record<string, string> = {
+  Monday: 'Lunes', Tuesday: 'Martes', Wednesday: 'Miércoles',
+  Thursday: 'Jueves', Friday: 'Viernes', Saturday: 'Sábado', Sunday: 'Domingo',
+}
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+const DAY_SHORT: Record<string, string> = {
+  Monday: 'Lun', Tuesday: 'Mar', Wednesday: 'Mié',
+  Thursday: 'Jue', Friday: 'Vie', Saturday: 'Sáb', Sunday: 'Dom',
+}
 
 function useSlug() {
   return useAuth((s) => s.activeCompanySlug ?? '')
@@ -58,9 +104,24 @@ function formatClasses(value: number | null | undefined) {
   return `${value} ${value === 1 ? 'clase' : 'clases'} / semana`
 }
 
-function normalizeCourseList(data: Course[] | { items?: Course[]; data?: Course[] }) {
-  if (Array.isArray(data)) return data
-  return data.items ?? data.data ?? []
+function formatTime(t?: string) {
+  return t ? t.slice(0, 5) : ''
+}
+
+function scheduleDetail(schedule?: CourseScheduleItem[]) {
+  if (!schedule || schedule.length === 0) return ''
+  return schedule
+    .map((s) => `${DAY_SHORT[s.day] ?? s.day} ${formatTime(s.startTime)}`)
+    .join(' · ')
+}
+
+type KpiTone = 'blue' | 'green' | 'violet' | 'cyan'
+
+const kpiTones: Record<KpiTone, { icon: string; text: string }> = {
+  blue: { icon: 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400', text: 'text-blue-600 dark:text-blue-400' },
+  green: { icon: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', text: 'text-emerald-600 dark:text-emerald-400' },
+  violet: { icon: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', text: 'text-violet-600 dark:text-violet-400' },
+  cyan: { icon: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-400', text: 'text-cyan-600 dark:text-cyan-400' },
 }
 
 function CoursesPageInner() {
@@ -70,10 +131,54 @@ function CoursesPageInner() {
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<CoursesTab>('courses')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [teacherFilter, setTeacherFilter] = useState('')
+  const [dayFilter, setDayFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const searchTimer = useRef<number | undefined>(undefined)
 
-  const { data: courses = [], isLoading } = useQuery({
+  const [panelCourseId, setPanelCourseId] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editCourse, setEditCourse] = useState<Course | null>(null)
+  const [deleteCourse, setDeleteCourse] = useState<Course | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [form, setForm] = useState({ name: '', description: '', teacherId: '' })
+
+  const debouncedSearch = (value: string) => {
+    clearTimeout(searchTimer.current)
+    searchTimer.current = window.setTimeout(() => { setSearch(value); setPage(1) }, 300)
+  }
+
+  useEffect(() => () => clearTimeout(searchTimer.current), [])
+
+  const summaryQuery = useQuery({
+    queryKey: ['admin-courses-summary', slug],
+    queryFn: () => apiService.get<CoursesSummary>(`/api/admin/${slug}/courses/summary`),
+    enabled: !!slug,
+  })
+
+  const listQuery = useQuery({
+    queryKey: ['admin-courses-paged', slug, search, statusFilter, teacherFilter, dayFilter, page, pageSize],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (statusFilter) params.set('status', statusFilter)
+      if (teacherFilter) params.set('teacherId', teacherFilter)
+      if (dayFilter) params.set('day', dayFilter)
+      params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
+      return apiService.get<CourseListResponse>(`/api/admin/${slug}/courses/paged?${params}`)
+    },
+    enabled: !!slug,
+    placeholderData: (prev) => prev,
+  })
+
+  const { data: allCourses = [] } = useQuery({
     queryKey: ['admin-courses', slug],
-    queryFn: () => apiService.get<Course[] | { items?: Course[]; data?: Course[] }>(`/api/admin/${slug}/courses`).then(normalizeCourseList),
+    queryFn: () => apiService.get<Course[]>(`/api/admin/${slug}/courses`),
     enabled: !!slug,
   })
 
@@ -83,162 +188,313 @@ function CoursesPageInner() {
     enabled: !!slug,
   })
 
-  const [form, setForm] = useState({ name: '', description: '', teacherId: '' })
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', description: '', teacherId: '' })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [deleteCourse, setDeleteCourse] = useState<Course | null>(null)
+  const courses = listQuery.data?.items ?? []
+  const totalCount = listQuery.data?.totalCount ?? 0
+  const summary = summaryQuery.data
+  const percent = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
+  const panelCourse = courses.find((c) => c.id === panelCourseId)
+    ?? allCourses.find((c) => c.id === panelCourseId)
+    ?? null
 
   const createMutation = useMutation({
-    mutationFn: () => apiService.post(`/api/admin/${slug}/courses`, { ...form, teacherId: form.teacherId || undefined }),
+    mutationFn: () => apiService.post(`/api/admin/${slug}/courses`, {
+      name: form.name,
+      description: form.description,
+      teacherId: form.teacherId,
+      isActive: true,
+    }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-courses-paged'] })
+      qc.invalidateQueries({ queryKey: ['admin-courses-summary'] })
       qc.invalidateQueries({ queryKey: ['admin-courses'] })
+      setCreateOpen(false)
       resetForm()
       toast('Curso creado.')
     },
-    onError: () => toast('Error al crear curso.', 'error'),
+    onError: (e) => toast(getApiError(e), 'error'),
   })
 
   const updateMutation = useMutation({
-    mutationFn: () => {
-      const course = courses.find((x) => x.id === editId)
-      return apiService.put(`/api/admin/${slug}/courses/${editId}`, {
-        ...editForm,
-        teacherId: editForm.teacherId || undefined,
-        isActive: course?.isActive ?? true,
-      })
-    },
+    mutationFn: () => apiService.put(`/api/admin/${slug}/courses/${editCourse!.id}`, {
+      name: editCourse!.name,
+      description: editCourse!.description,
+      teacherId: editCourse!.teacherId,
+      isActive: editCourse!.isActive,
+    }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-courses-paged'] })
+      qc.invalidateQueries({ queryKey: ['admin-courses-summary'] })
       qc.invalidateQueries({ queryKey: ['admin-courses'] })
-      setEditId(null)
+      setEditCourse(null)
       toast('Curso actualizado.')
     },
-    onError: () => toast('Error al actualizar.', 'error'),
+    onError: (e) => toast(getApiError(e), 'error'),
   })
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       apiService.patch(`/api/admin/${slug}/courses/${id}/active`, { isActive }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-courses-paged'] })
+      qc.invalidateQueries({ queryKey: ['admin-courses-summary'] })
       qc.invalidateQueries({ queryKey: ['admin-courses'] })
       toast('Estado actualizado.')
     },
-    onError: () => toast('Error al cambiar estado.', 'error'),
+    onError: (e) => toast(getApiError(e), 'error'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiService.del(`/api/admin/${slug}/courses/${id}`),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-courses-paged'] })
+      qc.invalidateQueries({ queryKey: ['admin-courses-summary'] })
       qc.invalidateQueries({ queryKey: ['admin-courses'] })
       setDeleteCourse(null)
+      setPanelCourseId(null)
       toast('Curso eliminado.')
     },
-    onError: () => toast('Error al eliminar. Puede tener alumnos asociados.', 'error'),
+    onError: (e) => toast(getApiError(e), 'error'),
   })
 
   function resetForm() {
-    // Preserve teacher across consecutive creates so Radix Select stays controlled
-    setForm({ name: '', description: '', teacherId: form.teacherId })
+    setForm({ name: '', description: '', teacherId: '' })
     setErrors({})
   }
 
-  function openEdit(course: Course) {
-    setEditId(course.id)
-    setEditForm({
-      name: course.name,
-      description: course.description ?? '',
-      teacherId: course.teacherId ?? '',
-    })
+  function openCreate() {
+    resetForm()
+    setCreateOpen(true)
   }
 
   function validate() {
-    const nextErrors: Record<string, string> = {}
-    if (!form.name.trim()) nextErrors.name = 'El nombre es obligatorio.'
-    setErrors(nextErrors)
-    return Object.keys(nextErrors).length === 0
+    const next: Record<string, string> = {}
+    if (!form.name.trim()) next.name = 'El nombre es obligatorio.'
+    if (!form.teacherId) next.teacherId = 'Seleccioná un profesor.'
+    setErrors(next)
+    return Object.keys(next).length === 0
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
     if (!validate()) return
     createMutation.mutate()
   }
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center py-24"><Spinner className="h-8 w-8 text-blue-600" /></div>
+  function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editCourse?.name.trim()) { toast('El nombre es obligatorio.', 'error'); return }
+    if (!editCourse.teacherId) { toast('Seleccioná un profesor.', 'error'); return }
+    updateMutation.mutate()
   }
 
-  return (
-    <div className="space-y-5 pb-8">
-      <CoursesHeader
-        total={courses.length}
-        active={courses.filter((c) => c.isActive).length}
-        teachers={teachers.length}
-      />
+  function clearFilters() {
+    clearTimeout(searchTimer.current)
+    setSearchInput('')
+    setSearch('')
+    setStatusFilter('')
+    setTeacherFilter('')
+    setDayFilter('')
+    setPage(1)
+  }
 
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
-        <TabButton active={activeTab === 'courses'} onClick={() => setActiveTab('courses')}>Cursos</TabButton>
-        <TabButton active={activeTab === 'assignments'} onClick={() => setActiveTab('assignments')}>Asignar alumnos</TabButton>
+  const hasFilters = !!search || !!statusFilter || !!teacherFilter || !!dayFilter
+  const teacherOptions = teachers
+  const activeTabCourses = allCourses.length > 0 ? allCourses : courses
+
+  return (
+    <div className="flex flex-col gap-4 sm:gap-5">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[22px] font-bold tracking-tight text-slate-900 dark:text-white sm:text-[26px]">Cursos</h1>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 sm:text-[13px]">Administrá cursos, profesores y alumnos asignados.</p>
+        </div>
+        <div className="hidden shrink-0 sm:flex">
+          <Button className="h-10 bg-blue-600 text-white hover:bg-blue-500" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo curso
+          </Button>
+        </div>
       </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3.5">
+        <KpiCard icon={BookOpen} tone="blue" value={summary?.totalCourses ?? 0} label="Total cursos" />
+        <KpiCard icon={CheckCircle2} tone="green" value={summary?.activeCourses ?? 0} label="Cursos activos"
+          percent={summary ? percent(summary.activeCourses, summary.totalCourses) : undefined} />
+        <KpiCard icon={GraduationCap} tone="violet" value={summary?.assignedTeachers ?? 0} label="Profesores asignados" />
+        <KpiCard icon={Users} tone="cyan" value={summary?.enrolledStudents ?? 0} label="Alumnos inscriptos"
+          percent={summary ? percent(summary.enrolledStudents, summary.totalStudents) : undefined} />
+      </div>
+
+      <div className="sm:hidden">
+        <Button className="h-11 w-full bg-blue-600 text-white hover:bg-blue-500" onClick={openCreate}>
+          <Plus className="h-4 w-4" /> Nuevo curso
+        </Button>
+      </div>
+
+      {/* Tabs */}
+      <SegmentedControl
+        options={[{ value: 'courses', label: 'Cursos' }, { value: 'assignments', label: 'Asignar alumnos' }]}
+        value={activeTab}
+        onChange={(v) => setActiveTab(v as CoursesTab)}
+      />
 
       {activeTab === 'courses' ? (
         <>
-          <Card className="space-y-4 p-5">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Nuevo curso</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Carga el curso y asignale un profesor.</p>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                <Field label="Nombre *" error={errors.name}>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                </Field>
-                <Field label="Descripcion">
-                  <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-                </Field>
-                <Field label="Profesor">
-                  <TeacherSelect value={form.teacherId} teachers={teachers} onChange={(teacherId) => setForm({ ...form, teacherId })} />
-                </Field>
+          {/* Filters */}
+          <Card className="p-4 sm:p-5">
+            <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+              <div className="relative min-w-0 lg:flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => { setSearchInput(e.target.value); debouncedSearch(e.target.value) }}
+                  placeholder="Buscar por nombre o descripción..."
+                  autoComplete="off"
+                  className="pl-10"
+                />
               </div>
-              <Button type="submit" loading={createMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-500">Crear curso</Button>
-            </form>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:w-[30rem]">
+                <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} aria-label="Filtro por estado">
+                  <option value="">Todos los estados</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Inactivos</option>
+                </Select>
+                <Select value={teacherFilter} onChange={(e) => { setTeacherFilter(e.target.value); setPage(1) }} aria-label="Filtro por profesor">
+                  <option value="">Todos los profesores</option>
+                  {teacherOptions.map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
+                </Select>
+                <Select value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setPage(1) }} aria-label="Filtro por día">
+                  <option value="">Todos los días</option>
+                  {DAYS.map((d) => <option key={d} value={d}>{DAY_LABELS[d]}</option>)}
+                </Select>
+              </div>
+              <Button variant="outline" className="h-11 shrink-0" onClick={clearFilters} disabled={!hasFilters}>
+                <RotateCcw className="h-4 w-4" /> Limpiar
+              </Button>
+            </div>
+
+            <div className="mt-3.5 border-t border-slate-100 pt-3.5 dark:border-slate-800">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {totalCount} {totalCount === 1 ? 'curso' : 'cursos'} {hasFilters ? 'encontrados' : 'en total'}
+              </span>
+            </div>
           </Card>
 
-          <CoursesGrid
-            courses={courses}
-            onOpenDetail={(id) => navigate(`/admin/courses/${id}`)}
-            onEdit={openEdit}
-            onToggle={(course) => toggleMutation.mutate({ id: course.id, isActive: !course.isActive })}
-            onDelete={setDeleteCourse}
-          />
+          {/* Listing */}
+          <Card className="p-4 sm:p-6">
+            {listQuery.isLoading ? (
+              <CoursesSkeleton />
+            ) : listQuery.isError ? (
+              <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                No se pudieron cargar los cursos. Intentá nuevamente.
+              </div>
+            ) : courses.length === 0 ? (
+              <EmptyState
+                icon="📚"
+                title={hasFilters ? 'Sin resultados' : 'Todavía no hay cursos'}
+                description={hasFilters ? 'Probá ajustar o limpiar los filtros.' : 'Creá tu primer curso para empezar.'}
+                action={hasFilters ? { label: 'Limpiar filtros', onClick: clearFilters } : { label: 'Nuevo curso', onClick: openCreate }}
+              />
+            ) : (
+              <CourseTable
+                courses={courses}
+                onOpen={(c) => setPanelCourseId(c.id)}
+                onOpenFull={(c) => navigate(`/admin/courses/${c.id}`)}
+                onEdit={(c) => setEditCourse({ ...c, description: c.description ?? '' })}
+                onToggle={(c) => toggleMutation.mutate({ id: c.id, isActive: !c.isActive })}
+                onDelete={(c) => setDeleteCourse(c)}
+              />
+            )}
+
+            {!listQuery.isLoading && !listQuery.isError && courses.length > 0 && (
+              <div className="mt-4">
+                <Pagination
+                  page={page}
+                  pageSize={pageSize}
+                  totalCount={totalCount}
+                  onPageChange={setPage}
+                  showPageNumbers
+                  pageSizeOptions={[10, 20, 50]}
+                  onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+                />
+              </div>
+            )}
+          </Card>
         </>
       ) : (
         <CourseAssignmentsPanel
           slug={slug}
-          courses={courses}
+          courses={activeTabCourses}
           onChanged={() => {
-            qc.invalidateQueries({ queryKey: ['admin-courses'] })
+            qc.invalidateQueries({ queryKey: ['admin-courses-paged'] })
+            qc.invalidateQueries({ queryKey: ['admin-courses-summary'] })
           }}
         />
       )}
 
-      {editId && (
-        <Modal open onClose={() => setEditId(null)} title="Editar curso" className="sm:max-w-md">
-          <div className="space-y-4 px-5 py-4 sm:px-6">
-            <Field label="Nombre *">
-              <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-            </Field>
-            <Field label="Descripcion">
-              <Input value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
-            </Field>
-            <Field label="Profesor">
-              <TeacherSelect value={editForm.teacherId} teachers={teachers} onChange={(teacherId) => setEditForm({ ...editForm, teacherId })} />
-            </Field>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setEditId(null)}>Cancelar</Button>
-              <Button loading={updateMutation.isPending} onClick={() => updateMutation.mutate()} className="bg-blue-600 text-white hover:bg-blue-500">Guardar</Button>
+      {/* Create Modal */}
+      {createOpen && (
+        <Modal
+          open
+          onClose={() => { setCreateOpen(false); resetForm() }}
+          title="Nuevo curso"
+          description="Cargá el curso y asignale un profesor."
+          className="sm:max-w-lg"
+          footer={
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => { setCreateOpen(false); resetForm() }}>Cancelar</Button>
+              <Button type="submit" form="create-course-form" loading={createMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-500">
+                Crear curso
+              </Button>
             </div>
-          </div>
+          }
+        >
+          <form id="create-course-form" onSubmit={handleCreate} autoComplete="off" className="space-y-4 px-5 py-5 sm:px-6">
+            <Field label="Nombre *" error={errors.name}>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
+            </Field>
+            <Field label="Descripción">
+              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </Field>
+            <Field label="Profesor *" error={errors.teacherId}>
+              <TeacherSelect value={form.teacherId} teachers={teachers} onChange={(teacherId) => setForm({ ...form, teacherId })} />
+            </Field>
+          </form>
+        </Modal>
+      )}
+
+      {/* Edit Modal */}
+      {editCourse && (
+        <Modal
+          open
+          onClose={() => setEditCourse(null)}
+          title="Editar curso"
+          className="sm:max-w-lg"
+          footer={
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setEditCourse(null)}>Cancelar</Button>
+              <Button type="submit" form="edit-course-form" loading={updateMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-500">
+                Guardar cambios
+              </Button>
+            </div>
+          }
+        >
+          <form id="edit-course-form" onSubmit={handleEditSubmit} autoComplete="off" className="space-y-4 px-5 py-5 sm:px-6">
+            <Field label="Nombre *">
+              <Input value={editCourse.name} onChange={(e) => setEditCourse({ ...editCourse, name: e.target.value })} />
+            </Field>
+            <Field label="Descripción">
+              <Input value={editCourse.description ?? ''} onChange={(e) => setEditCourse({ ...editCourse, description: e.target.value })} />
+            </Field>
+            <Field label="Profesor *">
+              <TeacherSelect value={editCourse.teacherId ?? ''} teachers={teachers} onChange={(teacherId) => setEditCourse({ ...editCourse, teacherId })} />
+            </Field>
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/40">
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Curso activo</span>
+              <SwitchInline checked={editCourse.isActive} onChange={(isActive) => setEditCourse({ ...editCourse, isActive })} />
+            </div>
+          </form>
         </Modal>
       )}
 
@@ -246,67 +502,205 @@ function CoursesPageInner() {
         open={!!deleteCourse}
         onClose={() => setDeleteCourse(null)}
         title="Eliminar curso"
-        message={deleteCourse ? `Estas seguro de eliminar "${deleteCourse.name}"? Los alumnos quedaran sin esta asignacion.` : ''}
+        message={deleteCourse ? `¿Eliminar "${deleteCourse.name}"? Los alumnos quedarán sin esta asignación. Las cuotas y pagos ya generados no se modifican.` : ''}
         confirmText="Eliminar"
         variant="danger"
         loading={deleteMutation.isPending}
         onConfirm={() => { if (deleteCourse) deleteMutation.mutate(deleteCourse.id) }}
       />
+
+      <CoursePanel
+        open={!!panelCourseId}
+        slug={slug}
+        course={panelCourse}
+        onClose={() => setPanelCourseId(null)}
+        onEdit={(c) => setEditCourse({ ...c, description: c.description ?? '' })}
+        onToggle={(c) => toggleMutation.mutate({ id: c.id, isActive: !c.isActive })}
+        onDelete={(c) => setDeleteCourse(c)}
+      />
     </div>
   )
 }
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function KpiCard({ icon: Icon, tone, value, label, percent }: {
+  icon: React.ComponentType<{ className?: string }>
+  tone: KpiTone
+  value: number
+  label: string
+  percent?: number
+}) {
+  const t = kpiTones[tone]
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`min-h-10 flex-1 rounded-lg px-3 py-2.5 text-sm font-bold transition ${
-        active
-          ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
-      }`}
-    >
+    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-4">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-[42px] sm:w-[42px] ${t.icon}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xl font-bold leading-tight text-slate-900 dark:text-white sm:text-2xl">{value}</p>
+        <p className="text-[11px] font-medium leading-tight text-slate-500 dark:text-slate-400 sm:text-xs">{label}</p>
+        {percent != null && <p className={`mt-0.5 text-[11px] font-semibold leading-tight ${t.text}`}>{percent}% del total</p>}
+      </div>
+    </div>
+  )
+}
+
+function CoursesSkeleton() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+      ))}
+    </div>
+  )
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${
+      active
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'
+    }`}>
+      {active ? 'Activo' : 'Inactivo'}
+    </span>
+  )
+}
+
+function CourseTable({ courses, onOpen, onOpenFull, onEdit, onToggle, onDelete }: {
+  courses: Course[]
+  onOpen: (course: Course) => void
+  onOpenFull: (course: Course) => void
+  onEdit: (course: Course) => void
+  onToggle: (course: Course) => void
+  onDelete: (course: Course) => void
+}) {
+  return (
+    <>
+      {/* Desktop: listado compacto */}
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-[11px] font-semibold uppercase tracking-[0.4px] text-slate-400 dark:border-slate-800">
+              <th className="px-3 py-3 font-semibold">Curso</th>
+              <th className="px-3 py-3 font-semibold">Días y horarios</th>
+              <th className="px-3 py-3 font-semibold">Profesor</th>
+              <th className="px-3 py-3 text-center font-semibold">Alumnos</th>
+              <th className="px-3 py-3 text-center font-semibold">Estado</th>
+              <th className="px-3 py-3 text-right font-semibold">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {courses.map((course) => (
+              <tr key={course.id} onClick={() => onOpen(course)}
+                className="group cursor-pointer transition-colors duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                <td className="px-3 py-2">
+                  <div className="flex min-h-[56px] items-center gap-3">
+                    <CourseThumb course={course} />
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-900 transition group-hover:text-blue-600 dark:text-white">{course.name}</div>
+                      {course.description && <div className="max-w-[260px] truncate text-xs text-slate-400">{course.description}</div>}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-[13px] text-slate-500 dark:text-slate-400">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-slate-400" />
+                    {scheduleDetail(course.schedule) || <span className="text-slate-400">Sin horarios</span>}
+                  </span>
+                </td>
+                <td className="px-3 py-2">
+                  <span className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-300">
+                    <UserRound className="h-3.5 w-3.5 text-slate-400" /> {course.teacherName || 'Sin profesor'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600 dark:text-slate-300">
+                    <Users className="h-3.5 w-3.5 text-slate-400" /> {course.studentCount ?? 0}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-center"><StatusPill active={course.isActive} /></td>
+                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="outline" size="sm" className="h-8" onClick={() => onOpenFull(course)}>
+                      <ExternalLink className="h-3.5 w-3.5" /> Ir al curso
+                    </Button>
+                    <IconButton label="Ver detalle" onClick={() => onOpen(course)}><Eye className="h-4 w-4" /></IconButton>
+                    <IconButton label="Editar" onClick={() => onEdit(course)}><Pencil className="h-4 w-4" /></IconButton>
+                    <ActionMenu actions={[
+                      { label: 'Ir al curso', onClick: () => onOpenFull(course) },
+                      { label: course.isActive ? 'Desactivar' : 'Activar', onClick: () => onToggle(course) },
+                      { label: 'Eliminar', onClick: () => onDelete(course), danger: true },
+                    ]} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: tarjetas compactas (sin scroll horizontal) */}
+      <div className="flex flex-col gap-2.5 md:hidden">
+        {courses.map((course) => (
+          <div
+            key={course.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(course)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(course) } }}
+            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 transition-colors duration-150 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/40"
+          >
+            <div className="flex items-start gap-3">
+              <CourseThumb course={course} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{course.name}</p>
+                <p className="truncate text-xs text-slate-400">
+                  {course.description || scheduleDetail(course.schedule) || 'Sin horarios'}
+                </p>
+              </div>
+              <StatusPill active={course.isActive} />
+            </div>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {scheduleDetail(course.schedule) || 'Sin horarios'}</span>
+              <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" /> {course.teacherName || 'Sin profesor'}</span>
+              <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {course.studentCount ?? 0}</span>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => onOpenFull(course)}>
+                <ExternalLink className="h-3.5 w-3.5" /> Ir al curso
+              </Button>
+              <div className="ml-auto">
+                <ActionMenu actions={[
+                  { label: 'Ver detalle', onClick: () => onOpen(course) },
+                  { label: 'Editar', onClick: () => onEdit(course) },
+                  { label: course.isActive ? 'Desactivar' : 'Activar', onClick: () => onToggle(course) },
+                  { label: 'Eliminar', onClick: () => onDelete(course), danger: true },
+                ]} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" title={label} aria-label={label} onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
       {children}
     </button>
   )
 }
 
-function CoursesHeader({ total, active, teachers }: { total: number; active: number; teachers: number }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="text-xs font-bold uppercase text-blue-600 dark:text-blue-300">Academico</div>
-          <h1 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">Cursos</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Administra cursos, profesores y alumnos asignados.</p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 lg:w-80">
-          <HeaderStat label="Total" value={total} />
-          <HeaderStat label="Activos" value={active} />
-          <HeaderStat label="Profesores" value={teachers} />
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function HeaderStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/40">
-      <div className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">{label}</div>
-      <div className="mt-0.5 text-lg font-black text-slate-950 dark:text-white">{value}</div>
-    </div>
-  )
-}
-
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">{label}</span>
+    <div>
+      <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">{label}</label>
       {children}
-      {error && <span className="mt-1 block text-xs text-red-500">{error}</span>}
-    </label>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
   )
 }
 
@@ -324,6 +718,24 @@ function TeacherSelect({ value, teachers, onChange }: { value: string; teachers:
     </Select>
   )
 }
+
+function SwitchInline({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+        checked ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+      }`}
+    >
+      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}`} />
+    </button>
+  )
+}
+
+/* ------------------------- Asignación masiva ------------------------- */
 
 function ImportExcelHelp() {
   return (
@@ -354,66 +766,14 @@ function ImportExcelHelp() {
           </table>
         </div>
         <ul className="list-disc space-y-1 pl-4">
-          <li>Usa una fila por cada asignacion.</li>
-          <li>Para poner un alumno en dos cursos, repetis el correo en dos filas con cursos distintos.</li>
+          <li>Usa una fila por cada asignación.</li>
+          <li>Para poner un alumno en dos cursos, repetís el correo en dos filas con cursos distintos.</li>
           <li>El nombre del curso debe coincidir con el curso cargado.</li>
           <li>La frecuencia debe existir en los precios del curso.</li>
           <li>Si el alumno ya estaba en ese curso, se actualiza la frecuencia.</li>
         </ul>
       </div>
     </details>
-  )
-}
-
-function CoursesGrid({
-  courses,
-  onOpenDetail,
-  onEdit,
-  onToggle,
-  onDelete,
-}: {
-  courses: Course[]
-  onOpenDetail: (id: string) => void
-  onEdit: (course: Course) => void
-  onToggle: (course: Course) => void
-  onDelete: (course: Course) => void
-}) {
-  if (courses.length === 0) {
-    return <EmptyState icon="C" title="Sin cursos" description="Crea tu primer curso para empezar." />
-  }
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {courses.map((course) => (
-        <Card key={course.id} className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-sm font-bold text-slate-900 dark:text-white">{course.name}</h3>
-              {course.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{course.description}</p>}
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                {course.teacherName && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{course.teacherName}</span>}
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  {(course.classesPerWeekOptions ?? []).length} precios
-                </span>
-              </div>
-            </div>
-            <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-              course.isActive
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
-            }`}>
-              {course.isActive ? 'Activo' : 'Inactivo'}
-            </span>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-            <Button variant="outline" size="sm" onClick={() => onOpenDetail(course.id)}>Detalle</Button>
-            <Button variant="outline" size="sm" onClick={() => onEdit(course)}>Editar</Button>
-            <Button variant="outline" size="sm" onClick={() => onToggle(course)}>{course.isActive ? 'Desactivar' : 'Activar'}</Button>
-            <Button variant="outline" size="sm" className="border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/30" onClick={() => onDelete(course)}>Eliminar</Button>
-          </div>
-        </Card>
-      ))}
-    </div>
   )
 }
 
@@ -465,12 +825,12 @@ function CourseAssignmentsPanel({ slug, courses, onChanged }: { slug: string; co
     mutationFn: (students: { studentId: string; classesPerWeek: number }[]) =>
       apiService.post(`/api/admin/${slug}/courses/${courseId}/students`, { students }),
     onSuccess: () => {
-      toast('Asignacion guardada.')
+      toast('Asignación guardada.')
       qc.invalidateQueries({ queryKey: ['course-assignment-students'] })
       qc.invalidateQueries({ queryKey: ['admin-courses'] })
       onChanged()
     },
-    onError: (error: Error) => toast(error.message || 'No se pudo guardar la asignacion.', 'error'),
+    onError: (error: Error) => toast(error.message || 'No se pudo guardar la asignación.', 'error'),
   })
 
   const importMutation = useMutation({
@@ -481,7 +841,7 @@ function CourseAssignmentsPanel({ slug, courses, onChanged }: { slug: string; co
     },
     onSuccess: (result) => {
       setImportResult(result)
-      toast('Importacion finalizada.')
+      toast('Importación finalizada.')
       qc.invalidateQueries({ queryKey: ['course-assignment-students'] })
       qc.invalidateQueries({ queryKey: ['admin-courses'] })
       onChanged()
@@ -558,7 +918,7 @@ function CourseAssignmentsPanel({ slug, courses, onChanged }: { slug: string; co
               </div>
               <h2 className="text-base font-black text-slate-900 dark:text-white">Asignar alumnos a curso</h2>
               <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500 dark:text-slate-400">
-                Cada curso mantiene su propia nomina. Un alumno puede quedar asignado en mas de un curso.
+                Cada curso mantiene su propia nómina. Un alumno puede quedar asignado en más de un curso.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:w-72">
@@ -618,7 +978,7 @@ function CourseAssignmentsPanel({ slug, courses, onChanged }: { slug: string; co
                 onClick={handleSave}
                 className="w-full bg-blue-600 text-white hover:bg-blue-500"
               >
-                Guardar asignacion
+                Guardar asignación
               </Button>
               <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => {
                 handleImport(e.target.files?.[0])
@@ -640,7 +1000,7 @@ function CourseAssignmentsPanel({ slug, courses, onChanged }: { slug: string; co
 
             {importResult && (
               <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 text-xs leading-5 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
-                <div className="font-bold">Importacion finalizada</div>
+                <div className="font-bold">Importación finalizada</div>
                 <div className="mt-1">Total: {importResult.totalRows} - Nuevos: {importResult.created} - Actualizados: {importResult.updated} - Omitidos: {importResult.skipped}</div>
                 {importResult.errors && importResult.errors.length > 0 && (
                   <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -740,7 +1100,7 @@ function CourseAssignmentsPanel({ slug, courses, onChanged }: { slug: string; co
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs font-bold text-slate-900 dark:text-white">{assignedCount} asignados</div>
-            <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">{hasMissingClasses ? 'Falta frecuencia' : `Pag. ${currentStudentPage}/${totalStudentPages}`}</div>
+            <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">{hasMissingClasses ? 'Falta frecuencia' : `Pág. ${currentStudentPage}/${totalStudentPages}`}</div>
           </div>
           <Button
             type="button"

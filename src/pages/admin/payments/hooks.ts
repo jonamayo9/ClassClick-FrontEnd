@@ -54,7 +54,7 @@ export function usePaymentMethods() {
 }
 
 /* ── Charges ── */
-export function useCharges(year: number | '', month: number | '', status: string, search: string, page: number, chargeTypeId?: string, courseId?: string) {
+export function useCharges(year: number | '', month: number | '', status: string, search: string, page: number, chargeTypeId?: string, courseId?: string, pageSize: number = 10) {
   const params = new URLSearchParams()
   if (year) params.set('year', String(year))
   if (month) params.set('month', String(month))
@@ -63,10 +63,10 @@ export function useCharges(year: number | '', month: number | '', status: string
   if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
   if (courseId) params.set('courseId', courseId)
   params.set('page', String(page))
-  params.set('pageSize', '25')
+  params.set('pageSize', String(pageSize))
 
   return useQuery({
-    queryKey: ['charges', slug(), year, month, status, search, page, chargeTypeId, courseId],
+    queryKey: ['charges', slug(), year, month, status, search, page, pageSize, chargeTypeId, courseId],
     queryFn: async () => {
       const raw = await apiService.get<unknown>(`/api/admin/${slug()}/monthly-charges?${params}`)
       const data = raw as Record<string, unknown>
@@ -99,48 +99,55 @@ export function usePaymentsSummary(year: number | '', month: number | '', charge
   })
 }
 
-export function usePayments(filters: { search: string; courseId: string; period: string; method: string; status: string; chargeType: string; eventId: string; page: number }) {
+function parsePeriodParam(value: string): { month: number; year: number } | null {
+  const match = value.trim().match(/^(\d{1,2})\/(\d{4})$/)
+  if (!match) return null
+  const month = Number(match[1])
+  const year = Number(match[2])
+  if (month < 1 || month > 12) return null
+  return { month, year }
+}
+
+export function usePayments(filters: { search: string; courseId: string; period: string; method: string; status: string; eventId: string; page: number; pageSize: number }) {
   return useQuery({
     queryKey: ['payments', slug(), filters],
     queryFn: async () => {
-      // El filtro de Evento se resuelve en backend (Payment.EventTicketPurchase.EventId),
-      // compartiendo la misma regla que el export. El resto de filtros se aplican en el cliente.
+      // Todos los filtros se resuelven en backend (antes de paginar), compartiendo
+      // la misma regla que el export de pagos.
       const params = new URLSearchParams()
-      if (filters.eventId) params.set('eventId', filters.eventId)
-      const qs = params.toString()
-      const url = `/api/admin/${slug()}/payments${qs ? `?${qs}` : ''}`
-      const data = await apiService.get<Payment[] | { items?: Payment[]; data?: Payment[] }>(url)
-      return unwrapList(data)
+      if (filters.search.trim()) params.set('search', filters.search.trim())
+      if (filters.eventId) {
+        params.set('eventId', filters.eventId)
+      } else {
+        if (filters.courseId) params.set('courseId', filters.courseId)
+        const period = parsePeriodParam(filters.period)
+        if (period) {
+          params.set('year', String(period.year))
+          params.set('month', String(period.month))
+        }
+      }
+      if (filters.method) params.set('paymentMethod', filters.method)
+      if (filters.status) params.set('paymentStatus', filters.status)
+      params.set('page', String(filters.page))
+      params.set('pageSize', String(filters.pageSize))
+
+      const raw = await apiService.get<unknown>(`/api/admin/${slug()}/payments?${params}`)
+      const data = raw as Record<string, unknown>
+      if (Array.isArray(raw)) {
+        return { items: raw as Payment[], totalCount: raw.length, totalPages: 1, page: 1 }
+      }
+      if (Array.isArray(data?.items)) {
+        const items = data.items as Payment[]
+        return {
+          items,
+          totalCount: (data.totalCount as number) ?? items.length,
+          totalPages: (data.totalPages as number) ?? 1,
+          page: (data.page as number) ?? 1,
+        }
+      }
+      return { items: [] as Payment[], totalCount: 0, totalPages: 1, page: 1 }
     },
     enabled: !!slug(),
-    select: useCallback((data: Payment[]) => {
-      return data.filter((p) => {
-        const isEvent = !!p.eventTicketPurchaseId
-        if (filters.search) {
-          const s = filters.search.toLowerCase()
-          if (!p.studentFullName.toLowerCase().includes(s) && !p.studentDni.includes(s)) return false
-        }
-        // Curso y período son de cuota: para pagos de evento no aplican (tienen month/year = 0).
-        if (!isEvent && filters.courseId && p.courseId !== filters.courseId) return false
-        if (!isEvent && filters.period) {
-          const [m, y] = filters.period.split('/')
-          if (m && p.month !== parseInt(m)) return false
-          if (y && p.year !== parseInt(y)) return false
-        }
-        if (filters.method) {
-          const m = String(filters.method).toLowerCase()
-          if (String(p.paymentMethod).toLowerCase() !== m) return false
-        }
-        if (filters.status) {
-          const statusMap: Record<string, string> = { '2': 'inreview', '3': 'approved', '4': 'rejected' }
-          const expected = statusMap[filters.status] ?? filters.status
-          if (normalizeStatus(p.paymentStatus) !== expected) return false
-        }
-        if (filters.chargeType === 'scholarship' && !p.hasScholarship) return false
-        if (filters.chargeType === 'promotion' && !p.hasPromotion) return false
-        return true
-      })
-    }, [filters]),
   })
 }
 
@@ -320,6 +327,7 @@ export function usePaymentsPage() {
   const [chargeTypeId, setChargeTypeId] = useState('')
   const [chargeCourseId, setChargeCourseId] = useState('')
   const [chargePage, setChargePage] = useState(1)
+  const [chargePageSize, setChargePageSize] = useState(10)
 
   const [paySearch, setPaySearch] = useState('')
   const [payCourseId, setPayCourseId] = useState('')
@@ -329,14 +337,15 @@ export function usePaymentsPage() {
   const [payChargeType, setPayChargeType] = useState('')
   const [payEventId, setPayEventId] = useState('')
   const [payPage, setPayPage] = useState(1)
+  const [payPageSize, setPayPageSize] = useState(10)
 
   const { data: courses } = useCourseOptions()
   const { data: paymentMethods } = usePaymentMethods()
   const { data: paymentsData, isLoading: loadingPayments } = usePayments({
     search: paySearch, courseId: payCourseId, period: payPeriod,
-    method: payMethod, status: payStatus, chargeType: payChargeType, eventId: payEventId, page: payPage,
+    method: payMethod, status: payStatus, eventId: payEventId, page: payPage, pageSize: payPageSize,
   })
-  const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId || undefined, chargeCourseId || undefined)
+  const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId || undefined, chargeCourseId || undefined, chargePageSize)
   const { data: paySummaryData } = usePaymentsSummary(chargeYear, chargeMonth, chargeTypeId || undefined, chargeCourseId || undefined)
 
   const chargeItems = chargesData?.items
@@ -344,7 +353,9 @@ export function usePaymentsPage() {
   const chargeTotalCount = chargesData?.totalCount ?? 0
   const chargeTotalPages = chargesData?.totalPages ?? 1
 
-  const payments = useMemo(() => paymentsData ?? [], [paymentsData])
+  const payments = useMemo(() => paymentsData?.items ?? [], [paymentsData])
+  const payTotalCount = paymentsData?.totalCount ?? 0
+  const payTotalPages = paymentsData?.totalPages ?? 1
   const payMethods = paymentMethods ?? []
 
   const chargeSummary = useMemo(() => {
@@ -374,8 +385,17 @@ export function usePaymentsPage() {
 
   const resetChargesFilters = () => { setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargeCourseId(''); setChargePage(1) }
   const resetPaymentsFilters = () => {
-    setPaySearch(''); setPayCourseId(''); setPayMethod(''); setPayStatus(''); setPayChargeType(''); setPayEventId('')
+    setPaySearch(''); setPayCourseId(''); setPayMethod(''); setPayStatus(''); setPayChargeType(''); setPayEventId(''); setPayPage(1)
   }
+
+  // Cualquier cambio de filtro vuelve a la página 1 (server-side).
+  const setPaySearchReset = (value: string) => { setPaySearch(value); setPayPage(1) }
+  const setPayCourseIdReset = (value: string) => { setPayCourseId(value); setPayPage(1) }
+  const setPayPeriodReset = (value: string) => { setPayPeriod(value); setPayPage(1) }
+  const setPayMethodReset = (value: string) => { setPayMethod(value); setPayPage(1) }
+  const setPayStatusReset = (value: string) => { setPayStatus(value); setPayPage(1) }
+  const setPayChargeTypeReset = (value: string) => { setPayChargeType(value); setPayPage(1) }
+  const setPayEventIdReset = (value: string) => { setPayEventId(value); setPayPage(1) }
 
   const [exporting, setExporting] = useState(false)
   const exportCharges = useCallback(async (format: 'pdf' | 'xlsx'): Promise<string | null> => {
@@ -417,15 +437,17 @@ export function usePaymentsPage() {
     chargeYear, setChargeYear, chargeMonth, setChargeMonth,
     chargeStatus, setChargeStatus, chargeSearch, setChargeSearch,
     chargeTypeId, setChargeTypeId, chargeCourseId, setChargeCourseId,
-    chargePage, setChargePage, charges, loadingCharges,
+    chargePage, setChargePage, chargePageSize, setChargePageSize,
+    charges, loadingCharges,
     chargeTotalCount, chargeTotalPages, chargeSummary,
     resetChargesFilters,
     exporting, exportCharges,
-    paySearch, setPaySearch, payCourseId, setPayCourseId,
-    payPeriod, setPayPeriod, payMethod, setPayMethod,
-    payStatus, setPayStatus, payChargeType, setPayChargeType,
-    payEventId, setPayEventId,
-    payPage, setPayPage, payments, loadingPayments, paySummary,
+    paySearch, setPaySearch: setPaySearchReset, payCourseId, setPayCourseId: setPayCourseIdReset,
+    payPeriod, setPayPeriod: setPayPeriodReset, payMethod, setPayMethod: setPayMethodReset,
+    payStatus, setPayStatus: setPayStatusReset, payChargeType, setPayChargeType: setPayChargeTypeReset,
+    payEventId, setPayEventId: setPayEventIdReset,
+    payPage, setPayPage, payPageSize, setPayPageSize,
+    payments, loadingPayments, paySummary, payTotalCount, payTotalPages,
     resetPaymentsFilters,
     courses, paymentMethods: payMethods,
   }

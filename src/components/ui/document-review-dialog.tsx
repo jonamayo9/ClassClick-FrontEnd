@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { apiService } from '@/lib/api'
 import api from '@/lib/api'
-import { normalizeStatus, getStatusLabel, formatDateOnly } from '@/pages/admin/records/hooks'
+import { normalizeStatus, formatDateOnly } from '@/pages/admin/records/hooks'
 import type { StudentDocument, StudentFile } from '@/pages/admin/records/hooks'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -62,6 +62,7 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
       if (action === 'approve') {
         await apiService.post(`/api/admin/${slug}/student-files/assignments/${doc.assignmentId}/approve`, {
           reviewNote: reviewNote.trim() || null,
+          expirationDateUtc: expirationDate ? `${expirationDate}T00:00:00Z` : null,
         })
       } else {
         await apiService.post(`/api/admin/${slug}/student-files/assignments/${doc.assignmentId}/reject`, {
@@ -81,7 +82,6 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
   const previewFile = files[previewIdx]
   const ext = previewFile?.fileName?.split('.').pop()?.toLowerCase()
   const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext || '')
-  const canShowInline = isImage || ext === 'pdf'
 
   async function goPrev() {
     if (previewIdx > 0) {
@@ -242,6 +242,12 @@ export function DocumentReviewDialog({ doc, studentName, slug, onClose, onDone }
             {isInReview && action === 'approve' && (
               <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Aprobar documento</p>
+                {!doc.expirationDateUtc && (
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento (si el tipo lo requiere)</label>
+                    <DatePicker value={expirationDate} onChange={setExpirationDate} placeholder="Sin vencimiento" />
+                  </div>
+                )}
                 <textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} rows={2}
                   placeholder="Observación (opcional)"
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />

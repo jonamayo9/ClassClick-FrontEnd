@@ -6,6 +6,7 @@ import { useAuth } from '@/stores/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Pagination } from '@/components/ui/pagination'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/toast'
@@ -49,14 +50,37 @@ export function FinancingRequestsTab() {
   const toast = useToast()
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewNote, setReviewNote] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
-  const { data: requests = [], isLoading } = useQuery({
-    queryKey: ['financing-requests', slug],
-    queryFn: () => apiService.get<AdminFinancingRequest[]>(
-      `/api/admin/${slug}/financing/requests`,
-    ),
+  const { data, isLoading } = useQuery({
+    queryKey: ['financing-requests', slug, page, pageSize],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      const raw = await apiService.get<unknown>(`/api/admin/${slug}/financing/requests?${params}`)
+      if (Array.isArray(raw)) {
+        const items = raw as AdminFinancingRequest[]
+        return {
+          items,
+          totalCount: items.length,
+          totalPages: 1,
+          pendingCount: items.filter((request) => request.status === 1).length,
+        }
+      }
+      const body = raw as Record<string, unknown>
+      const items = (body?.items as AdminFinancingRequest[]) ?? []
+      return {
+        items,
+        totalCount: (body?.totalCount as number) ?? items.length,
+        totalPages: (body?.totalPages as number) ?? 1,
+        pendingCount: (body?.pendingCount as number) ?? items.filter((request) => request.status === 1).length,
+      }
+    },
     enabled: Boolean(slug),
   })
+  const requests = data?.items ?? []
+  const totalCount = data?.totalCount ?? 0
+  const pendingCount = data?.pendingCount ?? 0
 
   const review = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
@@ -112,7 +136,7 @@ export function FinancingRequestsTab() {
           </p>
         </div>
         <Badge variant="warning">
-          {requests.filter((request) => request.status === 1).length} pendientes
+          {pendingCount} pendientes
         </Badge>
       </div>
 
@@ -222,6 +246,17 @@ export function FinancingRequestsTab() {
           )}
         </Card>
       ))}
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        onPageChange={setPage}
+        loading={isLoading}
+        showPageNumbers
+        pageSizeOptions={[10, 20, 50]}
+        onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+      />
     </div>
   )
 }

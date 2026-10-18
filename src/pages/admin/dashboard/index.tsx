@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Users, CircleDollarSign, Receipt, BadgePercent, BarChart3, FileText, Calendar, CalendarDays, FileSpreadsheet, FileDown } from 'lucide-react'
@@ -54,6 +54,42 @@ function fmtDateUtc(v?: string | null): string {
   const m = String(d.getUTCMonth() + 1).padStart(2, '0')
   const day = String(d.getUTCDate()).padStart(2, '0')
   return `${day}/${m}/${y}`
+}
+
+// Claves de novedades ya mostradas en esta sesión, por empresa. La clave incluye
+// la versión del vínculo (CompanyAdminNewsTarget.CreatedAtUtc): si la empresa es
+// quitada y vuelta a agregar, el vínculo es nuevo y el modal puede volver a
+// mostrarse; mientras el vínculo no cambie, las novedades vistas no se repiten.
+// Un cambio de título/contenido/fecha no altera la clave (no reinicia la vista).
+const shownNewsKeysCache = new Map<string, Set<string>>()
+
+function newsModalKey(item: AdminNews): string {
+  return `${item.id}:${item.targetCreatedAtUtc ?? ''}`
+}
+
+function readShownNewsKeys(slug: string): Set<string> {
+  const cached = shownNewsKeysCache.get(slug)
+  if (cached) return cached
+  let keys: string[] = []
+  try {
+    const raw = sessionStorage.getItem(`newsModalSeenKeys:${slug}`)
+    const parsed = raw ? JSON.parse(raw) : []
+    if (Array.isArray(parsed)) keys = parsed.filter((x): x is string => typeof x === 'string')
+  } catch {
+    keys = []
+  }
+  const set = new Set(keys)
+  shownNewsKeysCache.set(slug, set)
+  return set
+}
+
+function writeShownNewsKeys(slug: string, keys: Set<string>) {
+  shownNewsKeysCache.set(slug, keys)
+  try {
+    sessionStorage.setItem(`newsModalSeenKeys:${slug}`, JSON.stringify([...keys]))
+  } catch {
+    /* ignore quota/serialization errors */
+  }
 }
 
 function chargeStatusBadge(status: string) {
@@ -161,7 +197,6 @@ export function AdminDashboard() {
   const [overdueOpen, setOverdueOpen] = useState(false)
   const [overduePhaseDone, setOverduePhaseDone] = useState(false)
   const [newsOpen, setNewsOpen] = useState(false)
-  const newsOpenedRef = useRef(false)
 
   // Al cambiar período o tipo de cuota, volver a la página 1 de próximos vencimientos.
   useEffect(() => { setUpcomingPage(1) }, [dateFrom, dateTo, chargeTypeId])
@@ -225,39 +260,35 @@ export function AdminDashboard() {
   })
   const newsItems = newsQuery.data?.items ?? []
 
-  // Se abre SOLO cuando la query terminó (isSuccess) y hay al menos 1 novedad visible.
-  // Mientras carga, newsItems es [] pero isSuccess es false: nunca abre con "0 novedades".
-  // Si la API falla: no muestra modal vacío y marca la fase resuelta para no bloquear.
+  // Se abre cuando hay al menos 1 novedad NO mostrada todavía en esta sesión
+  // (según la clave novedad+versión de vínculo). Así:
+  //  - una empresa recién agregada ve el modal;
+  //  - las que ya lo vieron no lo repiten;
+  //  - si la empresa fue quitada y vuelta a agregar (nuevo vínculo), se muestra otra vez.
   useEffect(() => {
     if (!dataSlug || !alertsResolved || !overduePhaseDone) return
-    if (newsOpenedRef.current) return
-    if (sessionStorage.getItem('newsModalShown') === 'true') {
-      newsOpenedRef.current = true
-      return
+    if (!newsQuery.isSuccess || newsOpen) return
+    const items = newsQuery.data?.items ?? []
+    if (items.length === 0) return
+    const shownKeys = readShownNewsKeys(dataSlug)
+    if (items.some((item) => !shownKeys.has(newsModalKey(item)))) {
+      setNewsOpen(true)
     }
-    if (newsQuery.isSuccess) {
-      newsOpenedRef.current = true
-      if (newsItems.length > 0) {
-        setNewsOpen(true)
-      }
-    } else if (newsQuery.isError) {
-      newsOpenedRef.current = true
-    }
-  }, [dataSlug, alertsResolved, overduePhaseDone, newsQuery.isSuccess, newsQuery.isError, newsItems.length])
+  }, [dataSlug, alertsResolved, overduePhaseDone, newsQuery.isSuccess, newsQuery.data, newsOpen])
 
   // Cierre automático si, con el modal abierto, la lista queda vacía
   // (p. ej. último dismissal + refetch) o la query deja de tener datos.
   useEffect(() => {
     if (!newsOpen) return
-    if (newsQuery.isSuccess && newsItems.length === 0) {
-      setNewsOpen(false)
-    } else if (newsQuery.isError) {
+    if ((newsQuery.isSuccess && newsItems.length === 0) || newsQuery.isError) {
       setNewsOpen(false)
     }
   }, [newsOpen, newsQuery.isSuccess, newsQuery.isError, newsItems.length])
 
   function closeNewsModal() {
-    sessionStorage.setItem('newsModalShown', 'true')
+    const shownKeys = readShownNewsKeys(dataSlug)
+    for (const item of newsItems) shownKeys.add(newsModalKey(item))
+    writeShownNewsKeys(dataSlug, shownKeys)
     setNewsOpen(false)
   }
 

@@ -50,7 +50,7 @@ export function KpiCard({ icon, label, value, variation, variationLabel, color, 
         onClick={handleClick}
         title={tooltip}
         className={cn(
-          'relative flex items-center gap-3.5 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-[rgba(120,150,200,0.25)] dark:bg-[#111C30] dark:shadow-[0_1px_6px_rgba(2,8,23,0.45)] dark:hover:shadow-[0_4px_16px_rgba(2,8,23,0.55)]',
+          '@container relative flex items-center gap-3.5 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-[rgba(120,150,200,0.25)] dark:bg-[#111C30] dark:shadow-[0_1px_6px_rgba(2,8,23,0.45)] dark:hover:shadow-[0_4px_16px_rgba(2,8,23,0.55)]',
           clickable && 'cursor-pointer hover:border-slate-300 dark:hover:border-[rgba(150,180,235,0.45)]',
         )}
       >
@@ -61,7 +61,7 @@ export function KpiCard({ icon, label, value, variation, variationLabel, color, 
           <p className="text-xs font-semibold leading-tight text-slate-500 line-clamp-2 dark:text-slate-400">
             {label}
           </p>
-          <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-900 tabular-nums dark:text-white">
+          <p className="break-words text-[clamp(14px,9.5cqw,22px)] font-extrabold leading-tight tracking-tight text-slate-900 tabular-nums dark:text-white">
             {value}
           </p>
           {variation !== undefined && variation !== null && (
@@ -81,7 +81,7 @@ export function KpiCard({ icon, label, value, variation, variationLabel, color, 
       onClick={handleClick}
       title={tooltip}
       className={cn(
-        'relative flex items-start gap-3 overflow-hidden rounded-2xl border border-slate-200 p-4 shadow-sm transition hover:shadow-md dark:border-slate-700',
+        '@container relative flex items-start gap-3 overflow-hidden rounded-2xl border border-slate-200 p-4 shadow-sm transition hover:shadow-md dark:border-slate-700',
         c.bg,
         clickable && 'cursor-pointer hover:ring-1 hover:ring-slate-300 dark:hover:ring-slate-600',
       )}
@@ -94,7 +94,7 @@ export function KpiCard({ icon, label, value, variation, variationLabel, color, 
         <p className="text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400 line-clamp-2">
           {label}
         </p>
-        <p className="text-xl font-black leading-tight text-slate-900 dark:text-white">
+        <p className="break-words text-[clamp(14px,9.5cqw,20px)] font-black leading-tight text-slate-900 dark:text-white">
           {value}
         </p>
         {variation !== undefined && variation !== null && (

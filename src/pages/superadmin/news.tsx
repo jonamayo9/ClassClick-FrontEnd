@@ -50,11 +50,17 @@ function fmtCount(n: number) {
   return `${n} empresa${n === 1 ? '' : 's'}`
 }
 
-function fmtDate(value: string | null | undefined) {
+function fmtDateTime(value: string | null | undefined) {
   if (!value) return '-'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleDateString('es-AR')
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function toLocalInputValue(value: string) {
@@ -95,7 +101,7 @@ function NewsInner() {
       title: '',
       message: '',
       type: 'Update',
-      publishedAtUtc: new Date().toISOString().slice(0, 16),
+      publishedAtUtc: toLocalInputValue(new Date().toISOString()),
       isActive: true,
       allCompanies: true,
       companyIds: [],
@@ -204,8 +210,8 @@ function NewsInner() {
               </div>
               <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300 line-clamp-3">{item.message}</p>
               <div className="grid gap-x-6 gap-y-1 text-xs text-slate-500 dark:text-slate-400 sm:grid-cols-2">
-                <span>Publicación: {fmtDate(item.publishedAtUtc)}</span>
-                <span>Fin: {fmtDate(item.publishedAtUtc ? new Date(new Date(item.publishedAtUtc).getTime() + 30 * 86400000).toISOString() : null)}</span>
+                <span>Publicación: {fmtDateTime(item.publishedAtUtc)}</span>
+                <span>Fin: {fmtDateTime(item.publishedAtUtc ? new Date(new Date(item.publishedAtUtc).getTime() + 30 * 86400000).toISOString() : null)}</span>
                 <span>Alcance: {item.isGlobal ? 'Todas las empresas' : fmtCount(item.targetCompanyCount)}</span>
                 <span>Ocultada por: {FMT.format(item.dismissalCount)}</span>
               </div>
