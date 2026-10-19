@@ -251,7 +251,7 @@ export function AdminDashboard() {
     }
   }, [dataSlug, overduePhaseDone, overdueQuery.isSuccess, overdueQuery.data])
 
-  // Pendientes de cada modal (cada uno con sus reglas actuales de vigencia/destinatarios/
+  // Pendientes de cada etapa (cada una con sus reglas actuales de vigencia/destinatarios/
   // dismissals/sesión).
   const alertsPending = (alerts.data?.length ?? 0) > 0 && !dashboardAlertsShown
   const overduePending = overdueInvoices.length > 0 && !overduePhaseDone
@@ -261,29 +261,34 @@ export function AdminDashboard() {
     newsItems.length > 0 &&
     newsItems.some((item) => !readShownNewsKeys(dataSlug).has(newsModalKey(item)))
 
-  // Etapas "resueltas" para respetar el orden original. Si una consulta falla (isError) su etapa
-  // se considera resuelta, de modo que no bloquee indefinidamente a los modales siguientes.
+  // Etapas "listas para decidir". Se consideran resueltas también ante error (isError), de modo
+  // que una consulta que falla no bloquee indefinidamente a las etapas siguientes.
   const alertsResolved =
     !alerts.isLoading && ((alerts.data?.length ?? 0) === 0 || dashboardAlertsShown)
-  const overdueResolved =
-    overduePhaseDone ||
-    overdueQuery.isError ||
-    (overdueQuery.isSuccess && overdueInvoices.length === 0)
+  const overdueSettled = overdueQuery.isSuccess || overdueQuery.isError
+
+  // En el vertical Deportiva la factura vencida se muestra como BANNER persistente (no es un
+  // modal bloqueante): se renderiza de forma independiente y NO encola la secuencia de modales,
+  // para no bloquear el modal de Novedades. En el resto de verticales sí es un modal de la
+  // secuencia (se cierra para continuar).
+  const overdueAsBanner = isSport
+  const showOverdueBanner = overdueAsBanner && alertsResolved && overdueInvoices.length > 0 && !overduePhaseDone
+  const overdueModalPending = !overdueAsBanner && overduePending
 
   // Un único modal visible por vez, en el orden original. Al cerrar uno, el efecto abre el
   // siguiente que corresponda.
   useEffect(() => {
     if (activeModal === 'alerts' && !alertsPending) { setActiveModal(null); return }
-    if (activeModal === 'overdue' && !overduePending) { setActiveModal(null); return }
+    if (activeModal === 'overdue' && !overdueModalPending) { setActiveModal(null); return }
     if (activeModal === 'news' && !newsPending) { setActiveModal(null); return }
     if (activeModal !== null) return
     const next: 'alerts' | 'overdue' | 'news' | null =
       alertsPending ? 'alerts'
-      : alertsResolved && overduePending ? 'overdue'
-      : alertsResolved && overdueResolved && newsPending ? 'news'
+      : alertsResolved && overdueModalPending ? 'overdue'
+      : alertsResolved && (overdueAsBanner || overdueSettled) && newsPending ? 'news'
       : null
     if (next) setActiveModal(next)
-  }, [activeModal, alertsPending, overduePending, newsPending, alertsResolved, overdueResolved])
+  }, [activeModal, alertsPending, overdueModalPending, overdueSettled, newsPending, alertsResolved, overdueAsBanner])
 
   function closeOverdueModal() {
     sessionStorage.setItem('overdueInvoiceModalShown', 'true')
@@ -640,8 +645,9 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {/* Modales del dashboard: coordinados para no superponerse, en el orden original:
-          alertas → facturas vencidas → novedades. */}
+      {/* Modales del dashboard: coordinados para no superponerse, en el orden original
+          alertas → facturas vencidas → novedades. En Deportiva la factura vencida es un
+          banner persistente (no bloquea la secuencia). */}
       <AlertModal
         open={activeModal === 'alerts'}
         alerts={alertData}
@@ -649,7 +655,7 @@ export function AdminDashboard() {
       />
 
       <OverdueInvoiceModal
-        open={activeModal === 'overdue'}
+        open={overdueAsBanner ? showOverdueBanner : activeModal === 'overdue'}
         invoices={overdueInvoices}
         onClose={closeOverdueModal}
         isSport={isSport}
