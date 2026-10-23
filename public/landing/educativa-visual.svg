@@ -1,0 +1,95 @@
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustración abstracta de formación educativa">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="760" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1530"/>
+      <stop offset="0.55" stop-color="#0A1330"/>
+      <stop offset="1" stop-color="#160B32"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(210 180) rotate(48) scale(310 310)">
+      <stop stop-color="#168BFF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#168BFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(640 400) rotate(-140) scale(300 300)">
+      <stop stop-color="#813CFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#813CFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="line" x1="180" y1="120" x2="620" y2="510" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00C8FF"/>
+      <stop offset="1" stop-color="#813CFF"/>
+    </linearGradient>
+    <linearGradient id="book" x1="270" y1="300" x2="530" y2="450" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#168BFF"/>
+      <stop offset="1" stop-color="#813CFF"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#1C3556" stroke-opacity="0.55" stroke-width="1"/>
+    </pattern>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <rect width="800" height="600" fill="url(#grid)" opacity="0.45"/>
+  <ellipse cx="210" cy="180" rx="300" ry="250" fill="url(#glowA)"/>
+  <ellipse cx="640" cy="400" rx="290" ry="240" fill="url(#glowB)"/>
+
+  <g opacity="0.55" stroke="#1C3556">
+    <rect x="72" y="84" width="184" height="104" rx="18"/>
+    <rect x="566" y="92" width="158" height="92" rx="18"/>
+    <rect x="604" y="430" width="126" height="72" rx="16"/>
+  </g>
+  <g opacity="0.8">
+    <rect x="94" y="108" width="84" height="8" rx="4" fill="#168BFF" opacity="0.55"/>
+    <rect x="94" y="128" width="132" height="7" rx="3.5" fill="#94A3B8" opacity="0.24"/>
+    <rect x="94" y="146" width="110" height="7" rx="3.5" fill="#94A3B8" opacity="0.18"/>
+    <rect x="588" y="114" width="58" height="7" rx="3.5" fill="#00C8FF" opacity="0.55"/>
+    <rect x="588" y="132" width="108" height="7" rx="3.5" fill="#94A3B8" opacity="0.24"/>
+    <rect x="622" y="450" width="48" height="7" rx="3.5" fill="#813CFF" opacity="0.7"/>
+    <rect x="622" y="468" width="84" height="7" rx="3.5" fill="#94A3B8" opacity="0.2"/>
+  </g>
+
+  <g opacity="0.6">
+    <circle cx="140" cy="430" r="3" fill="#00C8FF"/>
+    <circle cx="674" cy="206" r="2.5" fill="#168BFF"/>
+    <circle cx="700" cy="356" r="2" fill="#813CFF"/>
+    <path d="M118 458L146 430" stroke="url(#line)" stroke-width="1.5"/>
+    <path d="M650 258L690 226" stroke="url(#line)" stroke-width="1.5"/>
+  </g>
+
+  <g transform="translate(400 312)">
+    <ellipse cx="0" cy="112" rx="216" ry="48" fill="#030817" opacity="0.55" filter="url(#soft)"/>
+    <ellipse cx="0" cy="-108" rx="154" ry="42" stroke="#1C3556" stroke-width="1.5" stroke-dasharray="4 9" opacity="0.9" transform="rotate(-12)"/>
+
+    <!-- graduation cap -->
+    <g transform="translate(0 -142)">
+      <path d="M0 -34L94 6L0 46L-94 6L0 -34Z" fill="#0C1D38" stroke="url(#line)" stroke-width="2"/>
+      <path d="M0 -16L58 10L0 36L-58 10L0 -16Z" fill="#071326" stroke="#1C3556" stroke-width="1.5"/>
+      <path d="M68 18V58" stroke="#00C8FF" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="68" cy="63" r="5" fill="#00C8FF"/>
+    </g>
+
+    <!-- open book -->
+    <g transform="translate(0 36)">
+      <path d="M-190 18C-130 -8 -66 -8 0 24V128C-66 96 -130 96 -190 122V18Z" fill="#071326" stroke="url(#line)" stroke-width="2.5"/>
+      <path d="M190 18C130 -8 66 -8 0 24V128C66 96 130 96 190 122V18Z" fill="#0C1D38" stroke="url(#line)" stroke-width="2.5"/>
+      <path d="M0 24V128" stroke="#1C3556" stroke-width="2"/>
+      <path d="M-158 40C-112 24 -66 24 -26 43" stroke="#94A3B8" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+      <path d="M-158 62C-112 46 -66 46 -26 65" stroke="#94A3B8" stroke-opacity="0.25" stroke-width="2" stroke-linecap="round"/>
+      <path d="M-158 84C-112 68 -66 68 -26 87" stroke="#94A3B8" stroke-opacity="0.18" stroke-width="2" stroke-linecap="round"/>
+      <path d="M26 43C66 24 112 24 158 40" stroke="#168BFF" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
+      <path d="M26 65C66 46 112 46 158 62" stroke="#168BFF" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+      <path d="M26 87C66 68 112 68 158 84" stroke="#168BFF" stroke-opacity="0.24" stroke-width="2" stroke-linecap="round"/>
+      <path d="M-180 120C-122 98 -62 98 0 126C62 98 122 98 180 120" stroke="url(#book)" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- particles -->
+    <g opacity="0.85">
+      <circle cx="-236" cy="-58" r="4" fill="#168BFF"/>
+      <circle cx="238" cy="-36" r="3" fill="#00C8FF"/>
+      <circle cx="206" cy="78" r="2.5" fill="#813CFF"/>
+      <path d="M-254 -38L-226 -68" stroke="#168BFF" stroke-width="1.5"/>
+      <path d="M218 -14L252 -46" stroke="#00C8FF" stroke-width="1.5"/>
+    </g>
+  </g>
+</svg>

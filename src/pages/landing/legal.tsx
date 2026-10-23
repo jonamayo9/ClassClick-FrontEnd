@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Seo } from '@/components/seo'
 
 const updatedAt = '30 de junio de 2026'
 
@@ -69,8 +70,18 @@ function LegalPage({ title, intro, children }: { title: string; intro: string; c
   const titleParts = title.split(' ')
   const highlightedTitle = titleParts.pop()
 
+  const canonical = title.toLowerCase().includes('privacidad')
+    ? 'https://classclick.com.ar/privacidad'
+    : 'https://classclick.com.ar/terminos'
+
   return (
     <section className="bg-slate-100 px-4 py-10 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-6 sm:py-16">
+      <Seo
+        title={title}
+        description={intro}
+        canonical={canonical}
+        image="https://classclick.com.ar/landing/og-classclick.png"
+      />
       <article className="mx-auto max-w-4xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-10">
         <div className="flex flex-wrap items-center gap-2">
           <button

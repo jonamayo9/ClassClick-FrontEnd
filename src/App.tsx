@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import { useAuth } from '@/stores/auth'
 import { resolveHomePath } from '@/lib/auth-route'
 import { storage } from '@/lib/storage'
@@ -12,119 +12,133 @@ import { ModuleGuard } from '@/components/module-guard'
 import { PermissionGuard } from '@/components/permission-guard'
 import { ClothingSlugBinder } from '@/lib/clothing-context'
 import { RootLayout } from '@/components/layouts/root-layout'
-import { AppLayout } from '@/components/layouts/app-layout'
 import { LandingPage } from '@/pages/landing'
-import { TrialSignupPage } from '@/pages/landing/trial-signup'
-import { PrivacyPage, TermsPage } from '@/pages/landing/legal'
-import { LoginPage } from '@/pages/auth/login'
-import { ForgotPasswordPage } from '@/pages/auth/forgot-password'
-import { ResetPasswordPage } from '@/pages/auth/reset-password'
-import { AdminDashboard } from '@/pages/admin/dashboard'
-import PaymentsPage from '@/pages/admin/payments/page'
-import StudentsPage from '@/pages/admin/students/page'
-import CoursesPage from '@/pages/admin/courses/page'
-import AdminCourseDetailPage from '@/pages/admin/courses/detail'
-import TeachersPage from '@/pages/admin/teachers/page'
-import ClassesPage from '@/pages/admin/classes/page'
-
-import RecordsPage from '@/pages/admin/records/page'
-import SiblingsPage from '@/pages/admin/siblings/page'
-import PricingPage from '@/pages/admin/pricing/page'
-import ChargeSettingsPage from '@/pages/admin/charge-settings/page'
-import CompanyPage from '@/pages/admin/company/page'
-import ProfilePage from '@/pages/admin/profile/page'
-import SponsorsPage from '@/pages/admin/sponsors/page'
-import AnnouncementsPage from '@/pages/admin/announcements/page'
-import EventsPage from '@/pages/admin/events/page'
-import EventCheckInPage from '@/pages/admin/events/check-in'
-import EventReportPage from '@/pages/admin/events/report'
-import AdminEventManagementPage from '@/pages/admin/events/manage'
-import EventOperatorsPage from '@/pages/admin/events/operators'
-import { OperatorLayout } from '@/pages/event-operator/layout'
-import OperatorEventsPage from '@/pages/event-operator/events'
-import OperatorProfilePage from '@/pages/event-operator/profile'
-import ClothingPage from '@/pages/admin/clothing/page'
-import CategoriesPage from '@/pages/admin/clothing/categories/page'
-import ProductsPage from '@/pages/admin/clothing/products/page'
-import StockPage from '@/pages/admin/clothing/stock/page'
-import OrdersPage from '@/pages/admin/clothing/orders/page'
-import PaymentProofsPage from '@/pages/admin/clothing/payment-proofs/page'
-import CancellationsPage from '@/pages/admin/clothing/cancellations/page'
-import SettingsPage from '@/pages/admin/clothing/settings/page'
-import DeliveryZonesPage from '@/pages/admin/clothing/delivery-zones/page'
-import PublicClothingStorePage from '@/pages/public/clothing-store/page'
-import PublicClothingOrderPage from '@/pages/public/clothing-store/order'
-import AttendancePage from '@/pages/admin/attendance/page'
-import AdminQrScanPage from '@/pages/admin/attendance/qr-scan'
-import StaffAttendancePage from '@/pages/admin/attendance/staff'
-import TeacherAttendancePage from '@/pages/teacher/attendance/page'
-import TeacherQrScanPage from '@/pages/teacher/attendance/qr-scan'
-import TeacherHomePage from '@/pages/teacher/home'
-import TeacherCoursesPage from '@/pages/teacher/courses'
-import TeacherCourseDetailPage from '@/pages/teacher/course-detail'
-import TeacherProfilePage from '@/pages/teacher/profile'
-import RegistrationPage from '@/pages/student/registration/page'
 import { PlaceholderPage } from '@/pages/admin/_placeholder'
-import DelegateHomePage from '@/pages/delegate/home'
-import DelegateStudentsPage from '@/pages/delegate/students/page'
-import DelegateStudentDetailPage from '@/pages/delegate/students/detail'
-import DelegateDocumentsPage from '@/pages/delegate/documents/page'
-import DelegatePaymentsPage from '@/pages/delegate/payments/page'
-import DelegateAttendancePage from '@/pages/delegate/attendance/page'
-import { StudentHome } from '@/pages/student/home'
-import StudentCoursesPage from '@/pages/student/courses/page'
-import CourseDetailPage from '@/pages/student/courses/detail'
-import StudentEventsPage from '@/pages/student/events/page'
-import StudentEventDetailPage from '@/pages/student/events/detail'
-import StudentEventPaymentResultPage from '@/pages/student/events/payment-result'
-import StudentEventsHistoryPage from '@/pages/student/events/history'
-import StudentPaymentsPage from '@/pages/student/payments/page'
-import MercadoPagoResultPage from '@/pages/student/payments/result'
-import StudentProfilePage from '@/pages/student/profile/page'
-import StudentSiblingsPage from '@/pages/student/siblings/page'
-import StudentDocumentsPage from '@/pages/student/documents/page'
-import StudentClothingCatalog from '@/pages/student/clothing/page'
-import StudentClothingOrders from '@/pages/student/clothing/orders/page'
-import StudentClothingOrderDetail from '@/pages/student/clothing/order-detail'
-import PublicPageAdmin from '@/pages/admin/public-page/page'
-import PublicEventPage from '@/pages/public-events/event'
-import PublicEventAccessPage from '@/pages/public-events/access'
-import AdminBillingPage from '@/pages/admin/billing/page'
-import PublicLandingPage from '@/pages/public/landing'
-import { SuperAdminDashboard } from '@/pages/superadmin/dashboard'
-import SuperAdminCompaniesPage from '@/pages/superadmin/companies'
-import SuperAdminAdminsPage from '@/pages/superadmin/admins'
-import SuperAdminBillingPage from '@/pages/superadmin/billing'
-import SuperAdminBillingInvoicesPage from '@/pages/superadmin/billing-invoices'
-import SuperAdminBillingSettingsPage from '@/pages/superadmin/billing-settings'
-import SuperAdminDocumentTypesPage from '@/pages/superadmin/document-types'
-import SuperAdminNewsPage from '@/pages/superadmin/news'
-import SuperAdminPriceIncreasesPage from '@/pages/superadmin/price-increases'
-import { GroupAdminPage } from '@/pages/group-admin/page'
-import { EducativaCommissionsPage } from '@/pages/educativa/commissions/page'
-import { EducativaEnrollmentsPage } from '@/pages/educativa/enrollments/page'
-import { EducativaEnrollmentDetailPage } from '@/pages/educativa/enrollment-detail/page'
-import { EstudianteHomePage } from '@/pages/estudiante/home/page'
-import { EstudianteFormacionesPage } from '@/pages/estudiante/formaciones/page'
-import { EstudianteFormacionDetailPage } from '@/pages/estudiante/formaciones/[enrollmentId]/page'
-import { EstudiantePagosPage } from '@/pages/estudiante/pagos/page'
-import { EstudianteMercadoPagoResultPage } from '@/pages/estudiante/pagos/mercadopago-result'
-import { EstudianteCertificacionesPage } from '@/pages/estudiante/certificaciones/page'
-import { EducativaDashboardPage } from '@/pages/educativa/dashboard/page'
-import { EducativaCertificacionesPage } from '@/pages/educativa/certificaciones/page'
-import { EducativaFormacionesPage } from '@/pages/educativa/formaciones/page'
-import { EducativaCommissionClassesPage } from '@/pages/educativa/commissions/classes/page'
-import { EducativaAsistenciasPage } from '@/pages/educativa/asistencias/page'
-import PagosPage from '@/pages/educativa/pagos/page'
-import AlumnosPage from '@/pages/educativa/alumnos/page'
-import DocentesPage from '@/pages/educativa/docentes/page'
-import { EducativaClasesPage } from '@/pages/educativa/clases/page'
-import ConfigPagosPage from '@/pages/educativa/config-pagos/page'
-import ConfigCuotasPage from '@/pages/educativa/config-cuotas/page'
-import GraduadosPage from '@/pages/educativa/graduados/page'
-import PromocionesPage from '@/pages/educativa/promociones/page'
-import { EducativaPermissionsPage } from '@/pages/educativa/permissions/page'
-import { DocenteMisClasesPage } from '@/pages/docente/mis-clases/page'
+
+function lazyDefault(loader: () => Promise<{ default: ComponentType<any> }>) {
+  return lazy(loader)
+}
+
+function lazyNamed(loader: () => Promise<Record<string, any>>, name: string) {
+  return lazy(() => loader().then((module) => ({ default: module[name] as ComponentType<any> })))
+}
+
+const AppLayout = lazyNamed(() => import('@/components/layouts/app-layout'), 'AppLayout')
+
+const EducativaLandingPage = lazyNamed(() => import('@/pages/landing/educativa'), 'EducativaLandingPage')
+const DeportivaLandingPage = lazyNamed(() => import('@/pages/landing/deportiva'), 'DeportivaLandingPage')
+const TrialSignupPage = lazyNamed(() => import('@/pages/landing/trial-signup'), 'TrialSignupPage')
+const PrivacyPage = lazyNamed(() => import('@/pages/landing/legal'), 'PrivacyPage')
+const TermsPage = lazyNamed(() => import('@/pages/landing/legal'), 'TermsPage')
+const LoginPage = lazyNamed(() => import('@/pages/auth/login'), 'LoginPage')
+const ForgotPasswordPage = lazyNamed(() => import('@/pages/auth/forgot-password'), 'ForgotPasswordPage')
+const ResetPasswordPage = lazyNamed(() => import('@/pages/auth/reset-password'), 'ResetPasswordPage')
+
+const AdminDashboard = lazyNamed(() => import('@/pages/admin/dashboard'), 'AdminDashboard')
+const PaymentsPage = lazyDefault(() => import('@/pages/admin/payments/page'))
+const StudentsPage = lazyDefault(() => import('@/pages/admin/students/page'))
+const CoursesPage = lazyDefault(() => import('@/pages/admin/courses/page'))
+const AdminCourseDetailPage = lazyDefault(() => import('@/pages/admin/courses/detail'))
+const TeachersPage = lazyDefault(() => import('@/pages/admin/teachers/page'))
+const ClassesPage = lazyDefault(() => import('@/pages/admin/classes/page'))
+const RecordsPage = lazyDefault(() => import('@/pages/admin/records/page'))
+const SiblingsPage = lazyDefault(() => import('@/pages/admin/siblings/page'))
+const PricingPage = lazyDefault(() => import('@/pages/admin/pricing/page'))
+const ChargeSettingsPage = lazyDefault(() => import('@/pages/admin/charge-settings/page'))
+const CompanyPage = lazyDefault(() => import('@/pages/admin/company/page'))
+const ProfilePage = lazyDefault(() => import('@/pages/admin/profile/page'))
+const SponsorsPage = lazyDefault(() => import('@/pages/admin/sponsors/page'))
+const AnnouncementsPage = lazyDefault(() => import('@/pages/admin/announcements/page'))
+const EventsPage = lazyDefault(() => import('@/pages/admin/events/page'))
+const EventCheckInPage = lazyDefault(() => import('@/pages/admin/events/check-in'))
+const EventReportPage = lazyDefault(() => import('@/pages/admin/events/report'))
+const AdminEventManagementPage = lazyDefault(() => import('@/pages/admin/events/manage'))
+const EventOperatorsPage = lazyDefault(() => import('@/pages/admin/events/operators'))
+const OperatorLayout = lazyNamed(() => import('@/pages/event-operator/layout'), 'OperatorLayout')
+const OperatorEventsPage = lazyDefault(() => import('@/pages/event-operator/events'))
+const OperatorProfilePage = lazyDefault(() => import('@/pages/event-operator/profile'))
+const ClothingPage = lazyDefault(() => import('@/pages/admin/clothing/page'))
+const CategoriesPage = lazyDefault(() => import('@/pages/admin/clothing/categories/page'))
+const ProductsPage = lazyDefault(() => import('@/pages/admin/clothing/products/page'))
+const StockPage = lazyDefault(() => import('@/pages/admin/clothing/stock/page'))
+const OrdersPage = lazyDefault(() => import('@/pages/admin/clothing/orders/page'))
+const PaymentProofsPage = lazyDefault(() => import('@/pages/admin/clothing/payment-proofs/page'))
+const CancellationsPage = lazyDefault(() => import('@/pages/admin/clothing/cancellations/page'))
+const SettingsPage = lazyDefault(() => import('@/pages/admin/clothing/settings/page'))
+const DeliveryZonesPage = lazyDefault(() => import('@/pages/admin/clothing/delivery-zones/page'))
+const PublicClothingStorePage = lazyDefault(() => import('@/pages/public/clothing-store/page'))
+const PublicClothingOrderPage = lazyDefault(() => import('@/pages/public/clothing-store/order'))
+const AttendancePage = lazyDefault(() => import('@/pages/admin/attendance/page'))
+const AdminQrScanPage = lazyDefault(() => import('@/pages/admin/attendance/qr-scan'))
+const StaffAttendancePage = lazyDefault(() => import('@/pages/admin/attendance/staff'))
+const TeacherAttendancePage = lazyDefault(() => import('@/pages/teacher/attendance/page'))
+const TeacherQrScanPage = lazyDefault(() => import('@/pages/teacher/attendance/qr-scan'))
+const TeacherHomePage = lazyDefault(() => import('@/pages/teacher/home'))
+const TeacherCoursesPage = lazyDefault(() => import('@/pages/teacher/courses'))
+const TeacherCourseDetailPage = lazyDefault(() => import('@/pages/teacher/course-detail'))
+const TeacherProfilePage = lazyDefault(() => import('@/pages/teacher/profile'))
+const RegistrationPage = lazyDefault(() => import('@/pages/student/registration/page'))
+const DelegateHomePage = lazyDefault(() => import('@/pages/delegate/home'))
+const DelegateStudentsPage = lazyDefault(() => import('@/pages/delegate/students/page'))
+const DelegateStudentDetailPage = lazyDefault(() => import('@/pages/delegate/students/detail'))
+const DelegateDocumentsPage = lazyDefault(() => import('@/pages/delegate/documents/page'))
+const DelegatePaymentsPage = lazyDefault(() => import('@/pages/delegate/payments/page'))
+const DelegateAttendancePage = lazyDefault(() => import('@/pages/delegate/attendance/page'))
+const StudentHome = lazyNamed(() => import('@/pages/student/home'), 'StudentHome')
+const StudentCoursesPage = lazyDefault(() => import('@/pages/student/courses/page'))
+const CourseDetailPage = lazyDefault(() => import('@/pages/student/courses/detail'))
+const StudentEventsPage = lazyDefault(() => import('@/pages/student/events/page'))
+const StudentEventDetailPage = lazyDefault(() => import('@/pages/student/events/detail'))
+const StudentEventPaymentResultPage = lazyDefault(() => import('@/pages/student/events/payment-result'))
+const StudentEventsHistoryPage = lazyDefault(() => import('@/pages/student/events/history'))
+const StudentPaymentsPage = lazyDefault(() => import('@/pages/student/payments/page'))
+const MercadoPagoResultPage = lazyDefault(() => import('@/pages/student/payments/result'))
+const StudentProfilePage = lazyDefault(() => import('@/pages/student/profile/page'))
+const StudentSiblingsPage = lazyDefault(() => import('@/pages/student/siblings/page'))
+const StudentDocumentsPage = lazyDefault(() => import('@/pages/student/documents/page'))
+const StudentClothingCatalog = lazyDefault(() => import('@/pages/student/clothing/page'))
+const StudentClothingOrders = lazyDefault(() => import('@/pages/student/clothing/orders/page'))
+const StudentClothingOrderDetail = lazyDefault(() => import('@/pages/student/clothing/order-detail'))
+const PublicPageAdmin = lazyDefault(() => import('@/pages/admin/public-page/page'))
+const PublicEventPage = lazyDefault(() => import('@/pages/public-events/event'))
+const PublicEventAccessPage = lazyDefault(() => import('@/pages/public-events/access'))
+const AdminBillingPage = lazyDefault(() => import('@/pages/admin/billing/page'))
+const PublicLandingPage = lazyDefault(() => import('@/pages/public/landing'))
+const SuperAdminDashboard = lazyNamed(() => import('@/pages/superadmin/dashboard'), 'SuperAdminDashboard')
+const SuperAdminCompaniesPage = lazyDefault(() => import('@/pages/superadmin/companies'))
+const SuperAdminAdminsPage = lazyDefault(() => import('@/pages/superadmin/admins'))
+const SuperAdminBillingPage = lazyDefault(() => import('@/pages/superadmin/billing'))
+const SuperAdminBillingInvoicesPage = lazyDefault(() => import('@/pages/superadmin/billing-invoices'))
+const SuperAdminBillingSettingsPage = lazyDefault(() => import('@/pages/superadmin/billing-settings'))
+const SuperAdminDocumentTypesPage = lazyDefault(() => import('@/pages/superadmin/document-types'))
+const SuperAdminNewsPage = lazyDefault(() => import('@/pages/superadmin/news'))
+const SuperAdminPriceIncreasesPage = lazyDefault(() => import('@/pages/superadmin/price-increases'))
+const GroupAdminPage = lazyNamed(() => import('@/pages/group-admin/page'), 'GroupAdminPage')
+const EducativaCommissionsPage = lazyNamed(() => import('@/pages/educativa/commissions/page'), 'EducativaCommissionsPage')
+const EducativaEnrollmentsPage = lazyNamed(() => import('@/pages/educativa/enrollments/page'), 'EducativaEnrollmentsPage')
+const EducativaEnrollmentDetailPage = lazyNamed(() => import('@/pages/educativa/enrollment-detail/page'), 'EducativaEnrollmentDetailPage')
+const EstudianteHomePage = lazyNamed(() => import('@/pages/estudiante/home/page'), 'EstudianteHomePage')
+const EstudianteFormacionesPage = lazyNamed(() => import('@/pages/estudiante/formaciones/page'), 'EstudianteFormacionesPage')
+const EstudianteFormacionDetailPage = lazyNamed(() => import('@/pages/estudiante/formaciones/[enrollmentId]/page'), 'EstudianteFormacionDetailPage')
+const EstudiantePagosPage = lazyNamed(() => import('@/pages/estudiante/pagos/page'), 'EstudiantePagosPage')
+const EstudianteMercadoPagoResultPage = lazyNamed(() => import('@/pages/estudiante/pagos/mercadopago-result'), 'EstudianteMercadoPagoResultPage')
+const EstudianteCertificacionesPage = lazyNamed(() => import('@/pages/estudiante/certificaciones/page'), 'EstudianteCertificacionesPage')
+const EducativaDashboardPage = lazyNamed(() => import('@/pages/educativa/dashboard/page'), 'EducativaDashboardPage')
+const EducativaCertificacionesPage = lazyNamed(() => import('@/pages/educativa/certificaciones/page'), 'EducativaCertificacionesPage')
+const EducativaFormacionesPage = lazyNamed(() => import('@/pages/educativa/formaciones/page'), 'EducativaFormacionesPage')
+const EducativaCommissionClassesPage = lazyNamed(() => import('@/pages/educativa/commissions/classes/page'), 'EducativaCommissionClassesPage')
+const EducativaAsistenciasPage = lazyNamed(() => import('@/pages/educativa/asistencias/page'), 'EducativaAsistenciasPage')
+const PagosPage = lazyDefault(() => import('@/pages/educativa/pagos/page'))
+const AlumnosPage = lazyDefault(() => import('@/pages/educativa/alumnos/page'))
+const DocentesPage = lazyDefault(() => import('@/pages/educativa/docentes/page'))
+const EducativaClasesPage = lazyNamed(() => import('@/pages/educativa/clases/page'), 'EducativaClasesPage')
+const ConfigPagosPage = lazyDefault(() => import('@/pages/educativa/config-pagos/page'))
+const ConfigCuotasPage = lazyDefault(() => import('@/pages/educativa/config-cuotas/page'))
+const GraduadosPage = lazyDefault(() => import('@/pages/educativa/graduados/page'))
+const PromocionesPage = lazyDefault(() => import('@/pages/educativa/promociones/page'))
+const EducativaPermissionsPage = lazyNamed(() => import('@/pages/educativa/permissions/page'), 'EducativaPermissionsPage')
+const DocenteMisClasesPage = lazyNamed(() => import('@/pages/docente/mis-clases/page'), 'DocenteMisClasesPage')
+
 const queryClient = new QueryClient()
 
 function AuthGate() {
@@ -153,6 +167,12 @@ function RoleRedirect() {
   if (!token || !user) return <Navigate to="/login" replace />
   // Resolución única de la ruta de inicio (Group / Child Deportiva / Child Educativa / Individual).
   return <Navigate to={resolveHomePath()} replace />
+}
+
+function LandingRoute() {
+  const { token, user } = useAuth()
+  if (token && user) return <Navigate to={resolveHomePath()} replace />
+  return <LandingPage />
 }
 
 function GuardedRoute({ moduleCode, children }: { moduleCode?: string; children: React.ReactNode }) {
@@ -252,6 +272,14 @@ function SplashScreen() {
   )
 }
 
+function RouteFallback() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+    </div>
+  )
+}
+
 export default function App() {
   const hydrated = useAuth((s) => s.hydrated)
   return (
@@ -263,194 +291,199 @@ export default function App() {
             <BiometricAppLock />
             <PwaInstallPrompt />
             <IosPwaPrompt />
-            <Routes>
-              <Route element={<RootLayout />}>
-                <Route index element={<LandingPage />} />
-                <Route path="home" element={<RoleRedirect />} />
-            <Route path="prueba-gratis" element={<TrialSignupPage />} />
-            <Route path="privacidad" element={<PrivacyPage />} />
-            <Route path="terminos" element={<TermsPage />} />
-          </Route>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<LandingRoute />} />
+                <Route path="educativa" element={<EducativaLandingPage />} />
+                <Route path="deportiva" element={<DeportivaLandingPage />} />
 
-          <Route path="login" element={<LoginPage />} />
-          <Route path="e/:publicSlug" element={<PublicEventPage />} />
-          <Route path="e/access/:token" element={<PublicEventAccessPage />} />
-          <Route path="forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="reset-password" element={<ResetPasswordPage />} />
-          <Route path="register" element={<RegistrationGate />} />
-          <Route path="c/:companySlug" element={<PublicLandingPage />} />
-          <Route path="tienda/:companySlug" element={<PublicClothingStorePage />} />
-          <Route path="tienda/:companySlug/pedido/:publicToken" element={<PublicClothingOrderPage />} />
+                <Route element={<RootLayout />}>
+                  <Route path="home" element={<RoleRedirect />} />
+                  <Route path="prueba-gratis" element={<TrialSignupPage />} />
+                  <Route path="privacidad" element={<PrivacyPage />} />
+                  <Route path="terminos" element={<TermsPage />} />
+                </Route>
 
-          <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><CompanyContextGuard><AppLayout /></CompanyContextGuard></RoleGuard>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="students" element={<StudentsPage />} />
-            <Route path="records" element={<GuardedRoute moduleCode="documents"><RecordsPage /></GuardedRoute>} />
-            <Route path="teachers" element={<TeachersPage />} />
-            <Route path="courses" element={<CoursesPage />} />
-            <Route path="courses/:id" element={<AdminCourseDetailPage />} />
-            <Route path="classes" element={<ClassesPage />} />
-            <Route path="payments" element={<GuardedRoute moduleCode="payments"><PaymentsPage /></GuardedRoute>} />
-            <Route path="siblings" element={<GuardedRoute moduleCode="payments"><SiblingsPage /></GuardedRoute>} />
-            <Route path="pricing" element={<GuardedRoute moduleCode="payments"><PricingPage /></GuardedRoute>} />
-            <Route path="charge-settings" element={<GuardedRoute moduleCode="payments"><ChargeSettingsPage /></GuardedRoute>} />
-            <Route path="matches" element={<GuardedRoute moduleCode="matches"><PlaceholderPage title="Partidos" description="Programación de partidos" /></GuardedRoute>} />
-            <Route path="tournaments" element={<GuardedRoute moduleCode="tournaments"><PlaceholderPage title="Torneos" description="Gestión de torneos" /></GuardedRoute>} />
-            <Route path="teams" element={<GuardedRoute moduleCode="tournaments"><PlaceholderPage title="Equipos" description="Formación de equipos" /></GuardedRoute>} />
-            <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><Outlet /></GuardedRoute>}>
-              <Route index element={<ClothingPage />} />
-              <Route path="categories" element={<CategoriesPage />} />
-              <Route path="products" element={<ProductsPage />} />
-              <Route path="stock" element={<StockPage />} />
-              <Route path="orders" element={<OrdersPage />} />
-              <Route path="payment-proofs" element={<PaymentProofsPage />} />
-              <Route path="cancellations" element={<CancellationsPage />} />
-              <Route path="delivery-zones" element={<DeliveryZonesPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-            <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
-            <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
-            <Route path="events" element={<GuardedRoute moduleCode="events"><EventsPage /></GuardedRoute>} />
-            <Route path="events/operators" element={<GuardedRoute moduleCode="events"><EventOperatorsPage /></GuardedRoute>} />
-            <Route path="events/:id" element={<GuardedRoute moduleCode="events"><AdminEventManagementPage /></GuardedRoute>} />
-            <Route path="events/:id/check-in" element={<GuardedRoute moduleCode="events"><EventCheckInPage /></GuardedRoute>} />
-            <Route path="events/:id/report" element={<GuardedRoute moduleCode="events"><EventReportPage /></GuardedRoute>} />
-            <Route path="attendance" element={<AttendancePage />} />
-            <Route path="attendance/staff" element={<StaffAttendancePage />} />
-            <Route path="attendance/students" element={<Navigate to="/admin/attendance" replace />} />
-            <Route path="attendance/qr-scan" element={<AdminQrScanPage />} />
-            <Route path="attendance/qr-scan/:classId" element={<AdminQrScanPage />} />
-            <Route path="company" element={<CompanyPage />} />
-            <Route path="public-page" element={<PublicPageAdmin />} />
-            <Route path="billing" element={<AdminBillingPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
+                <Route path="login" element={<LoginPage />} />
+                <Route path="e/:publicSlug" element={<PublicEventPage />} />
+                <Route path="e/access/:token" element={<PublicEventAccessPage />} />
+                <Route path="forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="reset-password" element={<ResetPasswordPage />} />
+                <Route path="register" element={<RegistrationGate />} />
+                <Route path="c/:companySlug" element={<PublicLandingPage />} />
+                <Route path="tienda/:companySlug" element={<PublicClothingStorePage />} />
+                <Route path="tienda/:companySlug/pedido/:publicToken" element={<PublicClothingOrderPage />} />
 
-          <Route path="student" element={<RoleGuard roles={['student']}><StudentVerticalGate><AppLayout /></StudentVerticalGate></RoleGuard>}>
-            <Route index element={<StudentHome />} />
-            <Route path="courses" element={<StudentCoursesPage />} />
-            <Route path="courses/:id" element={<CourseDetailPage />} />
-            <Route path="payments" element={<GuardedRoute moduleCode="payments"><StudentPaymentsPage /></GuardedRoute>} />
-            <Route path="payments/mercadopago/result" element={<MercadoPagoResultPage />} />
-            <Route path="profile" element={<StudentProfilePage />} />
-            <Route path="siblings" element={<GuardedRoute moduleCode="payments"><StudentSiblingsPage /></GuardedRoute>} />
-            <Route path="documents" element={<GuardedRoute moduleCode="documents"><StudentDocumentsPage /></GuardedRoute>} />
-            <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><StudentClothingCatalog /></GuardedRoute>} />
-            <Route path="clothing/orders" element={<GuardedRoute moduleCode="clothing"><StudentClothingOrders /></GuardedRoute>} />
-            <Route path="clothing/order/:id" element={<GuardedRoute moduleCode="clothing"><StudentClothingOrderDetail /></GuardedRoute>} />
-            <Route path="matches" element={<GuardedRoute moduleCode="matches"><PlaceholderPage title="Partidos" /></GuardedRoute>} />
-            <Route path="events" element={<GuardedRoute moduleCode="events"><StudentEventsPage /></GuardedRoute>} />
-            <Route path="events/history" element={<GuardedRoute moduleCode="events"><StudentEventsHistoryPage /></GuardedRoute>} />
-            <Route path="events/:id" element={<GuardedRoute moduleCode="events"><StudentEventDetailPage /></GuardedRoute>} />
-            <Route path="events/payment-result" element={<GuardedRoute moduleCode="events"><StudentEventPaymentResultPage /></GuardedRoute>} />
-          </Route>
+                <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><CompanyContextGuard><AppLayout /></CompanyContextGuard></RoleGuard>}>
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="students" element={<StudentsPage />} />
+                  <Route path="records" element={<GuardedRoute moduleCode="documents"><RecordsPage /></GuardedRoute>} />
+                  <Route path="teachers" element={<TeachersPage />} />
+                  <Route path="courses" element={<CoursesPage />} />
+                  <Route path="courses/:id" element={<AdminCourseDetailPage />} />
+                  <Route path="classes" element={<ClassesPage />} />
+                  <Route path="payments" element={<GuardedRoute moduleCode="payments"><PaymentsPage /></GuardedRoute>} />
+                  <Route path="siblings" element={<GuardedRoute moduleCode="payments"><SiblingsPage /></GuardedRoute>} />
+                  <Route path="pricing" element={<GuardedRoute moduleCode="payments"><PricingPage /></GuardedRoute>} />
+                  <Route path="charge-settings" element={<GuardedRoute moduleCode="payments"><ChargeSettingsPage /></GuardedRoute>} />
+                  <Route path="matches" element={<GuardedRoute moduleCode="matches"><PlaceholderPage title="Partidos" description="Programación de partidos" /></GuardedRoute>} />
+                  <Route path="tournaments" element={<GuardedRoute moduleCode="tournaments"><PlaceholderPage title="Torneos" description="Gestión de torneos" /></GuardedRoute>} />
+                  <Route path="teams" element={<GuardedRoute moduleCode="tournaments"><PlaceholderPage title="Equipos" description="Formación de equipos" /></GuardedRoute>} />
+                  <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><Outlet /></GuardedRoute>}>
+                    <Route index element={<ClothingPage />} />
+                    <Route path="categories" element={<CategoriesPage />} />
+                    <Route path="products" element={<ProductsPage />} />
+                    <Route path="stock" element={<StockPage />} />
+                    <Route path="orders" element={<OrdersPage />} />
+                    <Route path="payment-proofs" element={<PaymentProofsPage />} />
+                    <Route path="cancellations" element={<CancellationsPage />} />
+                    <Route path="delivery-zones" element={<DeliveryZonesPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                  </Route>
+                  <Route path="announcements" element={<GuardedRoute moduleCode="news"><AnnouncementsPage /></GuardedRoute>} />
+                  <Route path="sponsors" element={<GuardedRoute moduleCode="sponsors"><SponsorsPage /></GuardedRoute>} />
+                  <Route path="events" element={<GuardedRoute moduleCode="events"><EventsPage /></GuardedRoute>} />
+                  <Route path="events/operators" element={<GuardedRoute moduleCode="events"><EventOperatorsPage /></GuardedRoute>} />
+                  <Route path="events/:id" element={<GuardedRoute moduleCode="events"><AdminEventManagementPage /></GuardedRoute>} />
+                  <Route path="events/:id/check-in" element={<GuardedRoute moduleCode="events"><EventCheckInPage /></GuardedRoute>} />
+                  <Route path="events/:id/report" element={<GuardedRoute moduleCode="events"><EventReportPage /></GuardedRoute>} />
+                  <Route path="attendance" element={<AttendancePage />} />
+                  <Route path="attendance/staff" element={<StaffAttendancePage />} />
+                  <Route path="attendance/students" element={<Navigate to="/admin/attendance" replace />} />
+                  <Route path="attendance/qr-scan" element={<AdminQrScanPage />} />
+                  <Route path="attendance/qr-scan/:classId" element={<AdminQrScanPage />} />
+                  <Route path="company" element={<CompanyPage />} />
+                  <Route path="public-page" element={<PublicPageAdmin />} />
+                  <Route path="billing" element={<AdminBillingPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
+                </Route>
 
-          <Route path="estudiante" element={<RoleGuard roles={['student']}><AppLayout /></RoleGuard>}>
-            <Route index element={<EstudianteHomePage />} />
-            <Route path="formaciones" element={<EstudianteFormacionesPage />} />
-            <Route path="formaciones/:enrollmentId" element={<EstudianteFormacionDetailPage />} />
-            <Route path="pagos" element={<EstudiantePagosPage />} />
-            <Route path="pagos/mercadopago/result" element={<EstudianteMercadoPagoResultPage />} />
-            <Route path="certificaciones" element={<EstudianteCertificacionesPage />} />
-            <Route path="perfil" element={<StudentProfilePage />} />
-            <Route path="tienda" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingCatalog /></ClothingSlugBinder></GuardedRoute>} />
-            <Route path="tienda/pedidos" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrders /></ClothingSlugBinder></GuardedRoute>} />
-            <Route path="tienda/pedido/:id" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrderDetail /></ClothingSlugBinder></GuardedRoute>} />
-          </Route>
+                <Route path="student" element={<RoleGuard roles={['student']}><StudentVerticalGate><AppLayout /></StudentVerticalGate></RoleGuard>}>
+                  <Route index element={<StudentHome />} />
+                  <Route path="courses" element={<StudentCoursesPage />} />
+                  <Route path="courses/:id" element={<CourseDetailPage />} />
+                  <Route path="payments" element={<GuardedRoute moduleCode="payments"><StudentPaymentsPage /></GuardedRoute>} />
+                  <Route path="payments/mercadopago/result" element={<MercadoPagoResultPage />} />
+                  <Route path="profile" element={<StudentProfilePage />} />
+                  <Route path="siblings" element={<GuardedRoute moduleCode="payments"><StudentSiblingsPage /></GuardedRoute>} />
+                  <Route path="documents" element={<GuardedRoute moduleCode="documents"><StudentDocumentsPage /></GuardedRoute>} />
+                  <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><StudentClothingCatalog /></GuardedRoute>} />
+                  <Route path="clothing/orders" element={<GuardedRoute moduleCode="clothing"><StudentClothingOrders /></GuardedRoute>} />
+                  <Route path="clothing/order/:id" element={<GuardedRoute moduleCode="clothing"><StudentClothingOrderDetail /></GuardedRoute>} />
+                  <Route path="matches" element={<GuardedRoute moduleCode="matches"><PlaceholderPage title="Partidos" /></GuardedRoute>} />
+                  <Route path="events" element={<GuardedRoute moduleCode="events"><StudentEventsPage /></GuardedRoute>} />
+                  <Route path="events/history" element={<GuardedRoute moduleCode="events"><StudentEventsHistoryPage /></GuardedRoute>} />
+                  <Route path="events/:id" element={<GuardedRoute moduleCode="events"><StudentEventDetailPage /></GuardedRoute>} />
+                  <Route path="events/payment-result" element={<GuardedRoute moduleCode="events"><StudentEventPaymentResultPage /></GuardedRoute>} />
+                </Route>
 
-          <Route path="superadmin" element={<RoleGuard roles={['superadmin']}><AppLayout /></RoleGuard>}>
-            <Route index element={<SuperAdminDashboard />} />
-            <Route path="companies" element={<SuperAdminCompaniesPage />} />
-            <Route path="admins" element={<SuperAdminAdminsPage />} />
-            <Route path="billing" element={<SuperAdminBillingPage />} />
-            <Route path="billing/invoices" element={<SuperAdminBillingInvoicesPage />} />
-            <Route path="billing/settings" element={<SuperAdminBillingSettingsPage />} />
-            <Route path="document-types" element={<SuperAdminDocumentTypesPage />} />
-            <Route path="news" element={<SuperAdminNewsPage />} />
-            <Route path="price-increases" element={<SuperAdminPriceIncreasesPage />} />
-          </Route>
+                <Route path="estudiante" element={<RoleGuard roles={['student']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<EstudianteHomePage />} />
+                  <Route path="formaciones" element={<EstudianteFormacionesPage />} />
+                  <Route path="formaciones/:enrollmentId" element={<EstudianteFormacionDetailPage />} />
+                  <Route path="pagos" element={<EstudiantePagosPage />} />
+                  <Route path="pagos/mercadopago/result" element={<EstudianteMercadoPagoResultPage />} />
+                  <Route path="certificaciones" element={<EstudianteCertificacionesPage />} />
+                  <Route path="perfil" element={<StudentProfilePage />} />
+                  <Route path="tienda" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingCatalog /></ClothingSlugBinder></GuardedRoute>} />
+                  <Route path="tienda/pedidos" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrders /></ClothingSlugBinder></GuardedRoute>} />
+                  <Route path="tienda/pedido/:id" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrderDetail /></ClothingSlugBinder></GuardedRoute>} />
+                </Route>
 
-          <Route path="group-admin/:companySlug" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
-            <Route index element={<GroupAdminPage />} />
-          </Route>
+                <Route path="superadmin" element={<RoleGuard roles={['superadmin']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<SuperAdminDashboard />} />
+                  <Route path="companies" element={<SuperAdminCompaniesPage />} />
+                  <Route path="admins" element={<SuperAdminAdminsPage />} />
+                  <Route path="billing" element={<SuperAdminBillingPage />} />
+                  <Route path="billing/invoices" element={<SuperAdminBillingInvoicesPage />} />
+                  <Route path="billing/settings" element={<SuperAdminBillingSettingsPage />} />
+                  <Route path="document-types" element={<SuperAdminDocumentTypesPage />} />
+                  <Route path="news" element={<SuperAdminNewsPage />} />
+                  <Route path="price-increases" element={<SuperAdminPriceIncreasesPage />} />
+                </Route>
 
-          <Route path="educativa/:companySlug" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
-            <Route index element={<PermissionedRoute code="dashboard"><EducativaDashboardPage /></PermissionedRoute>} />
-            <Route path="commissions" element={<PermissionedRoute code="commissions"><EducativaCommissionsPage /></PermissionedRoute>} />
-            <Route path="commissions/:commissionId/classes" element={<PermissionedRoute code="commissions"><EducativaCommissionClassesPage /></PermissionedRoute>} />
-            <Route path="commissions/:commissionId/enrollments" element={<PermissionedRoute code="commissions"><EducativaEnrollmentsPage /></PermissionedRoute>} />
-            <Route path="commissions/:commissionId/enrollments/:enrollmentId" element={<PermissionedRoute code="commissions"><EducativaEnrollmentDetailPage /></PermissionedRoute>} />
-            <Route path="formaciones" element={<PermissionedRoute code="trainings"><EducativaFormacionesPage /></PermissionedRoute>} />
-            <Route path="asistencias" element={<PermissionedRoute code="attendance"><EducativaAsistenciasPage /></PermissionedRoute>} />
-            <Route path="alumnos" element={<PermissionedRoute code="students"><AlumnosPage /></PermissionedRoute>} />
-            <Route path="records" element={<PermissionedRoute code="records"><RecordsPage /></PermissionedRoute>} />
-            <Route path="docentes" element={<PermissionedRoute code="teachers"><DocentesPage /></PermissionedRoute>} />
-            <Route path="classes" element={<PermissionedRoute code="commissions"><EducativaClasesPage /></PermissionedRoute>} />
-            <Route path="config-pagos" element={<PermissionedRoute code="institution-settings"><ConfigPagosPage /></PermissionedRoute>} />
-            <Route path="config-cuotas" element={<PermissionedRoute code="institution-settings"><ConfigCuotasPage /></PermissionedRoute>} />
-            <Route path="graduados" element={<PermissionedRoute code="graduates"><GraduadosPage /></PermissionedRoute>} />
-            <Route path="promociones" element={<PermissionedRoute code="promotions"><PromocionesPage /></PermissionedRoute>} />
-            <Route path="certificaciones" element={<PermissionedRoute code="certifications"><EducativaCertificacionesPage /></PermissionedRoute>} />
-            <Route path="pagos" element={<PermissionedRoute code="cuotas"><PagosPage /></PermissionedRoute>} />
-            <Route path="permissions" element={<PermissionedRoute code="admin-management"><EducativaPermissionsPage /></PermissionedRoute>} />
-            <Route path="company" element={<PermissionedRoute code="institution-settings"><CompanyPage /></PermissionedRoute>} />
-            <Route path="public-page" element={<PermissionedRoute code="institution-settings"><PublicPageAdmin /></PermissionedRoute>} />
-            <Route path="billing" element={<PermissionedRoute code="billing"><AdminBillingPage /></PermissionedRoute>} />
-            <Route path="announcements" element={<PermissionedRoute code="news"><AnnouncementsPage /></PermissionedRoute>} />
-            <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><Outlet /></ClothingSlugBinder></GuardedRoute>}>
-              <Route index element={<ClothingPage />} />
-              <Route path="categories" element={<CategoriesPage />} />
-              <Route path="products" element={<ProductsPage />} />
-              <Route path="stock" element={<StockPage />} />
-              <Route path="orders" element={<OrdersPage />} />
-              <Route path="payment-proofs" element={<PaymentProofsPage />} />
-              <Route path="cancellations" element={<CancellationsPage />} />
-              <Route path="delivery-zones" element={<DeliveryZonesPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
+                <Route path="group-admin/:companySlug" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<GroupAdminPage />} />
+                </Route>
 
-          <Route path="docente" element={<RoleGuard roles={['docente', 'teacher']}><AppLayout /></RoleGuard>}>
-            <Route index element={<DocenteMisClasesPage />} />
-          </Route>
+                <Route path="educativa/:companySlug" element={<RoleGuard roles={['admin', 'superadmin']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<PermissionedRoute code="dashboard"><EducativaDashboardPage /></PermissionedRoute>} />
+                  <Route path="commissions" element={<PermissionedRoute code="commissions"><EducativaCommissionsPage /></PermissionedRoute>} />
+                  <Route path="commissions/:commissionId/classes" element={<PermissionedRoute code="commissions"><EducativaCommissionClassesPage /></PermissionedRoute>} />
+                  <Route path="commissions/:commissionId/enrollments" element={<PermissionedRoute code="commissions"><EducativaEnrollmentsPage /></PermissionedRoute>} />
+                  <Route path="commissions/:commissionId/enrollments/:enrollmentId" element={<PermissionedRoute code="commissions"><EducativaEnrollmentDetailPage /></PermissionedRoute>} />
+                  <Route path="formaciones" element={<PermissionedRoute code="trainings"><EducativaFormacionesPage /></PermissionedRoute>} />
+                  <Route path="asistencias" element={<PermissionedRoute code="attendance"><EducativaAsistenciasPage /></PermissionedRoute>} />
+                  <Route path="alumnos" element={<PermissionedRoute code="students"><AlumnosPage /></PermissionedRoute>} />
+                  <Route path="records" element={<PermissionedRoute code="records"><RecordsPage /></PermissionedRoute>} />
+                  <Route path="docentes" element={<PermissionedRoute code="teachers"><DocentesPage /></PermissionedRoute>} />
+                  <Route path="classes" element={<PermissionedRoute code="commissions"><EducativaClasesPage /></PermissionedRoute>} />
+                  <Route path="config-pagos" element={<PermissionedRoute code="institution-settings"><ConfigPagosPage /></PermissionedRoute>} />
+                  <Route path="config-cuotas" element={<PermissionedRoute code="institution-settings"><ConfigCuotasPage /></PermissionedRoute>} />
+                  <Route path="graduados" element={<PermissionedRoute code="graduates"><GraduadosPage /></PermissionedRoute>} />
+                  <Route path="promociones" element={<PermissionedRoute code="promotions"><PromocionesPage /></PermissionedRoute>} />
+                  <Route path="certificaciones" element={<PermissionedRoute code="certifications"><EducativaCertificacionesPage /></PermissionedRoute>} />
+                  <Route path="pagos" element={<PermissionedRoute code="cuotas"><PagosPage /></PermissionedRoute>} />
+                  <Route path="permissions" element={<PermissionedRoute code="admin-management"><EducativaPermissionsPage /></PermissionedRoute>} />
+                  <Route path="company" element={<PermissionedRoute code="institution-settings"><CompanyPage /></PermissionedRoute>} />
+                  <Route path="public-page" element={<PermissionedRoute code="institution-settings"><PublicPageAdmin /></PermissionedRoute>} />
+                  <Route path="billing" element={<PermissionedRoute code="billing"><AdminBillingPage /></PermissionedRoute>} />
+                  <Route path="announcements" element={<PermissionedRoute code="news"><AnnouncementsPage /></PermissionedRoute>} />
+                  <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><Outlet /></ClothingSlugBinder></GuardedRoute>}>
+                    <Route index element={<ClothingPage />} />
+                    <Route path="categories" element={<CategoriesPage />} />
+                    <Route path="products" element={<ProductsPage />} />
+                    <Route path="stock" element={<StockPage />} />
+                    <Route path="orders" element={<OrdersPage />} />
+                    <Route path="payment-proofs" element={<PaymentProofsPage />} />
+                    <Route path="cancellations" element={<CancellationsPage />} />
+                    <Route path="delivery-zones" element={<DeliveryZonesPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                  </Route>
+                  <Route path="profile" element={<ProfilePage />} />
+                </Route>
 
-          <Route path="event-operator" element={<RoleGuard roles={['eventoperator']}><OperatorLayout /></RoleGuard>}>
-            <Route index element={<OperatorEventsPage />} />
-            <Route path="events/:eventId/check-in" element={<GuardedRoute moduleCode="events"><EventCheckInPage backPath="/event-operator" /></GuardedRoute>} />
-            <Route path="profile" element={<OperatorProfilePage />} />
-          </Route>
+                <Route path="docente" element={<RoleGuard roles={['docente', 'teacher']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<DocenteMisClasesPage />} />
+                </Route>
 
-          <Route path="teacher" element={<RoleGuard roles={['teacher']}><AppLayout /></RoleGuard>}>
-            <Route index element={<TeacherHomePage />} />
-            <Route path="courses" element={<TeacherCoursesPage />} />
-            <Route path="courses/:id" element={<TeacherCourseDetailPage />} />
-            <Route path="attendance" element={<TeacherAttendancePage />} />
-            <Route path="attendance/qr-scan" element={<TeacherQrScanPage />} />
-            <Route path="attendance/qr-scan/:classId" element={<TeacherQrScanPage />} />
-            <Route path="profile" element={<TeacherProfilePage />} />
-          </Route>
+                <Route path="event-operator" element={<RoleGuard roles={['eventoperator']}><OperatorLayout /></RoleGuard>}>
+                  <Route index element={<OperatorEventsPage />} />
+                  <Route path="events/:eventId/check-in" element={<GuardedRoute moduleCode="events"><EventCheckInPage backPath="/event-operator" /></GuardedRoute>} />
+                  <Route path="profile" element={<OperatorProfilePage />} />
+                </Route>
 
-          <Route path="delegate" element={<RoleGuard roles={['delegate']}><AppLayout /></RoleGuard>}>
-            <Route index element={<DelegateHomePage />} />
-            <Route path="students" element={<DelegateStudentsPage />} />
-            <Route path="students/:id" element={<DelegateStudentDetailPage />} />
-            <Route path="documents" element={<DelegateDocumentsPage />} />
-            <Route path="payments" element={<DelegatePaymentsPage />} />
-            <Route path="attendance" element={<DelegateAttendancePage />} />
-            <Route path="profile" element={<PlaceholderPage title="Mi perfil" description="Próximamente: perfil del delegado" />} />
-          </Route>
+                <Route path="teacher" element={<RoleGuard roles={['teacher']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<TeacherHomePage />} />
+                  <Route path="courses" element={<TeacherCoursesPage />} />
+                  <Route path="courses/:id" element={<TeacherCourseDetailPage />} />
+                  <Route path="attendance" element={<TeacherAttendancePage />} />
+                  <Route path="attendance/qr-scan" element={<TeacherQrScanPage />} />
+                  <Route path="attendance/qr-scan/:classId" element={<TeacherQrScanPage />} />
+                  <Route path="profile" element={<TeacherProfilePage />} />
+                </Route>
 
-          <Route path="src/pages/student/home/index.html" element={<Navigate to="/student" replace />} />
-          <Route path="src/pages/student/profile/index.html" element={<Navigate to="/student/siblings" replace />} />
-          <Route path="src/pages/student/payments/index.html" element={<Navigate to="/student/payments" replace />} />
-          <Route path="src/pages/student/documents/index.html" element={<Navigate to="/student/documents" replace />} />
-          <Route path="src/pages/student/files/index.html" element={<Navigate to="/student/documents" replace />} />
-          <Route path="src/pages/admin/payments/index.html" element={<Navigate to="/admin/payments" replace />} />
-          <Route path="src/pages/admin/student-files/index.html" element={<Navigate to="/admin/records" replace />} />
-          <Route path="src/pages/admin/students/sibling-links/index.html" element={<Navigate to="/admin/siblings" replace />} />
-          <Route path="*" element={<RoleRedirect />} />
-            </Routes>
+                <Route path="delegate" element={<RoleGuard roles={['delegate']}><AppLayout /></RoleGuard>}>
+                  <Route index element={<DelegateHomePage />} />
+                  <Route path="students" element={<DelegateStudentsPage />} />
+                  <Route path="students/:id" element={<DelegateStudentDetailPage />} />
+                  <Route path="documents" element={<DelegateDocumentsPage />} />
+                  <Route path="payments" element={<DelegatePaymentsPage />} />
+                  <Route path="attendance" element={<DelegateAttendancePage />} />
+                  <Route path="profile" element={<PlaceholderPage title="Mi perfil" description="Próximamente: perfil del delegado" />} />
+                </Route>
+
+                <Route path="src/pages/student/home/index.html" element={<Navigate to="/student" replace />} />
+                <Route path="src/pages/student/profile/index.html" element={<Navigate to="/student/siblings" replace />} />
+                <Route path="src/pages/student/payments/index.html" element={<Navigate to="/student/payments" replace />} />
+                <Route path="src/pages/student/documents/index.html" element={<Navigate to="/student/documents" replace />} />
+                <Route path="src/pages/student/files/index.html" element={<Navigate to="/student/documents" replace />} />
+                <Route path="src/pages/admin/payments/index.html" element={<Navigate to="/admin/payments" replace />} />
+                <Route path="src/pages/admin/student-files/index.html" element={<Navigate to="/admin/records" replace />} />
+                <Route path="src/pages/admin/students/sibling-links/index.html" element={<Navigate to="/admin/siblings" replace />} />
+                <Route path="*" element={<RoleRedirect />} />
+              </Routes>
+            </Suspense>
           </>
         ) : (
           <SplashScreen />

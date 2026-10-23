@@ -18,11 +18,11 @@ const themeNext: Record<ThemeMode, ThemeMode> = {
 }
 
 const publicNav = [
-  { label: 'Producto', href: '/#producto' },
-  { label: 'Modulos', href: '/#modulos' },
-  { label: 'Prueba gratis', href: '/#prueba' },
-  { label: 'Precios', href: '/#precios' },
-  { label: 'Contacto', href: '/#contacto' },
+  { label: 'Inicio', href: '/' },
+  { label: 'Educativa', href: '/educativa' },
+  { label: 'Deportiva', href: '/deportiva' },
+  { label: 'Precios', href: '/educativa#precios' },
+  { label: 'Contacto', href: 'https://wa.me/5491140733436' },
 ]
 
 export function RootLayout() {
@@ -55,24 +55,44 @@ export function RootLayout() {
     <div className="min-h-screen bg-slate-950 text-white">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 backdrop-blur-2xl supports-[backdrop-filter]:bg-slate-950/80">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link to="/" className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+          <Link
+            to="/"
+            aria-label="ClassClick, ir al inicio"
+            className="flex shrink-0 items-center gap-2.5 sm:gap-3"
+          >
             <img
               src="/icons/icon-512.png"
+              srcSet="/icons/icon-192.png 1x, /icons/icon-512.png 2x"
+              width="48"
+              height="48"
               alt=""
               className="h-10 w-10 rounded-xl bg-white object-contain p-1 shadow-lg sm:h-12 sm:w-12 sm:rounded-2xl"
+              decoding="async"
             />
             <div className="hidden sm:block">
               <div className="text-base font-black tracking-tight sm:text-lg">ClassClick</div>
-              <div className="text-[11px] text-slate-400">Tu institucion, mas simple</div>
+              <div className="text-[11px] text-slate-400">Tu institución, más simple</div>
             </div>
           </Link>
 
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-300 md:flex">
-            {publicNav.map((item) => (
-              <a key={item.href} href={item.href} className="transition hover:text-white">
-                {item.label}
-              </a>
-            ))}
+            {publicNav.map((item) =>
+              item.href.startsWith('http') ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition hover:text-white"
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link key={item.href} to={item.href} className="transition hover:text-white">
+                  {item.label}
+                </Link>
+              ),
+            )}
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -127,16 +147,29 @@ export function RootLayout() {
         {mobileOpen && (
           <div className="border-t border-white/10 bg-slate-950 px-4 pb-6 pt-4 md:hidden">
             <nav className="flex flex-col gap-3">
-              {publicNav.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
-                >
-                  {item.label}
-                </a>
-              ))}
+              {publicNav.map((item) =>
+                item.href.startsWith('http') ? (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  >
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  >
+                    {item.label}
+                  </Link>
+                ),
+              )}
             </nav>
           </div>
         )}
@@ -153,8 +186,15 @@ export function RootLayout() {
             <Link to="/privacidad" className="transition hover:text-white">Privacidad</Link>
             <Link to="/terminos" className="transition hover:text-white">Términos</Link>
             <Link to="/login" className="transition hover:text-white">Ingresar</Link>
-            <a href="/#precios" className="transition hover:text-white">Precios</a>
-            <a href="/#contacto" className="transition hover:text-white">Contacto</a>
+            <Link to="/educativa#precios" className="transition hover:text-white">Precios</Link>
+            <a
+              href="https://wa.me/5491140733436"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition hover:text-white"
+            >
+              Contacto
+            </a>
           </div>
         </div>
       </footer>

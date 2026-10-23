@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Seo } from '@/components/seo'
 
 const WHATSAPP_NUMBER = '5491140733436'
 const trialEndpoint = import.meta.env.VITE_TRIAL_SIGNUP_ENDPOINT as string | undefined
@@ -42,7 +43,7 @@ export function TrialSignupPage() {
     const whatsAppDigits = form.whatsApp.replace(/\D/g, '')
 
     if (form.contactName.trim().length < 2) errors.contactName = 'Ingresá tu nombre.'
-    if (form.institutionName.trim().length < 2) errors.institutionName = 'Ingresá el nombre de tu club o institución.'
+    if (form.institutionName.trim().length < 2) errors.institutionName = 'Ingresá el nombre de tu institución.'
     if (!emailPattern.test(form.email.trim())) errors.email = 'Ingresá un email válido.'
     if (whatsAppDigits.length < 8) errors.whatsApp = 'Ingresá un número de WhatsApp válido, con código de área.'
 
@@ -102,10 +103,16 @@ export function TrialSignupPage() {
 
   return (
     <section className="bg-slate-100 px-4 py-10 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-6 sm:py-16">
+      <Seo
+        title="Prueba gratis"
+        description="Solicitá una prueba guiada de ClassClick y te acompañamos en la configuración inicial de tu institución."
+        canonical="https://classclick.com.ar/prueba-gratis"
+        image="https://classclick.com.ar/landing/og-classclick.png"
+      />
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
         <div className="lg:sticky lg:top-24">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">Prueba gratis</p>
-          <h1 className="mt-3 text-3xl font-black sm:text-5xl">Empecemos por tu club.</h1>
+          <h1 className="mt-3 text-3xl font-black sm:text-5xl">Empecemos por tu institución.</h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
             Completá los datos básicos y coordinamos el alta de tu empresa. Tenés 7 días para probar ClassClick con acompañamiento y datos reales.
           </p>
@@ -129,7 +136,7 @@ export function TrialSignupPage() {
         <form noValidate onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-8">
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Tu nombre" value={form.contactName} error={fieldErrors.contactName} onChange={(value) => update('contactName', value)} autoComplete="name" />
-            <Field label="Nombre del club o institución" value={form.institutionName} error={fieldErrors.institutionName} onChange={(value) => update('institutionName', value)} />
+            <Field label="Nombre de la institución" value={form.institutionName} error={fieldErrors.institutionName} onChange={(value) => update('institutionName', value)} />
             <Field label="Email de contacto" type="email" value={form.email} error={fieldErrors.email} onChange={(value) => update('email', value)} autoComplete="email" inputMode="email" />
             <Field label="WhatsApp" type="tel" value={form.whatsApp} error={fieldErrors.whatsApp} onChange={(value) => update('whatsApp', value)} autoComplete="tel" inputMode="tel" placeholder="Ej. +54 9 11 4073 3436" />
             <Field label="Cantidad aproximada de alumnos" type="number" value={form.estimatedStudents} error={fieldErrors.estimatedStudents} onChange={(value) => update('estimatedStudents', value)} min="1" inputMode="numeric" />

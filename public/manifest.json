@@ -2,7 +2,7 @@
   "id": "/",
   "name": "ClassClick",
   "short_name": "ClassClick",
-  "description": "Gestion integral para clubes, escuelas y academias. Alumnos, cuotas, comprobantes, documentos, indumentaria, partidos, torneos y notificaciones.",
+  "description": "Gestion integral para clubes, escuelas y academias. Alumnos, cuotas, comprobantes, documentos, indumentaria, eventos y notificaciones.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
