@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Política de Privacidad | ClassClick</title>
+    <meta name="description" content="Política de Privacidad de ClassClick: qué datos recopilamos, cómo los usamos, con quién los compartimos, inicio de sesión con Google, pagos, menores de edad, conservación y derechos." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://classclick.com.ar/privacidad" />
+    <meta name="theme-color" content="#030B1B" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png" />
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        src: url('/fonts/inter-latin-var.woff2') format('woff2');
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      :root {
+        color-scheme: dark;
+        --bg: #030b1b;
+        --surface: #0b1426;
+        --surface-soft: #111d33;
+        --text: #e8eefc;
+        --muted: #a9b8d1;
+        --faint: #7f91ad;
+        --blue: #3478ff;
+        --blue-light: #6ea0ff;
+        --border: rgba(255, 255, 255, 0.13);
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 10% 0%, rgba(52, 120, 255, 0.18), transparent 34rem),
+          radial-gradient(circle at 100% 20%, rgba(52, 120, 255, 0.10), transparent 28rem),
+          var(--bg);
+        color: var(--text);
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--blue-light); text-underline-offset: 0.18em; }
+      a:hover { color: #a9c6ff; }
+      .page {
+        width: min(100% - 2rem, 980px);
+        margin: 0 auto;
+        padding: 2rem 0 4rem;
+      }
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.9rem 0 1.4rem;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.7rem;
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .brand img {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        padding: 3px;
+      }
+      .topbar nav {
+        margin-left: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .topbar nav a {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0 0.8rem;
+        color: var(--text);
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-decoration: none;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .topbar nav a:hover { background: rgba(255, 255, 255, 0.08); }
+      .hero {
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: linear-gradient(135deg, rgba(17, 29, 51, 0.92), rgba(11, 20, 38, 0.92));
+        padding: clamp(1.3rem, 4vw, 2.5rem);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      }
+      .eyebrow {
+        margin: 0;
+        color: var(--blue-light);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0.55rem 0 0;
+        font-size: clamp(2rem, 7vw, 3.6rem);
+        line-height: 1.05;
+        letter-spacing: -0.045em;
+      }
+      .hero p {
+        max-width: 48rem;
+        margin: 1rem 0 0;
+        color: var(--muted);
+        font-size: clamp(0.98rem, 2.5vw, 1.12rem);
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1.2rem;
+      }
+      .meta span {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 0.35rem 0.75rem;
+        color: var(--muted);
+        font-size: 0.74rem;
+        font-weight: 700;
+      }
+      .article {
+        margin-top: 1.1rem;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: rgba(11, 20, 38, 0.92);
+        padding: clamp(1.25rem, 4vw, 2.75rem);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+      }
+      .legal-lead {
+        margin-top: 0;
+        color: var(--text);
+        font-size: 1.02rem;
+      }
+      h2 {
+        margin: 2.2rem 0 0.75rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid var(--border);
+        font-size: clamp(1.12rem, 3.4vw, 1.45rem);
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+      h2:first-of-type { border-top: 0; padding-top: 0; margin-top: 1.4rem; }
+      p { margin: 0.75rem 0; }
+      ul { margin: 0.8rem 0 1rem; padding-left: 1.25rem; }
+      li { margin: 0.45rem 0; padding-left: 0.2rem; }
+      strong { color: #fff; }
+      .legal-note {
+        margin: 1.2rem 0;
+        border: 1px solid rgba(52, 120, 255, 0.35);
+        border-left: 4px solid var(--blue);
+        border-radius: 12px;
+        background: rgba(52, 120, 255, 0.08);
+        padding: 0.95rem 1rem;
+        color: var(--text);
+      }
+      .footer {
+        margin-top: 1.2rem;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 1rem 1.1rem;
+        color: var(--faint);
+        font-size: 0.78rem;
+        line-height: 1.7;
+      }
+      .footer a { font-weight: 700; }
+      @media (max-width: 620px) {
+        .page { width: min(100% - 1.2rem, 980px); padding-top: 0.75rem; }
+        .topbar nav { width: 100%; margin-left: 0; }
+        .topbar nav a { flex: 1; }
+        .article { border-radius: 18px; }
+      }
+      @media print {
+        :root { color-scheme: light; --bg: #fff; --surface: #fff; --text: #111; --muted: #333; --faint: #555; --border: #ddd; }
+        body { background: #fff; }
+        .hero, .article, .footer { box-shadow: none; background: #fff; }
+        .topbar nav { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <a class="brand" href="https://classclick.com.ar">
+          <img src="/icons/icon-512.png" alt="ClassClick" />
+          <span>ClassClick</span>
+        </a>
+        <nav aria-label="Navegación legal">
+          <a href="https://classclick.com.ar">Volver al inicio</a>
+          <a href="/terminos">Términos y Condiciones</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <p class="eyebrow">Documentos legales</p>
+        <h1>Política de Privacidad</h1>
+        <p>Política de Privacidad de ClassClick: qué datos recopilamos, cómo los usamos, con quién los compartimos, inicio de sesión con Google, pagos, menores de edad, conservación y derechos.</p>
+        <div class="meta">
+          <span>Última actualización: 29 de octubre de 2026</span>
+          <span>Versión 1.1.0</span>
+          <span>Vigente para Web, PWA y Android</span>
+        </div>
+      </section>
+
+      <main class="article legal-prose">
+        <p class="legal-lead">
+  Esta política explica qué datos personales recopila ClassClick, para qué los utiliza, cómo los protege y qué
+  opciones tenés para consultarlos, corregirlos o solicitar su eliminación. Aplica al sitio web, a la PWA y a la
+  aplicación Android de ClassClick.
+</p>
+
+<h2 id="privacidad-1">1. Identificación del servicio y responsable</h2>
+<p>
+  ClassClick es una plataforma de gestión para instituciones educativas, deportivas y otras organizaciones.
+  Permite administrar alumnos, familias, cursos, asistencias, documentación, cuotas, pagos, compras, eventos,
+  credenciales digitales y comunicaciones.
+</p>
+<p>
+  ClassClick es operado bajo su marca por <strong>Systems Dev Solutions</strong>. El sitio público es
+  <a href="https://classclick.com.ar">https://classclick.com.ar</a>. El canal de contacto para consultas de
+  privacidad es <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a> y el WhatsApp publicado
+  en el sitio es <strong>+54 9 11 4073 3436</strong>.
+</p>
+<p>
+  Para consultas formales sobre esta política o para solicitar información adicional del responsable, escribí a
+  <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a>.
+</p>
+
+<h2 id="privacidad-2">2. Alcance, roles y responsabilidad</h2>
+<p>
+  ClassClick presta la plataforma y los servicios tecnológicos necesarios para su funcionamiento. Cada institución
+  usuaria decide qué información incorpora, para qué la utiliza, a quién se la muestra y cómo administra los
+  permisos de su comunidad. La institución actúa como responsable de los datos que gestiona y Systems Dev Solutions
+  actúa como proveedor tecnológico y encargado del tratamiento, sin perjuicio de las obligaciones que la normativa
+  aplicable imponga a cada parte.
+</p>
+<p>
+  Los usuarios finales —alumnos, socios, familias, docentes, administradores, delegados y operadores— deben usar
+  la plataforma conforme a su rol y a las instrucciones de su institución. La institución es responsable de obtener
+  las autorizaciones que correspondan frente a alumnos, familias, socios y personal, especialmente cuando se trate
+  de menores de edad.
+</p>
+<p>
+  ClassClick no es una entidad financiera. Los precios, cuotas, cargos, becas, descuentos y condiciones de cobro
+  son definidos por cada institución.
+</p>
+
+<h2 id="privacidad-3">3. Datos que recopilamos</h2>
+<p>
+  Según las funciones que habilite cada institución y el rol de cada usuario, ClassClick puede tratar las
+  siguientes categorías:
+</p>
+<ul>
+  <li>
+    <strong>Identificación y contacto:</strong> nombre, apellido, documento (DNI), fecha de nacimiento, correo
+    electrónico, teléfono, WhatsApp, domicilio, país, provincia y datos de contacto de emergencia.
+  </li>
+  <li>
+    <strong>Datos de cuenta y autenticación:</strong> credenciales de acceso, contraseña almacenada como hash,
+    identificador de Google, correo verificado por Google, tokens de sesión y actualización, registros de último
+    acceso, credenciales WebAuthn (clave pública y nombre del dispositivo) y datos técnicos asociados.
+  </li>
+  <li>
+    <strong>Datos familiares y de responsables:</strong> nombre, contacto, documento, vínculo con el alumno,
+    autorización para pagar cuotas y datos de hermanos o vínculos familiares cuando la institución los carga.
+  </li>
+  <li>
+    <strong>Datos académicos y deportivos:</strong> institución, rol, cursos, comisiones, categorías, equipos,
+    inscripciones, reinscripciones, asistencias, certificaciones, resultados y otra información que la institución
+    decida registrar.
+  </li>
+  <li>
+    <strong>Documentación e imágenes:</strong> imagen de perfil, fotografías, documentos del legajo, documentación
+    solicitada, comprobantes, certificados y archivos cargados por la institución, el alumno o un responsable.
+  </li>
+  <li>
+    <strong>Datos administrativos y económicos:</strong> cuotas, cargos, becas, descuentos, financiaciones, estados
+    de cuenta, pagos, comprobantes, métodos de pago, importes, fechas y referencias de operaciones.
+  </li>
+  <li>
+    <strong>Datos de salud declarados:</strong> obra social, plan, número de afiliado y datos de cobertura que la
+    institución solicite para la administración del alumno, cuando corresponda.
+  </li>
+  <li>
+    <strong>Datos de acceso y credenciales:</strong> credenciales digitales, códigos QR, identificadores públicos,
+    tokens de vigencia limitada, registros de ingreso y validación, y datos de lectores o tarjetas NFC cuando la
+    institución utilice esa modalidad.
+  </li>
+  <li>
+    <strong>Compras y entregas:</strong> pedidos de indumentaria, productos, importes, nombre y contacto del
+    comprador, dirección o zona de entrega, coordenadas de entrega cuando se usan para calcular el envío y
+    comprobantes de pago.
+  </li>
+  <li>
+    <strong>Eventos y entradas:</strong> inscripciones, compradores, asistentes, entradas, códigos QR, estado de
+    pago y datos de contacto necesarios para la gestión del evento.
+  </li>
+  <li>
+    <strong>Comunicaciones:</strong> mensajes dentro de la plataforma, notificaciones, consultas, reclamos,
+    preferencias de contacto y registros de envío.
+  </li>
+  <li>
+    <strong>Datos técnicos y de seguridad:</strong> dirección IP, agente de usuario, identificadores de sesión y
+    dispositivo, tokens de notificaciones push, endpoint de suscripción web, plataforma, nombre o identificador de
+    instalación, registros de actividad, errores y eventos de seguridad.
+  </li>
+</ul>
+<p>
+  ClassClick no solicita ni almacena números completos de tarjetas, códigos de seguridad CVV ni credenciales
+  bancarias cuando el pago es procesado por Mercado Pago. Esos datos son gestionados directamente por el proveedor
+  de pagos.
+</p>
+
+<h2 id="privacidad-4">4. Para qué usamos los datos</h2>
+<p>Utilizamos los datos para las siguientes finalidades, según corresponda al servicio contratado:</p>
+<ul>
+  <li>Crear, administrar y autenticar cuentas; mantener sesiones y permitir el recupero de acceso.</li>
+  <li>Identificar a cada usuario y vincularlo con su institución, rol y permisos.</li>
+  <li>Gestionar alumnos, familias, cursos, comisiones, equipos, inscripciones y asistencias.</li>
+  <li>Administrar documentación, legajos, imágenes y credenciales digitales.</li>
+  <li>Registrar cuotas, cargos, pagos, comprobantes, financiaciones, becas y descuentos.</li>
+  <li>Gestionar compras de indumentaria, entregas, eventos y entradas.</li>
+  <li>Enviar comunicaciones operativas, recordatorios y notificaciones autorizadas.</li>
+  <li>Atender consultas, reclamos y solicitudes de soporte.</li>
+  <li>Prevenir fraudes, accesos no autorizados, abusos y incidentes de seguridad.</li>
+  <li>Mantener registros de auditoría, aceptaciones legales y evidencia de operaciones.</li>
+  <li>Cumplir obligaciones legales, contables, fiscales o de seguridad cuando resulten aplicables.</li>
+  <li>Mejorar la estabilidad, el rendimiento y la seguridad del servicio.</li>
+</ul>
+<p>
+  No utilizamos los datos personales para publicidad de terceros ni los vendemos como parte del servicio. El uso
+  es operativo, administrativo, de seguridad y de soporte, además de las comunicaciones que la institución o el
+  usuario autoricen.
+</p>
+
+<h2 id="privacidad-5">5. Inicio de sesión con Google</h2>
+<p>
+  Podés iniciar sesión con tu cuenta de Google desde la web/PWA o desde la aplicación Android. ClassClick solicita
+  únicamente los permisos básicos de <strong>correo electrónico</strong> y <strong>perfil</strong> necesarios para
+  autenticarte.
+</p>
+<p>
+  A través de Google Sign-In, ClassClick recibe el identificador de tu cuenta de Google, tu dirección de correo, el
+  estado de verificación del correo y los datos básicos de perfil que Google devuelva según los permisos
+  solicitados. ClassClick no accede a Gmail, Google Drive, Google Calendar, contactos ni otros servicios de Google,
+  salvo que en el futuro se incorpore un permiso adicional expresamente informado.
+</p>
+<p>
+  Usamos esa información para autenticarte y vincularte con tu cuenta interna de ClassClick. Si ya existe una cuenta
+  ClassClick asociada a esa identidad o a ese correo, se reutiliza el mismo usuario y se conservan sus instituciones,
+  cursos, cuotas, pagos, documentos e historial. Si no existe una cuenta, el acceso se rechaza: ClassClick no crea
+  cuentas automáticamente desde Google. La institución debe crear o invitar al usuario.
+</p>
+<p>
+  El token de identidad de Google se valida en el servidor (firma, emisor, expiración, audiencia y correo
+  verificado). ClassClick no almacena el token de Google; conserva el identificador de la cuenta y el correo
+  necesarios para el vínculo. Google procesa la autenticación y los datos de la cuenta conforme a sus propias
+  políticas de privacidad.
+</p>
+<p>
+  El inicio de sesión con Google no autoriza a ClassClick a leer correos, archivos, contactos ni otros contenidos
+  de tu cuenta de Google.
+</p>
+
+<h2 id="privacidad-6">6. Pagos, cuotas y comprobantes</h2>
+<p>
+  ClassClick registra cuotas, cargos, becas, descuentos, financiaciones, estados de cuenta, pagos y comprobantes
+  gestionados por la institución. También puede registrar referencias de operaciones, identificadores de pago,
+  estados, importes, métodos y fechas.
+</p>
+<p>
+  Cuando la institución habilita Mercado Pago, el checkout y el procesamiento del pago se realizan en Mercado Pago.
+  ClassClick recibe y almacena la información necesaria para conciliar la operación, como identificadores de
+  preferencia y pago, estado, importe, método y referencias. ClassClick no almacena números completos de tarjetas,
+  CVV ni credenciales bancarias; esos datos son gestionados directamente por Mercado Pago bajo sus propias
+  condiciones y políticas.
+</p>
+<p>
+  En pagos por transferencia, el usuario puede subir un comprobante para que la institución lo revise. El archivo,
+  su estado de revisión y los datos asociados se almacenan para la gestión administrativa y contable.
+</p>
+<p>
+  En compras de indumentaria, ClassClick registra el pedido, los productos, el importe, los datos de contacto y
+  entrega del comprador, los comprobantes y el estado del pago. La tienda pública puede solicitar nombre, correo,
+  teléfono y dirección de entrega para completar la compra.
+</p>
+<p>
+  ClassClick no es una entidad financiera y no decide por sí mismo la aprobación de un pago. Las condiciones de
+  cada medio de pago son las del proveedor correspondiente.
+</p>
+
+<h2 id="privacidad-7">7. Documentos, fotografías y almacenamiento</h2>
+<p>
+  La institución puede solicitar o cargar documentos personales, comprobantes, certificados, imágenes de perfil y
+  fotografías para el legajo o la gestión administrativa. Los archivos y sus metadatos (nombre, tipo, tamaño y
+  fecha de carga) se almacenan en servicios de almacenamiento en la nube y se acceden mediante permisos y enlaces
+  controlados.
+</p>
+<p>
+  La institución debe limitar la carga de documentación a la estrictamente necesaria y obtener las autorizaciones
+  que correspondan, especialmente cuando se trate de imágenes o datos de menores de edad. ClassClick no utiliza esas
+  imágenes para publicidad ni para finalidades ajenas a la prestación del servicio.
+</p>
+
+<h2 id="privacidad-8">8. Instituciones, cursos, asistencias y credenciales</h2>
+<p>
+  ClassClick registra la pertenencia de cada usuario a una o más instituciones, su rol y sus permisos. También puede
+  registrar cursos, comisiones, categorías, equipos, inscripciones, clases, asistencias y otra información que la
+  institución decida incorporar.
+</p>
+<p>
+  Para el control de acceso, ClassClick puede generar credenciales digitales, códigos QR e identificadores públicos,
+  y registrar validaciones de ingreso. Cuando la institución utiliza lectores o tarjetas NFC compatibles, también
+  pueden registrarse eventos de validación y datos técnicos del lector. En recepción o control de acceso puede
+  mostrarse el nombre, documento y fotografía del alumno a personal autorizado.
+</p>
+<p>
+  Los datos de asistencia y acceso se utilizan para fines académicos, deportivos, administrativos y de seguridad de
+  la institución.
+</p>
+
+<h2 id="privacidad-9">9. Notificaciones y dispositivos</h2>
+<p>
+  Si autorizás las notificaciones, ClassClick puede enviarte avisos operativos, recordatorios de cuotas, novedades,
+  cambios de estado y comunicaciones de la institución. Para ello puede utilizar notificaciones dentro de la
+  plataforma, correo electrónico y notificaciones push del navegador o del sistema operativo.
+</p>
+<p>
+  Para las notificaciones web se almacena el endpoint de suscripción y las claves técnicas necesarias. En Android
+  se almacena un token de dispositivo, la plataforma, un identificador de instalación y, opcionalmente, el nombre
+  del dispositivo. Estos datos se usan únicamente para entregar las notificaciones y se desactivan o eliminan cuando
+  corresponda.
+</p>
+<p>
+  Podés rechazar o desactivar las notificaciones desde los permisos del navegador o del dispositivo. La
+  desactivación no afecta el resto de las funciones de la cuenta.
+</p>
+
+<h2 id="privacidad-10">10. Cookies, almacenamiento local y datos técnicos</h2>
+<p>
+  ClassClick no utiliza cookies publicitarias ni perfiles de publicidad de terceros. La web y la PWA utilizan
+  almacenamiento local y de sesión del navegador para mantener la sesión, recordar preferencias, conservar el carrito
+  de compras, gestionar el estado de la interfaz, almacenar la configuración de acceso del dispositivo y registrar
+  la suscripción a notificaciones. También se utiliza un service worker para el funcionamiento de la PWA y las
+  notificaciones.
+</p>
+<p>
+  La aplicación Android almacena los tokens de sesión en el almacenamiento seguro del dispositivo y conserva
+  preferencias y datos de contexto en el almacenamiento local de la aplicación.
+</p>
+<p>
+  Como parte de la infraestructura, Cloudflare puede recopilar métricas técnicas agregadas y registros de seguridad
+  o rendimiento, como dirección IP, agente de usuario, fecha, ruta solicitada y eventos de error. Esos datos se
+  utilizan para operar, proteger y mejorar el servicio.
+</p>
+
+<h2 id="privacidad-11">11. Con quién compartimos información</h2>
+<p>
+  La información puede ser accesible para:
+</p>
+<ul>
+  <li>
+    La institución a la que pertenece el usuario y su personal autorizado, según los roles y permisos configurados.
+  </li>
+  <li>
+    Proveedores tecnológicos que prestan servicios necesarios: Microsoft Azure para almacenamiento e infraestructura,
+    MailerSend para correos transaccionales, Mercado Pago para pagos, Google para inicio de sesión y servicios de
+    notificaciones push del navegador o del sistema operativo, incluido Firebase Cloud Messaging cuando corresponde
+    en Android, y Cloudflare para hosting y métricas técnicas.
+  </li>
+  <li>
+    Autoridades públicas o terceros cuando exista una obligación legal, una orden judicial o sea necesario para
+    proteger derechos, seguridad o prevenir fraudes.
+  </li>
+</ul>
+<p>
+  Los proveedores reciben únicamente la información necesaria para cumplir su función y aplican sus propias
+  condiciones y medidas de seguridad. ClassClick no vende datos personales ni los cede para publicidad de terceros.
+</p>
+
+<h2 id="privacidad-12">12. Seguridad</h2>
+<p>
+  ClassClick aplica controles técnicos y organizativos razonables para proteger la información, entre ellos:
+  comunicaciones mediante HTTPS, contraseñas almacenadas con funciones de hash, tokens de acceso y actualización,
+  roles y permisos por institución, controles de acceso a módulos, revocación de sesiones, almacenamiento de archivos
+  en servicios controlados y registros de auditoría de aceptaciones legales y eventos relevantes.
+</p>
+<p>
+  Las credenciales WebAuthn permiten autenticación con biometría o llaves de seguridad del dispositivo. ClassClick
+  almacena la clave pública y el nombre del dispositivo, no la huella digital ni la plantilla biométrica, que
+  permanecen en el dispositivo.
+</p>
+<p>
+  Ningún sistema es completamente infalible. La institución y los usuarios también deben proteger sus credenciales,
+  limitar el acceso a sus dispositivos y comunicar de inmediato cualquier acceso no autorizado.
+</p>
+
+<h2 id="privacidad-13">13. Conservación y eliminación</h2>
+<p>
+  Conservamos la información mientras la cuenta o la relación con la institución permanezca activa y durante el
+  tiempo necesario para cumplir obligaciones legales, contables, fiscales o de seguridad, resolver reclamos,
+  mantener evidencia de aceptaciones legales y conservar el historial administrativo y económico.
+</p>
+<p>
+  No se fija un plazo único de eliminación para todas las categorías. Los plazos pueden variar según el tipo de dato,
+  la institución, la obligación legal aplicable, la existencia de reclamos o las limitaciones técnicas de respaldo.
+  Cuando corresponda, la información puede conservarse de forma restringida o anonimizarse.
+</p>
+<p>
+  Podés solicitar la eliminación o supresión de tus datos personales escribiendo a
+  <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a>. Evaluaremos la solicitud y, cuando los
+  datos hayan sido cargados por una institución, podremos derivarla a la institución para que intervenga. No se
+  promete eliminación inmediata cuando existan obligaciones legales, registros económicos, evidencias de aceptación
+  o limitaciones técnicas que requieran conservar determinada información.
+</p>
+
+<h2 id="privacidad-14">14. Derechos de los titulares</h2>
+<p>
+  Podés solicitar acceso, rectificación, actualización, supresión u oposición al tratamiento de tus datos, así como
+  información sobre su uso, conforme a la legislación aplicable. En la República Argentina resulta aplicable, en la
+  medida correspondiente, la Ley 25.326 de Protección de Datos Personales.
+</p>
+<p>
+  Las solicitudes pueden enviarse a <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a>. Para
+  proteger la información, podremos solicitar la verificación de identidad del solicitante. Cuando los datos hayan
+  sido cargados por una institución, podremos derivar la solicitud a la institución para que valide y resuelva el
+  pedido, sin perjuicio de las obligaciones que correspondan al proveedor.
+</p>
+<p>
+  También podés presentar un reclamo ante la Agencia de Acceso a la Información Pública (AAIP) cuando corresponda,
+  conforme a los procedimientos vigentes.
+</p>
+
+<h2 id="privacidad-15">15. Menores de edad y responsables</h2>
+<p>
+  La plataforma puede tratar datos de menores cuando la institución los incorpora para prestar sus servicios. En
+  esos casos, la institución debe obtener las autorizaciones de los padres, madres o representantes legales que
+  exija la normativa aplicable y definir los mecanismos de consentimiento correspondientes.
+</p>
+<p>
+  ClassClick permite registrar datos de responsables o tutores, su vínculo con el alumno, sus datos de contacto y
+  si están autorizados para pagar cuotas. Esa información se utiliza para la gestión administrativa y la
+  comunicación con la familia.
+</p>
+<p>
+  <strong>Limitación actual:</strong> ClassClick no implementa todavía un flujo separado de verificación de la
+  autorización de representantes legales. La aceptación de documentos por parte de un usuario menor no equivale ni
+  sustituye la autorización válida de su padre, madre o tutor. La institución no debe utilizar la aceptación del
+  menor como prueba de una autorización que no haya obtenido por sus propios medios.
+</p>
+
+<h2 id="privacidad-16">16. Transferencias internacionales</h2>
+<p>
+  Algunos proveedores tecnológicos pueden alojar o procesar información fuera de la República Argentina. Cuando
+  corresponda, se procuran garantías contractuales y medidas de seguridad adecuadas conforme a la normativa
+  aplicable. Las condiciones específicas de cada proveedor y las transferencias efectivamente realizadas pueden
+  consultarse escribiendo a <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a>.
+</p>
+
+<h2 id="privacidad-17">17. Cambios, vigencia y contacto</h2>
+<p>
+  Esta política puede actualizarse cuando cambie el servicio, la normativa o los proveedores utilizados. La versión
+  vigente se publica en esta página con su fecha de actualización. Cuando la actualización requiera una nueva
+  aceptación, se solicitará a los usuarios en su próximo acceso y se conservarán las aceptaciones anteriores como
+  evidencia histórica.
+</p>
+<p>
+  Para consultas sobre esta política o sobre el tratamiento de tus datos, escribinos a
+  <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a> o por el WhatsApp publicado en
+  <a href="https://classclick.com.ar">classclick.com.ar</a>.
+</p>
+      </main>
+
+      <footer class="footer">
+        <p>
+          Consultas de privacidad:
+          <a href="mailto:soporte@classclick.com.ar">soporte@classclick.com.ar</a>.
+          También podés comunicarte por el WhatsApp publicado en
+          <a href="https://classclick.com.ar">classclick.com.ar</a>.
+        </p>
+        <p>
+          Versión 1.1.0 · Última actualización: 29 de octubre de 2026.
+          <a href="/terminos">Términos y Condiciones</a>.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
