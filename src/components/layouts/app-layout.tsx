@@ -49,6 +49,9 @@ const adminGroups: NavGroup[] = [
     { label: 'Plan y facturación', path: '/admin/billing', icon: '🧾' },
     { label: 'Mi perfil', path: '/admin/profile', icon: '👤' },
   ]},
+  { name: 'Access', key: 'access', items: [
+    { label: 'Access', path: '/admin/access', icon: '🔑', module: 'access' },
+  ]},
 ]
 
 const superadminNav: NavItem[] = [
@@ -88,6 +91,7 @@ const delegateNav: NavItem[] = [
 ]
 
 const studentNav: NavItem[] = [
+  { label: 'Mi credencial', path: '/student/access', icon: '🔑', module: 'access' },
   { label: 'Inicio', path: '/student', icon: '🏠' },
   { label: 'Cursos', path: '/student/courses', icon: '📚' },
   { label: 'Pagos', path: '/student/payments', icon: '💳', module: 'payments' },
@@ -218,6 +222,9 @@ export function AppLayout() {
           { label: 'Plan y facturación', path: `/educativa/${activeCompanySlug}/billing`, icon: '🧾', permission: 'billing' },
           { label: 'Mi perfil', path: `/educativa/${activeCompanySlug}/profile`, icon: '👤' },
         ] },
+        { name: 'Access', key: 'e-access', items: [
+          { label: 'Access', path: `/educativa/${activeCompanySlug}/access`, icon: '🔑', module: 'access', permission: 'institution-settings' },
+        ] },
       ]
     : []
 
@@ -238,6 +245,7 @@ export function AppLayout() {
 
   const studentEducativaItems: NavItem[] = (isStudentEducativaContext
     ? [
+        { label: 'Mi credencial', path: '/estudiante/acceso', icon: '🔑', module: 'access' },
         { label: 'Inicio', path: '/estudiante', icon: '🏠' },
         { label: 'Mis formaciones', path: '/estudiante/formaciones', icon: '🎓' },
         { label: 'Pagos', path: '/estudiante/pagos', icon: '💳' },

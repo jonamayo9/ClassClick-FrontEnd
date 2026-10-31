@@ -181,7 +181,7 @@ export function RootLayout() {
 
       <footer className="border-t border-white/10 bg-slate-950 px-4 py-6 sm:px-6 sm:py-8">
         <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 text-xs text-slate-500 sm:flex-row sm:justify-between sm:text-sm">
-          <div>© {new Date().getFullYear()} ClassClick. Todos los derechos reservados.</div>
+          <div>© {new Date().getFullYear()} ClassClick — Una solución de Systems Dev Solutions. Todos los derechos reservados.</div>
           <div className="flex gap-4">
             <Link to="/privacidad" className="transition hover:text-white">Privacidad</Link>
             <Link to="/terminos" className="transition hover:text-white">Términos</Link>

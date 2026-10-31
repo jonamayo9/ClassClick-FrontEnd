@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Modal } from '@/components/ui/modal'
 import { apiService } from '@/lib/api'
 
-interface DocType { id: string; name: string; description?: string; isRequired: boolean; isActive: boolean; hasExpiration: boolean; expirationWarningDays?: number; maxValidityDays?: number; allowMultipleFiles: boolean; maxFiles: number; maxFileSizeMb: number; allowedExtensions?: string }
+interface DocType { id: string; name: string; description?: string; isRequired: boolean; isActive: boolean; hasExpiration: boolean; expirationWarningDays?: number; maxValidityDays?: number; allowMultipleFiles: boolean; maxFiles: number; maxFileSizeMb: number; allowedExtensions?: string; allowStudentUploadWithoutRequest: boolean }
 interface Company { id: string; name: string; slug: string }
 
 function DocumentTypesInner() {
@@ -24,7 +24,7 @@ function DocumentTypesInner() {
   const [selectedSlug, setSelectedSlug] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, maxValidityDays: '' as string | number, allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png' })
+  const [form, setForm] = useState({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, maxValidityDays: '' as string | number, allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png', allowStudentUploadWithoutRequest: false })
 
   const { data: docTypes = [], isLoading } = useQuery({
     queryKey: ['document-types', selectedSlug],
@@ -56,11 +56,11 @@ function DocumentTypesInner() {
     onError: () => toast('Error al desactivar.', 'error'),
   })
 
-  function resetForm() { setForm({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, maxValidityDays: '', allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png' }); setEditId(null) }
+  function resetForm() { setForm({ name: '', description: '', isRequired: false, isActive: true, hasExpiration: false, expirationWarningDays: 30, maxValidityDays: '', allowMultipleFiles: false, maxFiles: 2, maxFileSizeMb: 10, allowedExtensions: '.pdf,.jpg,.jpeg,.png', allowStudentUploadWithoutRequest: false }); setEditId(null) }
 
   function openEdit(d: DocType) {
     setEditId(d.id)
-    setForm({ name: d.name, description: d.description ?? '', isRequired: d.isRequired, isActive: d.isActive, hasExpiration: d.hasExpiration, expirationWarningDays: d.expirationWarningDays ?? 30, maxValidityDays: d.maxValidityDays ?? '', allowMultipleFiles: d.allowMultipleFiles, maxFiles: d.maxFiles, maxFileSizeMb: d.maxFileSizeMb, allowedExtensions: d.allowedExtensions ?? '.pdf,.jpg,.jpeg,.png' })
+    setForm({ name: d.name, description: d.description ?? '', isRequired: d.isRequired, isActive: d.isActive, hasExpiration: d.hasExpiration, expirationWarningDays: d.expirationWarningDays ?? 30, maxValidityDays: d.maxValidityDays ?? '', allowMultipleFiles: d.allowMultipleFiles, maxFiles: d.maxFiles, maxFileSizeMb: d.maxFileSizeMb, allowedExtensions: d.allowedExtensions ?? '.pdf,.jpg,.jpeg,.png', allowStudentUploadWithoutRequest: d.allowStudentUploadWithoutRequest })
     setShowForm(true)
   }
 
@@ -97,6 +97,7 @@ function DocumentTypesInner() {
                   <th className="px-3 py-2">Requerido</th>
                   <th className="px-3 py-2">Vencimiento</th>
                   <th className="px-3 py-2">Multi archivo</th>
+                  <th className="px-3 py-2">Carga voluntaria</th>
                   <th className="px-3 py-2">Tamaño</th>
                   <th className="px-3 py-2">Estado</th>
                   <th className="px-3 py-2" />
@@ -109,6 +110,7 @@ function DocumentTypesInner() {
                     <td className="px-3 py-2">{d.isRequired ? <span className="text-emerald-600">Sí</span> : 'No'}</td>
                     <td className="px-3 py-2">{d.hasExpiration ? `${d.expirationWarningDays}d` : '-'}</td>
                     <td className="px-3 py-2">{d.allowMultipleFiles ? `${d.maxFiles} archivos` : 'No'}</td>
+                    <td className="px-3 py-2">{d.allowStudentUploadWithoutRequest ? <span className="text-emerald-600">Sí</span> : 'No'}</td>
                     <td className="px-3 py-2">{d.maxFileSizeMb} MB</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${d.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{d.isActive ? 'Activo' : 'Inactivo'}</span>
@@ -166,6 +168,15 @@ function DocumentTypesInner() {
             <div className="grid grid-cols-2 gap-3">
               <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer dark:border-slate-700"><input type="checkbox" checked={form.allowMultipleFiles} onChange={(e) => setForm({ ...form, allowMultipleFiles: e.target.checked })} className="rounded border-slate-300 text-slate-800" /><span className="text-xs font-medium">Múltiples archivos</span></label>
               {form.allowMultipleFiles && <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Cant. máxima</label><Input type="number" min={2} value={form.maxFiles} onChange={(e) => setForm({ ...form, maxFiles: Number(e.target.value) })} /></div>}
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.allowStudentUploadWithoutRequest} onChange={(e) => setForm({ ...form, allowStudentUploadWithoutRequest: e.target.checked })} className="rounded border-slate-300 text-slate-800" />
+                <span className="text-xs font-medium">Permitir que el alumno suba documentos sin solicitud previa</span>
+              </label>
+              <p className="mt-1.5 pl-6 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                Cuando está habilitado, el alumno puede seleccionar este tipo documental y cargar archivos por iniciativa propia. Los documentos requieren revisión administrativa.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tamaño máx (MB)</label><Input type="number" min={1} value={form.maxFileSizeMb} onChange={(e) => setForm({ ...form, maxFileSizeMb: Number(e.target.value) })} /></div>

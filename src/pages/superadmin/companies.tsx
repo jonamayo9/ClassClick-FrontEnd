@@ -45,13 +45,14 @@ interface GroupChildItem {
 const DEFAULT_MODULES: Record<string, boolean> = {
   payments: true, documents: true, news: true, sponsors: false,
   matches: false, clothing: false, tournaments: false, notifications: true,
-  qr_attendance: false, public_page: false, events: false,
+  qr_attendance: false, public_page: false, events: false, access: false,
 }
 
 const MODULE_LABELS: Record<string, string> = {
   payments: 'Pagos', documents: 'Documentos', news: 'Novedades', sponsors: 'Sponsors',
   matches: 'Partidos', clothing: 'Indumentaria', tournaments: 'Torneos',
   notifications: 'Notificaciones', qr_attendance: 'Asistencia QR', events: 'Eventos',
+  access: 'Access',
 }
 
 const STRUCTURE_LABEL: Record<CompanyStructureType, string> = {
@@ -134,6 +135,13 @@ function CompaniesInner() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  function buildModulesPayload() {
+    if (form.structureType !== 'Group') return modules
+    const payload = { ...modules }
+    delete payload.access
+    return payload
+  }
+
   function buildPayload() {
     const isGroup = form.structureType === 'Group'
     const isChild = form.structureType === 'Child'
@@ -156,7 +164,7 @@ function CompaniesInner() {
     onSuccess: async (data: unknown) => {
       const companyId = (data as Record<string, unknown>)?.id as string
       // Save modules
-      await apiService.put(`/api/superadmin/companies/${companyId}/clothing/modules`, { modules })
+      await apiService.put(`/api/superadmin/companies/${companyId}/clothing/modules`, { modules: buildModulesPayload() })
       // Save clothing settings
       await apiService.put(`/api/superadmin/companies/${companyId}/clothing/settings`, {
         allowsManualProof: clothing.manualProof, allowsMercadoPago: clothing.mercadoPago,
@@ -184,7 +192,7 @@ function CompaniesInner() {
     mutationFn: () => apiService.put(`/api/superadmin/companies/${editId}`, { ...buildPayload(), isActive: form.isActive }),
     onSuccess: async () => {
       if (editId) {
-        await apiService.put(`/api/superadmin/companies/${editId}/clothing/modules`, { modules })
+        await apiService.put(`/api/superadmin/companies/${editId}/clothing/modules`, { modules: buildModulesPayload() })
         await apiService.put(`/api/superadmin/companies/${editId}/clothing/settings`, {
           allowsManualProof: clothing.manualProof, allowsMercadoPago: clothing.mercadoPago,
           paymentAlias: clothing.alias, paymentAliasHolder: clothing.aliasHolder,
@@ -550,14 +558,19 @@ function CompaniesInner() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {Object.entries(modules)
                   .filter(([key]) => key !== 'public_page')
-                  .map(([key, val]) => (
-                    <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                      <input type="checkbox" checked={val} onChange={(e) => setModules({ ...modules, [key]: e.target.checked })}
-                        className="rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
-                      <span className="text-xs font-medium capitalize">{MODULE_LABELS[key] ?? key}</span>
-                    </label>
-                  ))}
+                  .map(([key, val]) => {
+                    const accessOnGroup = key === 'access' && form.structureType === 'Group'
+                    return (
+                      <label key={key} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${accessOnGroup ? 'cursor-not-allowed border-slate-200 opacity-60 dark:border-slate-700' : 'cursor-pointer border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'}`}>
+                        <input type="checkbox" disabled={accessOnGroup} checked={accessOnGroup ? false : val} onChange={(e) => setModules({ ...modules, [key]: e.target.checked })}
+                          className="rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
+                        <span className="text-xs font-medium capitalize">{MODULE_LABELS[key] ?? key}</span>
+                        {accessOnGroup && <span className="ml-auto text-[10px] text-slate-400">Solo operativas</span>}
+                      </label>
+                    )
+                  })}
               </div>
+              <p className="mt-2 text-[11px] leading-snug text-slate-400">Access solo puede habilitarse en empresas Individual o Empresa hija / Sede.</p>
               <label className="mt-2 flex items-start gap-2 rounded-xl border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
                 <input type="checkbox" checked={modules.public_page} onChange={(e) => setModules({ ...modules, public_page: e.target.checked })}
                   className="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />

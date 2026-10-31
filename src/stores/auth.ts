@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { storage } from '@/lib/storage'
 import { apiService } from '@/lib/api'
 import type { User, Company, CompanyContextMode } from '@/types/auth'
+import type { LegalDocumentStatus } from '@/types/legal'
 
 interface AuthState {
   token: string | null
@@ -13,6 +14,9 @@ interface AuthState {
   isLoading: boolean
   dashboardAlertsShown: boolean
   hydrated: boolean
+  legalAcceptanceRequired: boolean
+  pendingLegalDocuments: LegalDocumentStatus[]
+  legalStatusLoaded: boolean
 
   hydrate: () => void
   login: (email: string, password: string) => Promise<void>
@@ -22,6 +26,7 @@ interface AuthState {
   fetchCompanies: () => Promise<void>
   invalidateLocalSession: () => void
   dismissAlerts: () => void
+  setLegalStatus: (required: boolean, pending: LegalDocumentStatus[]) => void
 }
 
 function normalizeLoginResponse(data: Record<string, unknown>) {
@@ -30,7 +35,9 @@ function normalizeLoginResponse(data: Record<string, unknown>) {
   const accessTokenExpiresAtUtc = (data?.accessTokenExpiresAtUtc ?? data?.access_token_expires_at_utc) as string | undefined
   const user = (data?.user ?? data?.me ?? data) as User | undefined
   const companies = (user?.companies ?? data?.companies ?? []) as Company[]
-  return { token, refreshToken, accessTokenExpiresAtUtc, user, companies }
+  const legalAcceptanceRequired = Boolean(data?.legalAcceptanceRequired)
+  const pendingLegalDocuments = (data?.pendingLegalDocuments ?? []) as LegalDocumentStatus[]
+  return { token, refreshToken, accessTokenExpiresAtUtc, user, companies, legalAcceptanceRequired, pendingLegalDocuments }
 }
 
 function resolveDefaultAccess(companies: Company[]) {
@@ -64,6 +71,9 @@ export const useAuth = create<AuthState>((set, _get) => ({
   isLoading: false,
   dashboardAlertsShown: false,
   hydrated: false,
+  legalAcceptanceRequired: false,
+  pendingLegalDocuments: [],
+  legalStatusLoaded: false,
 
   hydrate: () => {
     const token = storage.getToken()
@@ -74,7 +84,19 @@ export const useAuth = create<AuthState>((set, _get) => ({
     const context = storage.getActiveContext<{ mode?: CompanyContextMode } | null>()
     const mode = context?.mode ?? 'direct'
     const shown = sessionStorage.getItem('dashboardAlertsShown') === 'true'
-    set({ token, user, companies, activeCompanySlug, activeRole, mode, dashboardAlertsShown: shown, hydrated: true })
+    set({
+      token,
+      user,
+      companies,
+      activeCompanySlug,
+      activeRole,
+      mode,
+      dashboardAlertsShown: shown,
+      hydrated: true,
+      legalAcceptanceRequired: false,
+      pendingLegalDocuments: [],
+      legalStatusLoaded: false,
+    })
   },
 
   dismissAlerts: () => {
@@ -91,7 +113,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
       sessionStorage.removeItem('newsModalShown')
 
       const raw = await apiService.post<Record<string, unknown>>('/api/auth/login', { email, password })
-      const { token, refreshToken, accessTokenExpiresAtUtc, user, companies } = normalizeLoginResponse(raw)
+      const { token, refreshToken, accessTokenExpiresAtUtc, user, companies, legalAcceptanceRequired, pendingLegalDocuments } = normalizeLoginResponse(raw)
 
       if (!token) throw new Error('El login no devolvió token.')
       if (!refreshToken) throw new Error('El login no devolvió refresh token.')
@@ -133,6 +155,9 @@ export const useAuth = create<AuthState>((set, _get) => ({
         isLoading: false,
         dashboardAlertsShown: false,
         hydrated: true,
+        legalAcceptanceRequired,
+        pendingLegalDocuments,
+        legalStatusLoaded: true,
       })
     } catch (err) {
       set({ isLoading: false })
@@ -149,7 +174,7 @@ export const useAuth = create<AuthState>((set, _get) => ({
       sessionStorage.removeItem('newsModalShown')
 
       const raw = await apiService.post<Record<string, unknown>>('/api/auth/google', { idToken })
-      const { token, refreshToken, accessTokenExpiresAtUtc, user, companies } = normalizeLoginResponse(raw)
+      const { token, refreshToken, accessTokenExpiresAtUtc, user, companies, legalAcceptanceRequired, pendingLegalDocuments } = normalizeLoginResponse(raw)
 
       if (!token) throw new Error('El login no devolvió token.')
       if (!refreshToken) throw new Error('El login no devolvió refresh token.')
@@ -180,6 +205,9 @@ export const useAuth = create<AuthState>((set, _get) => ({
         mode,
         isLoading: false,
         hydrated: true,
+        legalAcceptanceRequired,
+        pendingLegalDocuments,
+        legalStatusLoaded: true,
       })
     } catch (err) {
       set({ isLoading: false })
@@ -206,7 +234,19 @@ storage.clearSession()
     sessionStorage.removeItem('dashboardAlertsShown')
     sessionStorage.removeItem('overdueInvoiceModalShown');
       sessionStorage.removeItem('newsModalShown')
-    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, mode: null, dashboardAlertsShown: false, hydrated: true })
+    set({
+      token: null,
+      user: null,
+      companies: [],
+      activeCompanySlug: null,
+      activeRole: null,
+      mode: null,
+      dashboardAlertsShown: false,
+      hydrated: true,
+      legalAcceptanceRequired: false,
+      pendingLegalDocuments: [],
+      legalStatusLoaded: false,
+    })
   },
 
   switchCompany: (company: Company, modeArg?: CompanyContextMode) => {
@@ -285,6 +325,26 @@ invalidateLocalSession: () => {
     sessionStorage.removeItem('dashboardAlertsShown')
     sessionStorage.removeItem('overdueInvoiceModalShown');
       sessionStorage.removeItem('newsModalShown')
-    set({ token: null, user: null, companies: [], activeCompanySlug: null, activeRole: null, mode: null, isLoading: false, dashboardAlertsShown: false })
+    set({
+      token: null,
+      user: null,
+      companies: [],
+      activeCompanySlug: null,
+      activeRole: null,
+      mode: null,
+      isLoading: false,
+      dashboardAlertsShown: false,
+      legalAcceptanceRequired: false,
+      pendingLegalDocuments: [],
+      legalStatusLoaded: false,
+    })
+  },
+
+  setLegalStatus: (required: boolean, pending: LegalDocumentStatus[]) => {
+    set({
+      legalAcceptanceRequired: required,
+      pendingLegalDocuments: pending,
+      legalStatusLoaded: true,
+    })
   },
 }))

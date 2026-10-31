@@ -8,6 +8,7 @@ import { apiService } from '@/lib/api'
 import { PwaInstallPrompt } from '@/components/pwa-install'
 import { IosPwaPrompt } from '@/components/ios-pwa-prompt'
 import { BiometricAppLock } from '@/components/biometric-app-lock'
+import { LegalGate } from '@/components/legal-gate'
 import { ModuleGuard } from '@/components/module-guard'
 import { PermissionGuard } from '@/components/permission-guard'
 import { ClothingSlugBinder } from '@/lib/clothing-context'
@@ -33,6 +34,7 @@ const TermsPage = lazyNamed(() => import('@/pages/landing/legal'), 'TermsPage')
 const LoginPage = lazyNamed(() => import('@/pages/auth/login'), 'LoginPage')
 const ForgotPasswordPage = lazyNamed(() => import('@/pages/auth/forgot-password'), 'ForgotPasswordPage')
 const ResetPasswordPage = lazyNamed(() => import('@/pages/auth/reset-password'), 'ResetPasswordPage')
+const LegalAcceptPage = lazyDefault(() => import('@/pages/legal/accept'))
 
 const AdminDashboard = lazyNamed(() => import('@/pages/admin/dashboard'), 'AdminDashboard')
 const PaymentsPage = lazyDefault(() => import('@/pages/admin/payments/page'))
@@ -54,6 +56,9 @@ const EventCheckInPage = lazyDefault(() => import('@/pages/admin/events/check-in
 const EventReportPage = lazyDefault(() => import('@/pages/admin/events/report'))
 const AdminEventManagementPage = lazyDefault(() => import('@/pages/admin/events/manage'))
 const EventOperatorsPage = lazyDefault(() => import('@/pages/admin/events/operators'))
+const AccessSettingsPage = lazyDefault(() => import('@/pages/admin/access/page'))
+const AccessReceptionPage = lazyDefault(() => import('@/pages/access-reception/reception'))
+const AccessMonitorPage = lazyDefault(() => import('@/pages/access-reception/monitor'))
 const OperatorLayout = lazyNamed(() => import('@/pages/event-operator/layout'), 'OperatorLayout')
 const OperatorEventsPage = lazyDefault(() => import('@/pages/event-operator/events'))
 const OperatorProfilePage = lazyDefault(() => import('@/pages/event-operator/profile'))
@@ -94,6 +99,7 @@ const StudentEventsHistoryPage = lazyDefault(() => import('@/pages/student/event
 const StudentPaymentsPage = lazyDefault(() => import('@/pages/student/payments/page'))
 const MercadoPagoResultPage = lazyDefault(() => import('@/pages/student/payments/result'))
 const StudentProfilePage = lazyDefault(() => import('@/pages/student/profile/page'))
+const StudentAccessCredentialPage = lazyDefault(() => import('@/pages/student/access-credential'))
 const StudentSiblingsPage = lazyDefault(() => import('@/pages/student/siblings/page'))
 const StudentDocumentsPage = lazyDefault(() => import('@/pages/student/documents/page'))
 const StudentClothingCatalog = lazyDefault(() => import('@/pages/student/clothing/page'))
@@ -104,6 +110,7 @@ const PublicEventPage = lazyDefault(() => import('@/pages/public-events/event'))
 const PublicEventAccessPage = lazyDefault(() => import('@/pages/public-events/access'))
 const AdminBillingPage = lazyDefault(() => import('@/pages/admin/billing/page'))
 const PublicLandingPage = lazyDefault(() => import('@/pages/public/landing'))
+const MercadoPagoMobileReturnPage = lazyDefault(() => import('@/pages/app/mercadopago-return'))
 const SuperAdminDashboard = lazyNamed(() => import('@/pages/superadmin/dashboard'), 'SuperAdminDashboard')
 const SuperAdminCompaniesPage = lazyDefault(() => import('@/pages/superadmin/companies'))
 const SuperAdminAdminsPage = lazyDefault(() => import('@/pages/superadmin/admins'))
@@ -286,6 +293,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthGate />
+        <LegalGate />
         {hydrated ? (
           <>
             <BiometricAppLock />
@@ -305,6 +313,7 @@ export default function App() {
                 </Route>
 
                 <Route path="login" element={<LoginPage />} />
+                <Route path="legal/accept" element={<LegalAcceptPage />} />
                 <Route path="e/:publicSlug" element={<PublicEventPage />} />
                 <Route path="e/access/:token" element={<PublicEventAccessPage />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
@@ -313,6 +322,9 @@ export default function App() {
                 <Route path="c/:companySlug" element={<PublicLandingPage />} />
                 <Route path="tienda/:companySlug" element={<PublicClothingStorePage />} />
                 <Route path="tienda/:companySlug/pedido/:publicToken" element={<PublicClothingOrderPage />} />
+                <Route path="access/reception/:companySlug" element={<AccessReceptionPage />} />
+                <Route path="access/monitor/:companySlug" element={<AccessMonitorPage />} />
+                <Route path="app/mercadopago/return" element={<MercadoPagoMobileReturnPage />} />
 
                 <Route path="admin" element={<RoleGuard roles={['admin', 'superadmin']}><CompanyContextGuard><AppLayout /></CompanyContextGuard></RoleGuard>}>
                   <Route index element={<AdminDashboard />} />
@@ -326,6 +338,7 @@ export default function App() {
                   <Route path="siblings" element={<GuardedRoute moduleCode="payments"><SiblingsPage /></GuardedRoute>} />
                   <Route path="pricing" element={<GuardedRoute moduleCode="payments"><PricingPage /></GuardedRoute>} />
                   <Route path="charge-settings" element={<GuardedRoute moduleCode="payments"><ChargeSettingsPage /></GuardedRoute>} />
+                  <Route path="access" element={<GuardedRoute moduleCode="access"><AccessSettingsPage /></GuardedRoute>} />
                   <Route path="matches" element={<GuardedRoute moduleCode="matches"><PlaceholderPage title="Partidos" description="Programación de partidos" /></GuardedRoute>} />
                   <Route path="tournaments" element={<GuardedRoute moduleCode="tournaments"><PlaceholderPage title="Torneos" description="Gestión de torneos" /></GuardedRoute>} />
                   <Route path="teams" element={<GuardedRoute moduleCode="tournaments"><PlaceholderPage title="Equipos" description="Formación de equipos" /></GuardedRoute>} />
@@ -365,6 +378,7 @@ export default function App() {
                   <Route path="payments" element={<GuardedRoute moduleCode="payments"><StudentPaymentsPage /></GuardedRoute>} />
                   <Route path="payments/mercadopago/result" element={<MercadoPagoResultPage />} />
                   <Route path="profile" element={<StudentProfilePage />} />
+                  <Route path="access" element={<GuardedRoute moduleCode="access"><StudentAccessCredentialPage /></GuardedRoute>} />
                   <Route path="siblings" element={<GuardedRoute moduleCode="payments"><StudentSiblingsPage /></GuardedRoute>} />
                   <Route path="documents" element={<GuardedRoute moduleCode="documents"><StudentDocumentsPage /></GuardedRoute>} />
                   <Route path="clothing" element={<GuardedRoute moduleCode="clothing"><StudentClothingCatalog /></GuardedRoute>} />
@@ -385,6 +399,7 @@ export default function App() {
                   <Route path="pagos/mercadopago/result" element={<EstudianteMercadoPagoResultPage />} />
                   <Route path="certificaciones" element={<EstudianteCertificacionesPage />} />
                   <Route path="perfil" element={<StudentProfilePage />} />
+                  <Route path="acceso" element={<GuardedRoute moduleCode="access"><StudentAccessCredentialPage /></GuardedRoute>} />
                   <Route path="tienda" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingCatalog /></ClothingSlugBinder></GuardedRoute>} />
                   <Route path="tienda/pedidos" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrders /></ClothingSlugBinder></GuardedRoute>} />
                   <Route path="tienda/pedido/:id" element={<GuardedRoute moduleCode="clothing"><ClothingSlugBinder><StudentClothingOrderDetail /></ClothingSlugBinder></GuardedRoute>} />
@@ -420,6 +435,7 @@ export default function App() {
                   <Route path="classes" element={<PermissionedRoute code="commissions"><EducativaClasesPage /></PermissionedRoute>} />
                   <Route path="config-pagos" element={<PermissionedRoute code="institution-settings"><ConfigPagosPage /></PermissionedRoute>} />
                   <Route path="config-cuotas" element={<PermissionedRoute code="institution-settings"><ConfigCuotasPage /></PermissionedRoute>} />
+                  <Route path="access" element={<GuardedRoute moduleCode="access"><PermissionedRoute code="institution-settings"><AccessSettingsPage /></PermissionedRoute></GuardedRoute>} />
                   <Route path="graduados" element={<PermissionedRoute code="graduates"><GraduadosPage /></PermissionedRoute>} />
                   <Route path="promociones" element={<PermissionedRoute code="promotions"><PromocionesPage /></PermissionedRoute>} />
                   <Route path="certificaciones" element={<PermissionedRoute code="certifications"><EducativaCertificacionesPage /></PermissionedRoute>} />
