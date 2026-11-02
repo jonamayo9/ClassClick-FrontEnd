@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { DatePicker } from '@/components/ui/date-picker'
 import { apiService } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
-import { formatDate, formatDateOnly } from '../student.hooks'
+import { formatDateOnly } from '../student.hooks'
 
 // Viewer PDF propio (PDF.js): lazy-loaded para no inflar el bundle inicial.
 const PdfViewer = lazy(() => import('@/components/pdf-viewer'))
@@ -50,6 +50,28 @@ function asArray<T = unknown>(value: unknown): T[] {
 
 /* ─── Status ─── */
 
+function extensionsToAccept(value: string | null | undefined): string {
+  return (value || '.pdf,.jpg,.jpeg,.png')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .map((item) => (item.startsWith('.') ? item : `.${item}`))
+    .join(',')
+}
+
+function formatBytes(value: number | null | undefined): string {
+  const bytes = Number(value) || 0
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function originLabel(origin: unknown): string {
+  const value = String(origin ?? '').toLowerCase()
+  if (value === '2' || value === 'voluntary') return 'Voluntario'
+  return 'Solicitado'
+}
+
 function formatDocumentStatus(status: unknown): string {
   const v = String(status ?? '').toLowerCase().trim()
   if (v === '' || v === 'null' || v === 'undefined') return 'Pendiente'
@@ -85,28 +107,97 @@ interface DocFile {
 }
 
 interface NormalizedDoc {
-  assignmentId: string
-  title: string
-  status: string
-  statusLabel: string
-  isRequired: boolean
-  notes: string
-  rejectionReason: string
-  assignedAt: string
-  dueDate: string
-  expirationDateUtc: string
-  files: DocFile[]
-  maxFiles: number
-  allowMultipleFiles: boolean
-  canUpload: boolean
-  uploadLabel: string
-  hasExpiration: boolean
-  maxValidityDays: number | null
-  sourceFileCount: number
-  uploadedCount: number
-  remaining: number
-  maxSelectable: number
-  raw: Record<string, unknown>
+  assignmentId: string;
+  title: string;
+  status: string;
+  statusLabel: string;
+  isRequired: boolean;
+  notes: string;
+  rejectionReason: string;
+  assignedAt: string;
+  dueDate: string;
+  expirationDateUtc: string;
+  files: DocFile[];
+  maxFiles: number;
+  maxFileSizeMb: number;
+  allowedExtensions: string;
+  allowMultipleFiles: boolean;
+  canUpload: boolean;
+  uploadLabel: string;
+  hasExpiration: boolean;
+  maxValidityDays: number | null;
+  sourceFileCount: number;
+  uploadedCount: number;
+  remaining: number;
+  maxSelectable: number;
+  raw: Record<string, unknown>;
+}
+
+interface StudentDocumentType {
+  id: string;
+  name: string;
+  description?: string | null;
+  isRequired: boolean;
+  hasExpiration: boolean;
+  maxValidityDays?: number | null;
+  allowMultipleFiles: boolean;
+  maxFiles: number;
+  maxFileSizeMb: number;
+  allowedExtensions?: string | null;
+  allowStudentUploadWithoutRequest: boolean;
+}
+
+interface StudentDocumentFeedFile {
+  fileId: string;
+  assignmentId: string;
+  documentTypeId: string;
+  documentTypeName: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAtUtc: string;
+  isCurrent: boolean;
+  version: number;
+  status: string;
+  origin: string;
+  expirationDateUtc: string | null;
+  dueDateUtc: string | null;
+  isMandatory: boolean;
+}
+
+interface StudentDocumentFeedGroup {
+  documentTypeId: string;
+  documentTypeName: string;
+  description?: string | null;
+  isRequired: boolean;
+  allowStudentUploadWithoutRequest: boolean;
+  totalFiles: number;
+  currentFiles: number;
+  historicalFiles: number;
+  lastUploadedAtUtc: string | null;
+  pendingCount: number;
+  submittedCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  expiredCount: number;
+}
+
+interface StudentDocumentFeed {
+  summary: {
+    total: number;
+    pending: number;
+    submitted: number;
+    approved: number;
+    rejected: number;
+    expired: number;
+  };
+  groups: StudentDocumentFeedGroup[];
+  items: StudentDocumentFeedFile[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasMore: boolean;
 }
 
 /* ─── Normalizer ─── */
@@ -123,6 +214,8 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
   const dueDate = pickString(raw, ['dueDateUtc', 'DueDateUtc'])
   const expirationDateUtc = pickString(raw, ['expirationDateUtc', 'ExpirationDateUtc'])
   const maxFiles = Number(pick(raw, ['maxFiles', 'MaxFiles'])) || 1
+  const maxFileSizeMb = Number(pick(raw, ['maxFileSizeMb', 'MaxFileSizeMb'])) || 10
+  const allowedExtensions = pickString(raw, ['allowedExtensions', 'AllowedExtensions']) || '.pdf,.jpg,.jpeg,.png'
   const allowMultipleFiles = pickBool(raw, ['allowMultipleFiles', 'AllowMultipleFiles'])
 
   // Files collection
@@ -191,6 +284,8 @@ function normalizeDocument(raw: Record<string, unknown>): NormalizedDoc {
     maxValidityDays: pick<number>(raw, ['maxValidityDays', 'MaxValidityDays']) ?? null,
     files: effectiveFiles,
     maxFiles,
+    maxFileSizeMb,
+    allowedExtensions,
     allowMultipleFiles,
     canUpload,
     uploadLabel,
@@ -217,11 +312,39 @@ function DocumentsPageInner() {
 
   const docs = asArray(rawList).map((d) => normalizeDocument(d as Record<string, unknown>))
 
+  const { data: documentTypes = [] } = useQuery({
+    queryKey: ['student-document-types', slug()],
+    queryFn: () => apiService.get<StudentDocumentType[]>(`/api/student/${slug()}/student-files/document-types`),
+    enabled: !!slug(),
+  })
+
+  const { data: documentFeed } = useQuery({
+    queryKey: ['student-documents-feed', slug()],
+    queryFn: () => apiService.get<StudentDocumentFeed>(
+      `/api/student/${slug()}/student-files/documents?includeHistory=true&page=1&pageSize=100`,
+    ),
+    enabled: !!slug(),
+  })
+
   const [selected, setSelected] = useState<NormalizedDoc | null>(null)
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadExpiration, setUploadExpiration] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+
+  const [showVoluntary, setShowVoluntary] = useState(false)
+  const [voluntaryTypeId, setVoluntaryTypeId] = useState('')
+  const [voluntaryFiles, setVoluntaryFiles] = useState<File[]>([])
+  const [voluntaryExpiration, setVoluntaryExpiration] = useState('')
+  const [voluntaryError, setVoluntaryError] = useState('')
+  const [voluntaryUploading, setVoluntaryUploading] = useState(false)
+  const [historyGroup, setHistoryGroup] = useState<StudentDocumentFeedGroup | null>(null)
+  const [historyData, setHistoryData] = useState<StudentDocumentFeed | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
+
+  const voluntaryType = documentTypes.find((item) => item.id === voluntaryTypeId) ?? null
+  const voluntaryMaxBytes = (voluntaryType?.maxFileSizeMb ?? 10) * 1024 * 1024
 
   /* View file state */
   const [viewFileLoading, setViewFileLoading] = useState(false)
@@ -255,6 +378,7 @@ function DocumentsPageInner() {
         fd,
       )
       qc.invalidateQueries({ queryKey: ['my-documents'] })
+      qc.invalidateQueries({ queryKey: ['student-documents-feed'] })
       toast('Documento subido correctamente.')
       setUploadFiles([])
       setSelected(null)
@@ -278,9 +402,10 @@ function DocumentsPageInner() {
       return
     }
 
-    const valid = chosen.filter((f) => f.size <= MAX_FILE_SIZE)
+    const maxBytes = Math.min(MAX_FILE_SIZE, selected.maxFileSizeMb * 1024 * 1024)
+    const valid = chosen.filter((f) => f.size <= maxBytes)
     if (valid.length < chosen.length) {
-      toast('Algunos archivos superan los 25 MB permitidos y fueron omitidos.', 'error')
+      toast(`Algunos archivos superan los ${selected.maxFileSizeMb} MB permitidos y fueron omitidos.`, 'error')
     }
 
     const toAdd = valid.slice(0, remainingSlots)
@@ -318,6 +443,133 @@ function DocumentsPageInner() {
     }
   }
 
+  function openVoluntaryModal() {
+    if (documentTypes.length === 0) return
+    setVoluntaryTypeId((current) => current || documentTypes[0].id)
+    setVoluntaryFiles([])
+    setVoluntaryExpiration('')
+    setVoluntaryError('')
+    setShowVoluntary(true)
+  }
+
+  function handleVoluntaryTypeChange(typeId: string) {
+    setVoluntaryTypeId(typeId)
+    setVoluntaryFiles([])
+    setVoluntaryExpiration('')
+    setVoluntaryError('')
+  }
+
+  function handleVoluntaryFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!voluntaryType || chosen.length === 0) return
+
+    const remaining = voluntaryType.maxFiles - voluntaryFiles.length
+    if (remaining <= 0) {
+      toast(`Este documento admite hasta ${voluntaryType.maxFiles} archivo(s).`, 'error')
+      return
+    }
+
+    const valid = chosen.filter((file) => file.size <= voluntaryMaxBytes)
+    if (valid.length < chosen.length) {
+      toast(`Algunos archivos superan los ${voluntaryType.maxFileSizeMb} MB permitidos.`, 'error')
+    }
+
+    const toAdd = valid.slice(0, remaining)
+    if (toAdd.length < valid.length) {
+      toast(`Solo podés agregar ${remaining} archivo(s) más.`, 'error')
+    }
+
+    setVoluntaryFiles((prev) => [...prev, ...toAdd])
+  }
+
+  async function handleVoluntaryUpload() {
+    if (!voluntaryType || voluntaryFiles.length === 0) return
+    setVoluntaryUploading(true)
+    setVoluntaryError('')
+    try {
+      const fd = new FormData()
+      fd.append('documentTypeId', voluntaryType.id)
+      voluntaryFiles.forEach((file) => fd.append('files', file))
+      if (voluntaryType.hasExpiration && voluntaryExpiration) {
+        fd.append('expirationDate', voluntaryExpiration)
+      }
+
+      await apiService.postForm(
+        `/api/student/${slug()}/student-files/uploads`,
+        fd,
+      )
+
+      qc.invalidateQueries({ queryKey: ['my-documents'] })
+      qc.invalidateQueries({ queryKey: ['student-documents-feed'] })
+      qc.invalidateQueries({ queryKey: ['student-document-history'] })
+      toast('Documento enviado. Queda pendiente de revisión administrativa.')
+      setShowVoluntary(false)
+      setVoluntaryFiles([])
+      setVoluntaryExpiration('')
+      setVoluntaryTypeId('')
+    } catch (err: any) {
+      const serverMsg = err?.response?.data ?? err?.message ?? 'Error al subir el documento.'
+      setVoluntaryError(typeof serverMsg === 'string' ? serverMsg : 'Error al subir el documento.')
+    } finally {
+      setVoluntaryUploading(false)
+    }
+  }
+
+  async function handleViewSourceFile(file: StudentDocumentFeedFile) {
+    try {
+      const res = await apiService.get<{ url: string; fileName: string }>(
+        `/api/student/${slug()}/student-files/files/${file.fileId}/source`,
+      )
+      if (res?.url) window.open(res.url, '_blank', 'noopener,noreferrer')
+    } catch {
+      toast('No se pudo abrir el archivo.', 'error')
+    }
+  }
+
+  async function openHistoryGroup(group: StudentDocumentFeedGroup) {
+    setHistoryGroup(group)
+    setHistoryData(null)
+    setHistoryLoading(true)
+    try {
+      const data = await apiService.get<StudentDocumentFeed>(
+        `/api/student/${slug()}/student-files/documents?documentTypeId=${group.documentTypeId}&includeHistory=true&page=1&pageSize=50`,
+      )
+      setHistoryData(data)
+    } catch {
+      toast('No se pudo cargar el historial.', 'error')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  async function loadMoreHistory() {
+    if (!historyGroup || !historyData?.hasMore || historyLoadingMore) return
+    setHistoryLoadingMore(true)
+    try {
+      const nextPage = historyData.page + 1
+      const next = await apiService.get<StudentDocumentFeed>(
+        `/api/student/${slug()}/student-files/documents?documentTypeId=${historyGroup.documentTypeId}&includeHistory=true&page=${nextPage}&pageSize=50`,
+      )
+      setHistoryData((prev) => {
+        if (!prev) return next
+        const known = new Set(prev.items.map((item) => item.fileId))
+        return {
+          ...next,
+          items: [...prev.items, ...next.items.filter((item) => !known.has(item.fileId))],
+        }
+      })
+    } catch {
+      toast('No se pudo cargar más historial.', 'error')
+    } finally {
+      setHistoryLoadingMore(false)
+    }
+  }
+
+  function historyFilesFor(group: StudentDocumentFeedGroup) {
+    return (historyData?.items ?? []).filter((item) => item.documentTypeId === group.documentTypeId)
+  }
+
   /* ─── Loading ─── */
   if (isLoading) {
     return (
@@ -353,6 +605,14 @@ function DocumentsPageInner() {
           )}
         </div>
       </div>
+
+      {documentTypes.length > 0 && (
+        <div className="flex justify-end">
+          <Button className="bg-violet-600 text-white hover:bg-violet-700" onClick={openVoluntaryModal}>
+            + Subir documento
+          </Button>
+        </div>
+      )}
 
       {/* Error */}
       {error ? (
@@ -416,6 +676,36 @@ function DocumentsPageInner() {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Documentos e historial por tipo */}
+      {documentFeed && documentFeed.groups.length > 0 && (
+        <Card className="p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white">Documentos e historial</h2>
+            <p className="text-xs text-slate-400">
+              Todos tus archivos, incluidos los de presentaciones anteriores.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {documentFeed.groups.map((group) => (
+              <button
+                key={group.documentTypeId}
+                type="button"
+                onClick={() => void openHistoryGroup(group)}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:bg-slate-800"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{group.documentTypeName}</p>
+                  <p className="text-xs text-slate-400">
+                    {group.totalFiles} archivo(s) · {group.currentFiles} vigente(s) · {group.historicalFiles} histórico(s)
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-violet-600 dark:text-violet-300">Ver documentos →</span>
+              </button>
+            ))}
+          </div>
+        </Card>
       )}
 
       {/* Detail Modal */}
@@ -534,7 +824,7 @@ function DocumentsPageInner() {
                   </div>
                 )}
                 {/* Custom file input */}
-                <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                <input ref={fileInputRef} type="file" accept={extensionsToAccept(selected.allowedExtensions)}
                   multiple={selected.maxFiles > 1}
                   onChange={handleFileChange} className="hidden" />
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -583,7 +873,9 @@ function DocumentsPageInner() {
                     {uploading ? 'Subiendo...' : 'Subir documento'}
                   </Button>
                 </div>
-                <p className="mt-2 text-[10px] text-slate-400">JPG, PNG, WEBP o PDF. Máx 25 MB.</p>
+                <p className="mt-2 text-[10px] text-slate-400">
+                  {extensionsToAccept(selected.allowedExtensions).split(',').join(' ').toUpperCase()}. Máx {selected.maxFileSizeMb} MB por archivo.
+                </p>
               </div>
             )}
 
@@ -591,6 +883,175 @@ function DocumentsPageInner() {
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => { setSelected(null); setUploadFiles([]); setUploadExpiration(''); setUploadError('') }}>Cerrar</Button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Voluntary upload modal */}
+      {showVoluntary && (
+        <Modal
+          open={showVoluntary}
+          onClose={() => { setShowVoluntary(false); setVoluntaryFiles([]); setVoluntaryExpiration(''); setVoluntaryError('') }}
+          title="Subir documento"
+          className="sm:max-w-lg"
+        >
+          <div className="px-5 py-4 sm:px-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Elegí un tipo documental habilitado y adjuntá los archivos. La presentación quedará en revisión administrativa.
+            </p>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo documental *</label>
+              <select
+                value={voluntaryTypeId}
+                onChange={(e) => handleVoluntaryTypeChange(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                {documentTypes.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {voluntaryType?.description && (
+              <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+                {voluntaryType.description}
+              </div>
+            )}
+
+            {voluntaryType && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                  <span>Hasta {voluntaryType.maxFiles} archivo(s)</span>
+                  <span>{extensionsToAccept(voluntaryType.allowedExtensions).split(',').join(' ').toUpperCase()}</span>
+                </div>
+                <input
+                  type="file"
+                  multiple={voluntaryType.maxFiles > 1}
+                  accept={extensionsToAccept(voluntaryType.allowedExtensions)}
+                  onChange={handleVoluntaryFileChange}
+                  className="block w-full rounded-xl border border-dashed border-violet-300 bg-violet-50/40 p-3 text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-violet-900/60 dark:bg-violet-950/20 dark:text-slate-300"
+                />
+                <p className="text-[10px] text-slate-400">
+                  Máximo {voluntaryType.maxFileSizeMb} MB por archivo. Formatos reales validados por el servidor.
+                </p>
+              </div>
+            )}
+
+            {voluntaryFiles.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Archivos seleccionados</p>
+                {voluntaryFiles.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-slate-800/60">
+                    <span className="min-w-0 truncate text-slate-700 dark:text-slate-300">{file.name} ({formatBytes(file.size)})</span>
+                    <button
+                      type="button"
+                      onClick={() => setVoluntaryFiles((prev) => prev.filter((_, i) => i !== index))}
+                      className="shrink-0 rounded px-1.5 py-0.5 font-bold text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {voluntaryType?.hasExpiration && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento *</label>
+                <DatePicker
+                  value={voluntaryExpiration}
+                  onChange={setVoluntaryExpiration}
+                  placeholder="Seleccionar fecha"
+                  title="Vencimiento"
+                />
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  No puede ser anterior a hoy ni superar la vigencia máxima configurada.
+                </p>
+              </div>
+            )}
+
+            {voluntaryError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                {voluntaryError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setShowVoluntary(false)}>Cancelar</Button>
+              <Button
+                onClick={handleVoluntaryUpload}
+                loading={voluntaryUploading}
+                disabled={!voluntaryType || voluntaryFiles.length === 0 || (voluntaryType.hasExpiration && !voluntaryExpiration)}
+                className="bg-violet-600 text-white hover:bg-violet-700"
+              >
+                Enviar documentos
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* History by document type */}
+      {historyGroup && (
+        <Modal
+          open={!!historyGroup}
+          onClose={() => { setHistoryGroup(null); setHistoryData(null) }}
+          title={`${historyGroup.documentTypeName} · ${historyGroup.totalFiles} archivo(s)`}
+          className="sm:max-w-lg"
+        >
+          <div className="px-5 py-4 sm:px-6 space-y-4 max-h-[85vh] overflow-y-auto">
+            {historyLoading ? (
+              <div className="flex justify-center py-10"><Spinner className="h-6 w-6 text-violet-600" /></div>
+            ) : ['current', 'historical'].map((section) => {
+              const files = historyFilesFor(historyGroup).filter((file) =>
+                section === 'current' ? file.isCurrent : !file.isCurrent,
+              )
+              if (files.length === 0) return null
+              return (
+                <div key={section} className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {section === 'current' ? 'Vigentes' : 'Historial'}
+                  </p>
+                  {files.map((file) => (
+                    <div key={file.fileId} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{file.fileName}</p>
+                          <p className="text-xs text-slate-400">
+                            {formatDateSafe(file.uploadedAtUtc)} · {formatBytes(file.sizeBytes)} · v{file.version}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {file.status} · {originLabel(file.origin)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-1.5">
+                          <Button variant="outline" size="sm" onClick={() => handleViewSourceFile(file)}>Ver</Button>
+                          <a
+                            href={`/api/student/${slug()}/student-files/files/${file.fileId}/download-file`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            Descargar
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+            {historyData?.hasMore && (
+              <div className="flex justify-center pt-1">
+                <Button variant="outline" size="sm" loading={historyLoadingMore} onClick={() => void loadMoreHistory()}>
+                  Cargar más archivos
+                </Button>
+              </div>
+            )}
+            {!historyLoading && (historyData?.items.length ?? 0) === 0 && (
+              <p className="py-8 text-center text-sm text-slate-400">Sin archivos para este tipo.</p>
+            )}
           </div>
         </Modal>
       )}

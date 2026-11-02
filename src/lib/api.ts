@@ -61,6 +61,13 @@ api.interceptors.response.use(
     if (error.response?.status === 403) {
       const data = error.response.data
       const errCode = typeof data === 'string' ? data : (data as Record<string, unknown>)?.error ?? (data as Record<string, unknown>)?.message ?? ''
+      if (errCode === 'LEGAL_ACCEPTANCE_REQUIRED') {
+        const current = window.location.pathname + window.location.search
+        if (!current.startsWith('/legal/accept')) {
+          window.location.replace(`/legal/accept?redirect=${encodeURIComponent(current)}`)
+        }
+        return Promise.reject(error)
+      }
       if (errCode === 'REGISTRATION_INCOMPLETE') {
         const currentPath = window.location.pathname
         if (currentPath !== '/register') {

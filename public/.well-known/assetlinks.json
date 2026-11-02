@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.systemsdevsolutions.classclick",
+      "sha256_cert_fingerprints": [
+        "18:71:45:F9:F2:E1:EC:07:C9:F2:9E:A1:F3:14:A8:F5:C2:16:4B:85:A6:8C:B2:27:C3:EE:31:F1:81:AD:9E:64"
+      ]
+    }
+  }
+]

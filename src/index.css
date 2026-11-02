@@ -212,6 +212,87 @@ body {
 }
 
 /* PhoneInput autofill override — prevents Chrome yellow background */
+/* Documentos legales: contenido HTML versionado del backend */
+.legal-prose {
+  color: var(--color-cc-muted);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.legal-prose h2 {
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  scroll-margin-top: 96px;
+  color: var(--color-cc-text);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.legal-prose h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--color-cc-text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.legal-prose p {
+  margin: 0.75rem 0;
+}
+
+.legal-prose ul {
+  margin: 0.75rem 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.legal-prose li {
+  margin: 0.35rem 0;
+}
+
+.legal-prose a {
+  color: var(--color-cc-blue-light);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal-prose a:hover {
+  color: var(--color-cc-text);
+}
+
+.legal-prose strong {
+  color: var(--color-cc-text);
+  font-weight: 700;
+}
+
+.legal-prose .legal-note {
+  margin: 1.5rem 0;
+  border: 1px solid color-mix(in srgb, var(--color-cc-blue) 35%, var(--color-cc-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--color-cc-blue) 9%, transparent);
+  padding: 1rem 1.1rem;
+  color: var(--color-cc-text);
+  font-size: 0.9rem;
+}
+
+.legal-prose .legal-note strong {
+  color: var(--color-cc-blue-light);
+}
+
+@media (min-width: 640px) {
+  .legal-prose {
+    font-size: 0.975rem;
+  }
+
+  .legal-prose h2 {
+    font-size: 1.35rem;
+  }
+}
+
 .PhoneInputInput:-webkit-autofill,
 .PhoneInputInput:-webkit-autofill:hover,
 .PhoneInputInput:-webkit-autofill:focus {

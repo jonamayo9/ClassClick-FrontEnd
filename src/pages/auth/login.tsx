@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/stores/auth'
 import { resolveHomePath } from '@/lib/auth-route'
 import { useTheme } from '@/stores/theme'
 import { subscribeToPush } from '@/lib/push'
 import { config } from '@/lib/config'
-import { Seo } from '@/components/seo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { ThemeMode } from '@/types/auth'
@@ -30,6 +29,11 @@ const themeIcons: Record<ThemeMode, string> = { light: '☀️', dark: '🌙', s
 const themeNext: Record<ThemeMode, ThemeMode> = { light: 'dark', dark: 'system', system: 'light' }
 
 function navigateByRole(navigate: ReturnType<typeof useNavigate>) {
+  const state = useAuth.getState()
+  if (state.legalAcceptanceRequired) {
+    navigate('/legal/accept', { replace: true })
+    return
+  }
   navigate(resolveHomePath())
 }
 
@@ -68,8 +72,10 @@ export function LoginPage() {
           setGoogleLoading(true)
           try {
             await loginWithGoogle(response.credential)
-            const token = useAuth.getState().token
-            if (token) subscribeToPush(token).catch(() => {})
+            const currentAuth = useAuth.getState()
+            if (currentAuth.token && !currentAuth.legalAcceptanceRequired) {
+              subscribeToPush(currentAuth.token).catch(() => {})
+            }
             navigateByRole(navigate)
           } catch (err) {
             let msg = 'No se pudo ingresar con Google.'
@@ -116,8 +122,10 @@ export function LoginPage() {
 
     try {
       await login(email, password)
-      const token = useAuth.getState().token
-      if (token) subscribeToPush(token).catch(() => {})
+      const currentAuth = useAuth.getState()
+      if (currentAuth.token && !currentAuth.legalAcceptanceRequired) {
+        subscribeToPush(currentAuth.token).catch(() => {})
+      }
       navigateByRole(navigate)
     } catch (err) {
       let msg = 'Error al iniciar sesión'
@@ -222,6 +230,18 @@ export function LoginPage() {
           <a href="/" className="text-xs text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline dark:hover:text-slate-300">
             Volver al inicio
           </a>
+        </p>
+
+        <p className="mt-3 text-center text-[11px] leading-5 text-slate-400">
+          Consultá nuestra{' '}
+          <Link to="/privacidad" className="font-semibold text-blue-600 hover:text-blue-500">
+            Política de Privacidad
+          </Link>{' '}
+          y los{' '}
+          <Link to="/terminos" className="font-semibold text-blue-600 hover:text-blue-500">
+            Términos y Condiciones
+          </Link>
+          .
         </p>
       </div>
     </div>

@@ -334,6 +334,7 @@ export function useCreateDocumentRequest() {
       note: string | null
       isMandatory: boolean
       dueDateUtc: string | null
+      expirationDateUtc?: string | null
     }) => apiService.post(`/api/admin/${slug()}/student-files/requests`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['records-students'] })

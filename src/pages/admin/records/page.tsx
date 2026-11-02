@@ -342,10 +342,10 @@ export default function RecordsPage() {
           onSubmit={async (data) => {
             try {
               if (data.scope === 'all') {
-                await createRequest.mutateAsync({ documentTypeId: data.documentTypeId, scope: 3, studentId: null, courseId: null, note: data.note, isMandatory: data.isMandatory, dueDateUtc: data.dueDateUtc })
+                await createRequest.mutateAsync({ documentTypeId: data.documentTypeId, scope: 3, studentId: null, courseId: null, note: data.note, isMandatory: data.isMandatory, dueDateUtc: data.dueDateUtc, expirationDateUtc: data.expirationDateUtc })
               } else if (data.studentIds) {
                 for (const sid of data.studentIds) {
-                  await createRequest.mutateAsync({ documentTypeId: data.documentTypeId, scope: 1, studentId: sid, courseId: null, note: data.note, isMandatory: data.isMandatory, dueDateUtc: data.dueDateUtc })
+                  await createRequest.mutateAsync({ documentTypeId: data.documentTypeId, scope: 1, studentId: sid, courseId: null, note: data.note, isMandatory: data.isMandatory, dueDateUtc: data.dueDateUtc, expirationDateUtc: data.expirationDateUtc })
                 }
               }
               setShowRequestModal(false); toast('Solicitud enviada correctamente.')
@@ -552,15 +552,16 @@ function ModalShell({ children, onClose, title, subtitle }: { children: React.Re
 
 /* ─── RequestModal ─── */
 function RequestModal({ documentTypes, students, isSubmitting, serverError, onSubmit, onClose }: {
-  documentTypes: { id: string; name: string }[]; students: Student[]
+  documentTypes: { id: string; name: string; hasExpiration?: boolean }[]; students: Student[]
   isSubmitting: boolean; serverError: Error | null
-  onSubmit: (d: { scope: string; documentTypeId: string; note: string | null; isMandatory: boolean; dueDateUtc: string | null; studentIds?: string[] }) => void
+  onSubmit: (d: { scope: string; documentTypeId: string; note: string | null; isMandatory: boolean; dueDateUtc: string | null; expirationDateUtc: string | null; studentIds?: string[] }) => void
   onClose: () => void
 }) {
   const [scope, setScope] = useState('search')
   const [documentTypeId, setDocumentTypeId] = useState('')
   const [note, setNote] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [expirationDate, setExpirationDate] = useState('')
   const [isMandatory, setIsMandatory] = useState(true)
   const [formError, setFormError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -587,6 +588,7 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
     onSubmit({
       scope, documentTypeId, note: note.trim() || null, isMandatory,
       dueDateUtc: dueDate ? `${dueDate}T00:00:00Z` : null,
+      expirationDateUtc: expirationDate ? `${expirationDate}T00:00:00Z` : null,
       studentIds: scope === 'search' ? Array.from(modalSelectedIds) : undefined,
     })
   }
@@ -665,11 +667,18 @@ function RequestModal({ documentTypes, students, isSubmitting, serverError, onSu
 
         <div>
           <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Tipo documental</label>
-          <FilterSelect value={documentTypeId} onChange={setDocumentTypeId}>
+          <FilterSelect value={documentTypeId} onChange={(value) => { setDocumentTypeId(value); setExpirationDate('') }}>
             <option value="">Seleccionar tipo</option>
             {documentTypes.map((dt) => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
           </FilterSelect>
         </div>
+        {documentTypes.find((dt) => dt.id === documentTypeId)?.hasExpiration && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Fecha de vencimiento del documento</label>
+            <DatePicker value={expirationDate} onChange={setExpirationDate} placeholder="El alumno la informa al subir" title="Vencimiento" />
+            <p className="mt-0.5 text-[10px] text-slate-400">Opcional. Si no se informa, el alumno deberá ingresarla.</p>
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">Nota (opcional)</label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ej: subir frente y dorso del DNI"

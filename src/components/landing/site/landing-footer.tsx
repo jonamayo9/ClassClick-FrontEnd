@@ -65,8 +65,8 @@ function HomeFooter() {
             <HashLink id="sobre-classclick" className={footerLinkClass}>Sobre ClassClick</HashLink>
             <HashLink id="tecnologia" className={footerLinkClass}>Tecnología</HashLink>
             <Link to="/educativa#recursos" className={footerLinkClass}>Recursos</Link>
-            <Link to="/privacidad" className={footerLinkClass}>Privacidad</Link>
-            <Link to="/terminos" className={footerLinkClass}>Términos</Link>
+            <Link to="/privacidad" className={footerLinkClass}>Política de Privacidad</Link>
+            <Link to="/terminos" className={footerLinkClass}>Términos y Condiciones</Link>
           </div>
 
           <div className="space-y-2.5">
@@ -86,7 +86,7 @@ function HomeFooter() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-white/[0.06] pt-6 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} ClassClick. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} ClassClick — Una solución de Systems Dev Solutions. Todos los derechos reservados.</p>
           <p>PWA. No se distribuye en App Store ni Google Play.</p>
         </div>
       </div>
@@ -143,13 +143,13 @@ function DivisionFooter({ division }: { division: DivisionTheme }) {
               WhatsApp
             </a>
             <Link to="/login" className={footerLinkClass}>Ingresar</Link>
-            <Link to="/privacidad" className={footerLinkClass}>Privacidad</Link>
-            <Link to="/terminos" className={footerLinkClass}>Términos</Link>
+            <Link to="/privacidad" className={footerLinkClass}>Política de Privacidad</Link>
+            <Link to="/terminos" className={footerLinkClass}>Términos y Condiciones</Link>
           </div>
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-white/[0.06] pt-6 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} ClassClick. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} ClassClick — Una solución de Systems Dev Solutions. Todos los derechos reservados.</p>
           <p>PWA. No se distribuye en App Store ni Google Play.</p>
         </div>
       </div>
