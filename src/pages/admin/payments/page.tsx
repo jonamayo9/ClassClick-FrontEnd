@@ -43,13 +43,14 @@ function PaymentsPageInner() {
 
   // URL compartible: /admin/payments?status=pending_review abre directamente la
   // sección de pagos con el filtro "En revisión" (pendientes de aprobación).
+  // Se limpian período y demás filtros para mostrar todos los pendientes de la empresa.
+  const pendingReview = searchParams.get('status') === 'pending_review'
   useEffect(() => {
-    if (searchParams.get('status') === 'pending_review') {
-      ctx.setTab('payments')
-      ctx.setPayStatus('2')
+    if (pendingReview) {
+      ctx.focusPayments('2')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [pendingReview])
 
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [selectedCharge, setSelectedCharge] = useState<Charge | null>(null)
@@ -197,21 +198,72 @@ function TabHelp({ tab }: { tab: ReturnType<typeof usePaymentsPage>['tab'] }) {
 /* ── Summary Cards ── */
 function SummaryCards({ ctx }: { ctx: ReturnType<typeof usePaymentsPage> }) {
   const s = ctx.paySummary
+  const periodLabel = ctx.payPeriod ? `Período ${ctx.payPeriod}` : 'Todos los períodos'
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatCard label="Total pagos" value={money(s.total)} />
-      <StatCard label="En revisión" value={String(s.inreview)} color="text-amber-600 dark:text-amber-400" />
-      <StatCard label="Aprobados" value={String(s.approved)} color="text-emerald-600 dark:text-emerald-400" />
-      <StatCard label="Rechazados" value={String(s.rejected)} color="text-red-600 dark:text-red-400" />
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          Indicadores de pagos según filtros de Pagos (sin filtro de estado) · {periodLabel}
+        </p>
+        {ctx.paySummaryError && (
+          <Button variant="outline" size="sm" onClick={() => void ctx.refetchPaySummary()}>
+            Reintentar KPIs
+          </Button>
+        )}
+      </div>
+      {ctx.paySummaryError ? (
+        <Card className="p-3 text-sm text-red-600 dark:text-red-400">
+          No pudimos cargar los indicadores de pagos. Revisá la conexión e intentá nuevamente.
+        </Card>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard
+            label="Total pagos"
+            value={ctx.loadingPaySummary ? '…' : money(s.total)}
+            hint="Cobrado · solo aprobados"
+            onClick={() => ctx.focusPayments('3')}
+          />
+          <StatCard
+            label="En revisión"
+            value={ctx.loadingPaySummary ? '…' : String(s.inreview)}
+            color="text-amber-600 dark:text-amber-400"
+            onClick={() => ctx.focusPayments('2')}
+          />
+          <StatCard
+            label="Aprobados"
+            value={ctx.loadingPaySummary ? '…' : String(s.approved)}
+            color="text-emerald-600 dark:text-emerald-400"
+            onClick={() => ctx.focusPayments('3')}
+          />
+          <StatCard
+            label="Rechazados"
+            value={ctx.loadingPaySummary ? '…' : String(s.rejected)}
+            color="text-red-600 dark:text-red-400"
+            onClick={() => ctx.focusPayments('4')}
+          />
+        </div>
+      )}
     </div>
   )
 }
 
-function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
+function StatCard({ label, value, color, hint, onClick }: { label: string; value: string; color?: string; hint?: string; onClick?: () => void }) {
   return (
-    <Card className="p-3">
+    <Card
+      className={`p-3${onClick ? ' cursor-pointer transition hover:border-blue-300 hover:shadow-md dark:hover:border-blue-700' : ''}`}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClick()
+        }
+      } : undefined}
+    >
       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
       <div className={`mt-0.5 text-xl font-black ${color ?? 'text-slate-900 dark:text-white'}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-[10px] text-slate-400">{hint}</div>}
     </Card>
   )
 }
@@ -542,6 +594,7 @@ function PaymentsTab({ ctx, onViewDetail, onExport }: {
     [ctx.paymentMethods],
   )
   const secondaryActiveCount = [ctx.payCourseId, ctx.payStatus, ctx.payMethod, ctx.payEventId].filter(Boolean).length
+  const hasFilters = Boolean(ctx.paySearch || ctx.payPeriod || ctx.payCourseId || ctx.payStatus || ctx.payMethod || ctx.payEventId)
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -620,10 +673,20 @@ function PaymentsTab({ ctx, onViewDetail, onExport }: {
         <div className="flex justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
         </div>
+      ) : ctx.paymentsError ? (
+        <Card className="py-12 text-center">
+          <p className="text-slate-700 font-semibold dark:text-slate-200">No pudimos consultar los movimientos.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Revisá la conexión e intentá nuevamente.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => void ctx.refetchPayments()}>
+            Reintentar
+          </Button>
+        </Card>
       ) : !ctx.payments.length ? (
         <Card className="py-12 text-center">
           <p className="text-4xl mb-2">💳</p>
-          <p className="text-slate-500 font-medium">No hay pagos registrados</p>
+          <p className="text-slate-500 font-medium">
+            {hasFilters ? 'No hay pagos para los filtros seleccionados.' : 'No hay pagos registrados.'}
+          </p>
         </Card>
       ) : (
         <>

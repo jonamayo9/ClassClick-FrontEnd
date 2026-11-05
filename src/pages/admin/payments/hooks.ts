@@ -86,17 +86,24 @@ export function useCharges(year: number | '', month: number | '', status: string
 }
 
 /* ── Payments ── */
-export function usePaymentsSummary(year: number | '', month: number | '', chargeTypeId?: string, courseId?: string) {
-  const params = new URLSearchParams()
-  if (year) params.set('year', String(year))
-  if (month) params.set('month', String(month))
-  if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
-  if (courseId) params.set('courseId', courseId)
-  return useQuery({
-    queryKey: ['payments-summary', slug(), year, month, chargeTypeId, courseId],
-    queryFn: () => apiService.get<{ totalAmount: number; inReview: number; approved: number; rejected: number }>(`/api/admin/${slug()}/payments/summary?${params}`),
-    enabled: !!slug(),
-  })
+export interface PaymentListFilters {
+  search: string
+  courseId: string
+  period: string
+  method: string
+  status: string
+  eventId: string
+  page: number
+  pageSize: number
+}
+
+export type PaymentSummaryFilters = Omit<PaymentListFilters, 'status' | 'page' | 'pageSize'>
+
+export interface PaymentsSummary {
+  totalAmount: number
+  inReview: number
+  approved: number
+  rejected: number
 }
 
 function parsePeriodParam(value: string): { month: number; year: number } | null {
@@ -108,25 +115,41 @@ function parsePeriodParam(value: string): { month: number; year: number } | null
   return { month, year }
 }
 
-export function usePayments(filters: { search: string; courseId: string; period: string; method: string; status: string; eventId: string; page: number; pageSize: number }) {
+function appendPaymentFilters(params: URLSearchParams, filters: PaymentSummaryFilters) {
+  if (filters.search.trim()) params.set('search', filters.search.trim())
+  if (filters.eventId) {
+    params.set('eventId', filters.eventId)
+  } else {
+    if (filters.courseId) params.set('courseId', filters.courseId)
+    const period = parsePeriodParam(filters.period)
+    if (period) {
+      params.set('year', String(period.year))
+      params.set('month', String(period.month))
+    }
+  }
+  if (filters.method) params.set('paymentMethod', filters.method)
+}
+
+export function usePaymentsSummary(filters: PaymentSummaryFilters) {
+  return useQuery({
+    queryKey: ['payments-summary', slug(), filters],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      appendPaymentFilters(params, filters)
+      return apiService.get<PaymentsSummary>(`/api/admin/${slug()}/payments/summary?${params}`)
+    },
+    enabled: !!slug(),
+  })
+}
+
+export function usePayments(filters: PaymentListFilters) {
   return useQuery({
     queryKey: ['payments', slug(), filters],
     queryFn: async () => {
       // Todos los filtros se resuelven en backend (antes de paginar), compartiendo
       // la misma regla que el export de pagos.
       const params = new URLSearchParams()
-      if (filters.search.trim()) params.set('search', filters.search.trim())
-      if (filters.eventId) {
-        params.set('eventId', filters.eventId)
-      } else {
-        if (filters.courseId) params.set('courseId', filters.courseId)
-        const period = parsePeriodParam(filters.period)
-        if (period) {
-          params.set('year', String(period.year))
-          params.set('month', String(period.month))
-        }
-      }
-      if (filters.method) params.set('paymentMethod', filters.method)
+      appendPaymentFilters(params, filters)
       if (filters.status) params.set('paymentStatus', filters.status)
       params.set('page', String(filters.page))
       params.set('pageSize', String(filters.pageSize))
@@ -145,7 +168,7 @@ export function usePayments(filters: { search: string; courseId: string; period:
           page: (data.page as number) ?? 1,
         }
       }
-      return { items: [] as Payment[], totalCount: 0, totalPages: 1, page: 1 }
+      throw new Error('Respuesta inesperada del servidor al consultar los pagos.')
     },
     enabled: !!slug(),
   })
@@ -317,7 +340,6 @@ export function isChargeCancelled(status: string | number): boolean {
 export function usePaymentsPage() {
   const activeSlug = useAuth((s) => s.activeCompanySlug)
   const now = new Date()
-  const currentPeriod = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`
   const [tab, setTab] = useState<'charges' | 'payments' | 'financing'>('charges')
 
   const [chargeYear, setChargeYear] = useState<number | ''>(now.getFullYear())
@@ -331,7 +353,7 @@ export function usePaymentsPage() {
 
   const [paySearch, setPaySearch] = useState('')
   const [payCourseId, setPayCourseId] = useState('')
-  const [payPeriod, setPayPeriod] = useState(currentPeriod)
+  const [payPeriod, setPayPeriod] = useState('')
   const [payMethod, setPayMethod] = useState('')
   const [payStatus, setPayStatus] = useState('')
   const [payChargeType, setPayChargeType] = useState('')
@@ -341,12 +363,28 @@ export function usePaymentsPage() {
 
   const { data: courses } = useCourseOptions()
   const { data: paymentMethods } = usePaymentMethods()
-  const { data: paymentsData, isLoading: loadingPayments } = usePayments({
+  const {
+    data: paymentsData,
+    isLoading: loadingPayments,
+    isError: paymentsError,
+    refetch: refetchPayments,
+  } = usePayments({
     search: paySearch, courseId: payCourseId, period: payPeriod,
     method: payMethod, status: payStatus, eventId: payEventId, page: payPage, pageSize: payPageSize,
   })
   const { data: chargesData, isLoading: loadingCharges } = useCharges(chargeYear, chargeMonth, chargeStatus, chargeSearch, chargePage, chargeTypeId || undefined, chargeCourseId || undefined, chargePageSize)
-  const { data: paySummaryData } = usePaymentsSummary(chargeYear, chargeMonth, chargeTypeId || undefined, chargeCourseId || undefined)
+  const {
+    data: paySummaryData,
+    isLoading: loadingPaySummary,
+    isError: paySummaryError,
+    refetch: refetchPaySummary,
+  } = usePaymentsSummary({
+    search: paySearch,
+    courseId: payCourseId,
+    period: payPeriod,
+    method: payMethod,
+    eventId: payEventId,
+  })
 
   const chargeItems = chargesData?.items
   const charges = useMemo(() => chargeItems ?? [], [chargeItems])
@@ -385,8 +423,23 @@ export function usePaymentsPage() {
 
   const resetChargesFilters = () => { setChargeStatus(''); setChargeSearch(''); setChargeTypeId(''); setChargeCourseId(''); setChargePage(1) }
   const resetPaymentsFilters = () => {
-    setPaySearch(''); setPayCourseId(''); setPayMethod(''); setPayStatus(''); setPayChargeType(''); setPayEventId(''); setPayPage(1)
+    setPaySearch(''); setPayCourseId(''); setPayPeriod(''); setPayMethod(''); setPayStatus(''); setPayChargeType(''); setPayEventId(''); setPayPage(1)
   }
+
+  // Navegación desde las KPIs y desde la alerta de pendientes: la vista de Pagos
+  // debe mostrar todos los movimientos del estado elegido, sin que el período u
+  // otro filtro los oculten.
+  const focusPayments = useCallback((status: string) => {
+    setTab('payments')
+    setPaySearch('')
+    setPayCourseId('')
+    setPayPeriod('')
+    setPayMethod('')
+    setPayStatus(status)
+    setPayChargeType('')
+    setPayEventId('')
+    setPayPage(1)
+  }, [])
 
   // Cualquier cambio de filtro vuelve a la página 1 (server-side).
   const setPaySearchReset = (value: string) => { setPaySearch(value); setPayPage(1) }
@@ -447,8 +500,10 @@ export function usePaymentsPage() {
     payStatus, setPayStatus: setPayStatusReset, payChargeType, setPayChargeType: setPayChargeTypeReset,
     payEventId, setPayEventId: setPayEventIdReset,
     payPage, setPayPage, payPageSize, setPayPageSize,
-    payments, loadingPayments, paySummary, payTotalCount, payTotalPages,
-    resetPaymentsFilters,
+    payments, loadingPayments, paymentsError, refetchPayments,
+    paySummary, loadingPaySummary, paySummaryError, refetchPaySummary,
+    payTotalCount, payTotalPages,
+    resetPaymentsFilters, focusPayments,
     courses, paymentMethods: payMethods,
   }
 }
