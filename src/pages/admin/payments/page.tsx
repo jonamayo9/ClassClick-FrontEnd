@@ -198,12 +198,14 @@ function TabHelp({ tab }: { tab: ReturnType<typeof usePaymentsPage>['tab'] }) {
 /* ── Summary Cards ── */
 function SummaryCards({ ctx }: { ctx: ReturnType<typeof usePaymentsPage> }) {
   const s = ctx.paySummary
-  const periodLabel = ctx.payPeriod ? `Período ${ctx.payPeriod}` : 'Todos los períodos'
+  const periodLabel = ctx.chargeYear && ctx.chargeMonth
+    ? `Período ${String(ctx.chargeMonth).padStart(2, '0')}/${ctx.chargeYear}`
+    : 'Todos los períodos de Cuotas'
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          Indicadores de pagos según filtros de Pagos (sin filtro de estado) · {periodLabel}
+          Indicadores según filtros de Cuotas · {periodLabel} · En revisión: global de la empresa
         </p>
         {ctx.paySummaryError && (
           <Button variant="outline" size="sm" onClick={() => void ctx.refetchPaySummary()}>
@@ -220,26 +222,26 @@ function SummaryCards({ ctx }: { ctx: ReturnType<typeof usePaymentsPage> }) {
           <StatCard
             label="Total pagos"
             value={ctx.loadingPaySummary ? '…' : money(s.total)}
-            hint="Cobrado · solo aprobados"
-            onClick={() => ctx.focusPayments('3')}
+            hint="Cobrado · solo aprobados · según Cuotas"
           />
           <StatCard
             label="En revisión"
             value={ctx.loadingPaySummary ? '…' : String(s.inreview)}
             color="text-amber-600 dark:text-amber-400"
+            hint="Global · todos los períodos"
             onClick={() => ctx.focusPayments('2')}
           />
           <StatCard
             label="Aprobados"
             value={ctx.loadingPaySummary ? '…' : String(s.approved)}
             color="text-emerald-600 dark:text-emerald-400"
-            onClick={() => ctx.focusPayments('3')}
+            hint="Según filtros de Cuotas"
           />
           <StatCard
             label="Rechazados"
             value={ctx.loadingPaySummary ? '…' : String(s.rejected)}
             color="text-red-600 dark:text-red-400"
-            onClick={() => ctx.focusPayments('4')}
+            hint="Según filtros de Cuotas"
           />
         </div>
       )}

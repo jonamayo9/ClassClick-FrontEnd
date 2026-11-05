@@ -97,8 +97,6 @@ export interface PaymentListFilters {
   pageSize: number
 }
 
-export type PaymentSummaryFilters = Omit<PaymentListFilters, 'status' | 'page' | 'pageSize'>
-
 export interface PaymentsSummary {
   totalAmount: number
   inReview: number
@@ -115,7 +113,7 @@ function parsePeriodParam(value: string): { month: number; year: number } | null
   return { month, year }
 }
 
-function appendPaymentFilters(params: URLSearchParams, filters: PaymentSummaryFilters) {
+function appendPaymentFilters(params: URLSearchParams, filters: PaymentListFilters) {
   if (filters.search.trim()) params.set('search', filters.search.trim())
   if (filters.eventId) {
     params.set('eventId', filters.eventId)
@@ -130,14 +128,18 @@ function appendPaymentFilters(params: URLSearchParams, filters: PaymentSummaryFi
   if (filters.method) params.set('paymentMethod', filters.method)
 }
 
-export function usePaymentsSummary(filters: PaymentSummaryFilters) {
+// Las tres KPIs mensuales usan el período de la cuota (Cuotas).
+// "En revisión" se calcula global en el backend.
+export function usePaymentsSummary(year: number | '', month: number | '', chargeTypeId?: string, courseId?: string) {
+  const params = new URLSearchParams()
+  if (year) params.set('year', String(year))
+  if (month) params.set('month', String(month))
+  if (chargeTypeId) params.set('chargeTypeId', chargeTypeId)
+  if (courseId) params.set('courseId', courseId)
+
   return useQuery({
-    queryKey: ['payments-summary', slug(), filters],
-    queryFn: () => {
-      const params = new URLSearchParams()
-      appendPaymentFilters(params, filters)
-      return apiService.get<PaymentsSummary>(`/api/admin/${slug()}/payments/summary?${params}`)
-    },
+    queryKey: ['payments-summary', slug(), year, month, chargeTypeId, courseId],
+    queryFn: () => apiService.get<PaymentsSummary>(`/api/admin/${slug()}/payments/summary?${params}`),
     enabled: !!slug(),
   })
 }
@@ -378,13 +380,12 @@ export function usePaymentsPage() {
     isLoading: loadingPaySummary,
     isError: paySummaryError,
     refetch: refetchPaySummary,
-  } = usePaymentsSummary({
-    search: paySearch,
-    courseId: payCourseId,
-    period: payPeriod,
-    method: payMethod,
-    eventId: payEventId,
-  })
+  } = usePaymentsSummary(
+    chargeYear,
+    chargeMonth,
+    chargeTypeId || undefined,
+    chargeCourseId || undefined,
+  )
 
   const chargeItems = chargesData?.items
   const charges = useMemo(() => chargeItems ?? [], [chargeItems])
